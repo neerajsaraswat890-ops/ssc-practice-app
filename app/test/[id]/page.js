@@ -1,0 +1,7 @@
+"use client";
+import {useEffect,useState} from "react";import {useParams,useRouter} from "next/navigation";import {supabase} from "../../../lib/supabase";
+export default function Test(){const {id}=useParams();const router=useRouter();const [qs,setQs]=useState([]);const [i,setI]=useState(0);const [ans,setAns]=useState({});
+useEffect(()=>{supabase().from("test_questions").select("question_order,question_id,questions(id,question_text,option_a,option_b,option_c,option_d)").eq("test_id",id).order("question_order").then(({data})=>setQs(data||[]))},[id]);
+if(!qs.length)return <main className="wrap"><div className="card">Loading test… If this stays empty, no questions have been assigned to this test yet.</div></main>;
+const q=qs[i].questions; const opts={A:q.option_a,B:q.option_b,C:q.option_c,D:q.option_d};
+return <><div className="nav">SSC Practice • Test</div><main className="wrap"><div className="card"><div className="top"><b>Question {i+1} / {qs.length}</b><span className="muted">Test #{id}</span></div><h3>{q.question_text}</h3><div className="options">{Object.entries(opts).map(([k,v])=><label key={k}><input type="radio" name="a" checked={ans[q.id]===k} onChange={()=>setAns({...ans,[q.id]:k})}/> <b>{k}.</b> {v}</label>)}</div><div className="top"><button className="btn btn2" disabled={!i} onClick={()=>setI(i-1)}>Previous</button>{i<qs.length-1?<button className="btn" onClick={()=>setI(i+1)}>Save & Next</button>:<button className="btn" onClick={()=>router.push("/result/"+id)}>Submit Test</button>}</div></div></main></>}
