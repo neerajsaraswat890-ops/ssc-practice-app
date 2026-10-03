@@ -16,7 +16,6 @@ export default function Test() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-
   const [timeLeft, setTimeLeft] = useState(null);
 
   const autoSubmitted = useRef(false);
@@ -43,10 +42,15 @@ export default function Test() {
             questions (
               id,
               question_text,
+              question_text_hi,
               option_a,
+              option_a_hi,
               option_b,
+              option_b_hi,
               option_c,
-              option_d
+              option_c_hi,
+              option_d,
+              option_d_hi
             )
           `)
           .eq("test_id", id)
@@ -289,10 +293,22 @@ export default function Test() {
   const q = row.questions;
 
   const options = {
-    A: q.option_a,
-    B: q.option_b,
-    C: q.option_c,
-    D: q.option_d,
+    A: {
+      en: q.option_a,
+      hi: q.option_a_hi,
+    },
+    B: {
+      en: q.option_b,
+      hi: q.option_b_hi,
+    },
+    C: {
+      en: q.option_c,
+      hi: q.option_c_hi,
+    },
+    D: {
+      en: q.option_d,
+      hi: q.option_d_hi,
+    },
   };
 
   const answeredCount =
@@ -343,6 +359,19 @@ export default function Test() {
 
           <h3>{q.question_text}</h3>
 
+          {q.question_text_hi && (
+            <p
+              style={{
+                fontSize: "19px",
+                fontWeight: "600",
+                lineHeight: "1.5",
+                marginTop: "8px",
+              }}
+            >
+              {q.question_text_hi}
+            </p>
+          )}
+
           <div className="options">
             {Object.entries(options).map(
               ([key, value]) => (
@@ -357,7 +386,21 @@ export default function Test() {
                       selectAnswer(q.id, key)
                     }
                   />{" "}
-                  <b>{key}.</b> {value}
+
+                  <b>{key}.</b> {value.en}
+
+                  {value.hi && (
+                    <div
+                      style={{
+                        marginLeft: "26px",
+                        marginTop: "4px",
+                        fontSize: "16px",
+                        color: "#555",
+                      }}
+                    >
+                      {value.hi}
+                    </div>
+                  )}
                 </label>
               )
             )}
