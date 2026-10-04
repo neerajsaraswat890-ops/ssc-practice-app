@@ -1,126 +1,222 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
+import { supabase } from "../../lib/supabase";
 
-export default function Login() {
+export default function LoginPage() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState("");
+  const [fullName, setFullName] = useState("");
+
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [message, setMessage] = useState("");
 
   async function signUp() {
     if (!email || !password) {
-      setMsg("Please enter email and password.");
+      setMessage("Please enter email and password.");
       return;
     }
 
     setLoading(true);
-    setMsg("Creating account...");
+    setMessage("");
 
-    try {
-      const { data, error } = await supabase().auth.signUp({
-        email,
-        password,
-      });
+    const { error } = await supabase().auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        },
+      },
+    });
 
-      if (error) {
-        setMsg("Error: " + error.message);
-      } else if (data?.session) {
-        setMsg("Account created successfully.");
-        router.push("/dashboard");
-      } else {
-        setMsg(
-          "Account created. Please check your email for confirmation, then login."
-        );
-      }
-    } catch (error) {
-      setMsg("Connection error: " + error.message);
-    } finally {
+    if (error) {
+      setMessage(error.message);
       setLoading(false);
+      return;
     }
+
+    setMessage(
+      "Account created. If email confirmation is enabled, please check your email."
+    );
+
+    setLoading(false);
   }
 
-  async function login() {
+  async function signIn() {
     if (!email || !password) {
-      setMsg("Please enter email and password.");
+      setMessage("Please enter email and password.");
       return;
     }
 
     setLoading(true);
-    setMsg("Logging in...");
+    setMessage("");
 
-    try {
-      const { error } = await supabase().auth.signInWithPassword({
+    const { error } =
+      await supabase().auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) {
-        setMsg("Error: " + error.message);
-      } else {
-        setMsg("Login successful.");
-        router.push("/dashboard");
-      }
-    } catch (error) {
-      setMsg("Connection error: " + error.message);
-    } finally {
+    if (error) {
+      setMessage(error.message);
       setLoading(false);
+      return;
     }
+
+    router.push("/dashboard");
+  }
+
+  async function continueAsGuest() {
+    setLoading(true);
+    setMessage("");
+
+    const { error } =
+      await supabase().auth.signInAnonymously();
+
+    if (error) {
+      setMessage(error.message);
+      setLoading(false);
+      return;
+    }
+
+    router.push("/dashboard");
   }
 
   return (
     <>
-      <div className="nav">SSC Practice</div>
+      <div className="nav">
+        SSC Practice
+      </div>
 
       <main className="wrap">
         <div
           className="card"
-          style={{ maxWidth: 460, margin: "40px auto" }}
+          style={{
+            maxWidth: "520px",
+            margin: "40px auto",
+          }}
         >
-          <h2>Student Login</h2>
+          <h1>Login / Sign Up</h1>
+
+          <p className="muted">
+            SSC Stenographer Practice Platform
+          </p>
+
+          <label>
+            Full Name
+          </label>
+
+          <input
+            className="input"
+            type="text"
+            placeholder="Your name"
+            value={fullName}
+            onChange={(e) =>
+              setFullName(e.target.value)
+            }
+          />
+
+          <label>
+            Email
+          </label>
 
           <input
             className="input"
             type="email"
-            placeholder="Email"
+            placeholder="you@example.com"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) =>
+              setEmail(e.target.value)
+            }
           />
+
+          <label>
+            Password
+          </label>
 
           <input
             className="input"
             type="password"
             placeholder="Password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) =>
+              setPassword(e.target.value)
+            }
           />
 
-          <div className="top">
+          {message && (
+            <p
+              style={{
+                marginTop: "10px",
+                marginBottom: "18px",
+              }}
+            >
+              {message}
+            </p>
+          )}
+
+          <div
+            style={{
+              display: "grid",
+              gap: "12px",
+            }}
+          >
             <button
               className="btn"
-              onClick={login}
               disabled={loading}
+              onClick={signIn}
             >
-              {loading ? "Please wait..." : "Login"}
+              {loading
+                ? "Please wait..."
+                : "Login"}
             </button>
 
             <button
               className="btn btn2"
-              onClick={signUp}
               disabled={loading}
+              onClick={signUp}
             >
-              Create account
+              Create Account
+            </button>
+
+            <div
+              style={{
+                textAlign: "center",
+                color: "#667085",
+                margin: "5px 0",
+              }}
+            >
+              OR
+            </div>
+
+            <button
+              className="btn"
+              disabled={loading}
+              onClick={continueAsGuest}
+              style={{
+                background: "#1f7a4d",
+              }}
+            >
+              👤 Continue as Guest
             </button>
           </div>
 
-          {msg && (
-            <p style={{ marginTop: 18, fontWeight: 600 }}>
-              {msg}
-            </p>
-          )}
+          <p
+            className="muted"
+            style={{
+              marginTop: "20px",
+              fontSize: "14px",
+            }}
+          >
+            Guest mode is for quick testing.
+            Guest progress may be lost if browser
+            data is cleared or the guest session
+            is removed.
+          </p>
         </div>
       </main>
     </>
