@@ -4,6 +4,33 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 
+const SECTIONS = [
+  {
+    key: "reasoning",
+    name: "General Intelligence & Reasoning",
+    shortName: "Reasoning",
+    start: 0,
+    end: 49,
+    duration: 30 * 60,
+  },
+  {
+    key: "ga",
+    name: "General Awareness",
+    shortName: "General Awareness",
+    start: 50,
+    end: 99,
+    duration: 30 * 60,
+  },
+  {
+    key: "english",
+    name: "English Language & Comprehension",
+    shortName: "English",
+    start: 100,
+    end: 199,
+    duration: 60 * 60,
+  },
+];
+
 export default function Test() {
   const { id } = useParams();
   const router = useRouter();
@@ -11,17 +38,25 @@ export default function Test() {
   const [questions, setQuestions] = useState([]);
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState({});
+  const [reviewed, setReviewed] = useState({});
+  const [visited, setVisited] = useState({});
   const [testInfo, setTestInfo] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [timeLeft, setTimeLeft] = useState(null);
+
+  const [activeSection, setActiveSection] = useState(0);
+  const [sectionTimeLeft, setSectionTimeLeft] = useState(null);
+  const [totalTimeLeft, setTotalTimeLeft] = useState(null);
 
   const autoSubmitted = useRef(false);
+  const sectionSwitching = useRef(false);
 
-  const answersKey = `test_answers_${id}`;
-  const startKey = `test_start_${id}`;
+  const answersKey = `jd_answers_${id}`;
+  const reviewKey = `jd_review_${id}`;
+  const visitedKey = `jd_visited_${id}`;
+  const startKey = `jd_test_start_${id}`;
 
   useEffect(() => {
     async function loadTest() {
@@ -63,6 +98,7 @@ export default function Test() {
             title,
             duration_minutes,
             attempt_until,
+            negative_mark,
             status
           `)
           .eq("id", id)
@@ -90,22 +126,31 @@ export default function Test() {
         return;
       }
 
-      setQuestions(questionData || []);
+      const loadedQuestions = questionData || [];
+
+      setQuestions(loadedQuestions);
       setTestInfo(testData);
 
-      const savedAnswers = localStorage.getItem(answersKey);
-
-      if (savedAnswers) {
-        try {
+      try {
+        const savedAnswers = localStorage.getItem(answersKey);
+        if (savedAnswers) {
           setAnswers(JSON.parse(savedAnswers));
-        } catch {
-          localStorage.removeItem(answersKey);
         }
-      }
 
-      const durationMinutes = Number(
-        testData.duration_minutes || 120
-      );
+        const savedReview = localStorage.getItem(reviewKey);
+        if (savedReview) {
+          setReviewed(JSON.parse(savedReview));
+        }
+
+        const savedVisited = localStorage.getItem(visitedKey);
+        if (savedVisited) {
+          setVisited(JSON.parse(savedVisited));
+        }
+      } catch {
+        localStorage.removeItem(answersKey);
+        localStorage.removeItem(reviewKey);
+        localStorage.removeItem(visitedKey);
+      }
 
       let startedAt = localStorage.getItem(startKey);
 
@@ -114,16 +159,61 @@ export default function Test() {
         localStorage.setItem(startKey, startedAt);
       }
 
-      const endTime =
-        Number(startedAt) +
-        durationMinutes * 60 * 1000;
-
-      const secondsRemaining = Math.max(
+      const elapsedSeconds = Math.max(
         0,
-        Math.floor((endTime - Date.now()) / 1000)
+        Math.floor((Date.now() - Number(startedAt)) / 1000)
       );
 
-      setTimeLeft(secondsRemaining);
+      let sectionIndex = 0;
+      let sectionElapsed = elapsedSeconds;
+
+      if (elapsedSeconds >= 3600) {
+        sectionIndex = 2;
+        sectionElapsed = elapsedSeconds - 3600;
+      } else if (elapsedSeconds >= 1800) {
+        sectionIndex = 1;
+        sectionElapsed = elapsedSeconds - 1800;
+      }
+
+      const totalRemaining = Math.max(
+        0,
+        7200 - elapsedSeconds
+      );
+
+      const sectionDuration =
+        SECTIONS[sectionIndex].duration;
+
+      const sectionRemaining = Math.max(
+        0,
+        sectionDuration - sectionElapsed
+      );
+
+      setActiveSection(sectionIndex);
+      setSectionTimeLeft(sectionRemaining);
+      setTotalTimeLeft(totalRemaining);
+
+      const firstIndex = SECTIONS[sectionIndex].start;
+      setCurrent(firstIndex);
+
+      if (loadedQuestions[firstIndex]) {
+        const questionId =
+          loadedQuestions[firstIndex].questions.id;
+
+        setVisited((old) => {
+          const updated = {
+            ...old,
+            [questionId]: true,
+          };
+
+          localStorage.setItem(
+            visitedKey,
+            JSON.stringify(updated)
+          );
+
+          return updated;
+        });
+      }
+
       setLoading(false);
     }
 
@@ -131,11 +221,16 @@ export default function Test() {
   }, [id]);
 
   useEffect(() => {
-    if (timeLeft === null || loading || submitting) {
+    if (
+      loading ||
+      submitting ||
+      sectionTimeLeft === null ||
+      totalTimeLeft === null
+    ) {
       return;
     }
 
-    if (timeLeft <= 0) {
+    if (totalTimeLeft <= 0) {
       if (!autoSubmitted.current && questions.length) {
         autoSubmitted.current = true;
         submitTest(true);
@@ -143,14 +238,62 @@ export default function Test() {
       return;
     }
 
+    if (sectionTimeLeft <= 0) {
+      moveToNextSection();
+      return;
+    }
+
     const timer = setTimeout(() => {
-      setTimeLeft((old) =>
+      setSectionTimeLeft((old) =>
+        old === null ? old : Math.max(0, old - 1)
+      );
+
+      setTotalTimeLeft((old) =>
         old === null ? old : Math.max(0, old - 1)
       );
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [timeLeft, loading, submitting, questions.length]);
+  }, [
+    sectionTimeLeft,
+    totalTimeLeft,
+    loading,
+    submitting,
+    questions.length,
+  ]);
+
+  function markVisited(index) {
+    const item = questions[index];
+
+    if (!item) return;
+
+    const questionId = item.questions.id;
+
+    setVisited((old) => {
+      const updated = {
+        ...old,
+        [questionId]: true,
+      };
+
+      localStorage.setItem(
+        visitedKey,
+        JSON.stringify(updated)
+      );
+
+      return updated;
+    });
+  }
+
+  function goToQuestion(index) {
+    const section = SECTIONS[activeSection];
+
+    if (index < section.start || index > section.end) {
+      return;
+    }
+
+    setCurrent(index);
+    markVisited(index);
+  }
 
   function selectAnswer(questionId, option) {
     setAnswers((old) => {
@@ -183,12 +326,99 @@ export default function Test() {
     });
   }
 
+  function toggleReview(questionId) {
+    setReviewed((old) => {
+      const updated = {
+        ...old,
+        [questionId]: !old[questionId],
+      };
+
+      localStorage.setItem(
+        reviewKey,
+        JSON.stringify(updated)
+      );
+
+      return updated;
+    });
+  }
+
+  function saveAndNext() {
+    const section = SECTIONS[activeSection];
+
+    if (current < section.end) {
+      const nextIndex = current + 1;
+      setCurrent(nextIndex);
+      markVisited(nextIndex);
+    }
+  }
+
+  function previousQuestion() {
+    const section = SECTIONS[activeSection];
+
+    if (current > section.start) {
+      const previousIndex = current - 1;
+      setCurrent(previousIndex);
+      markVisited(previousIndex);
+    }
+  }
+
+  function moveToNextSection() {
+    if (sectionSwitching.current) return;
+
+    sectionSwitching.current = true;
+
+    if (activeSection >= SECTIONS.length - 1) {
+      if (!autoSubmitted.current) {
+        autoSubmitted.current = true;
+        submitTest(true);
+      }
+
+      return;
+    }
+
+    const nextSection = activeSection + 1;
+    const nextSectionData = SECTIONS[nextSection];
+
+    setActiveSection(nextSection);
+    setSectionTimeLeft(nextSectionData.duration);
+    setCurrent(nextSectionData.start);
+
+    markVisited(nextSectionData.start);
+
+    setTimeout(() => {
+      sectionSwitching.current = false;
+    }, 500);
+  }
+
+  function manuallySubmitSection() {
+    if (activeSection >= SECTIONS.length - 1) {
+      submitTest(false);
+      return;
+    }
+
+    const sectionName =
+      SECTIONS[activeSection].shortName;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to submit ${sectionName} section?\n\nOnce submitted, you cannot return to this section.`
+    );
+
+    if (!confirmed) return;
+
+    moveToNextSection();
+  }
+
   async function submitTest(auto = false) {
     if (submitting) return;
 
     if (!auto) {
+      const answeredCount =
+        Object.keys(answers).length;
+
       const confirmed = window.confirm(
-        "Are you sure you want to submit the test?"
+        `Are you sure you want to submit the test?\n\nAttempted: ${answeredCount}\nUnattempted: ${
+          questions.length - answeredCount
+        }`
       );
 
       if (!confirmed) return;
@@ -218,6 +448,8 @@ export default function Test() {
     );
 
     localStorage.removeItem(answersKey);
+    localStorage.removeItem(reviewKey);
+    localStorage.removeItem(visitedKey);
     localStorage.removeItem(startKey);
 
     router.push(`/result/${id}`);
@@ -225,20 +457,55 @@ export default function Test() {
 
   function formatTime(totalSeconds) {
     if (totalSeconds === null) {
-      return "--:--:--";
+      return "--:--";
     }
 
-    const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor(
-      (totalSeconds % 3600) / 60
+      totalSeconds / 60
     );
-    const seconds = totalSeconds % 60;
 
-    return [hours, minutes, seconds]
-      .map((value) =>
-        String(value).padStart(2, "0")
-      )
-      .join(":");
+    const seconds =
+      totalSeconds % 60;
+
+    return `${String(minutes).padStart(
+      2,
+      "0"
+    )}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  function getQuestionStatus(questionId, index) {
+    if (reviewed[questionId]) {
+      return {
+        background: "#7c3aed",
+        color: "#ffffff",
+      };
+    }
+
+    if (answers[questionId]) {
+      return {
+        background: "#22c55e",
+        color: "#ffffff",
+      };
+    }
+
+    if (visited[questionId]) {
+      return {
+        background: "#ef4444",
+        color: "#ffffff",
+      };
+    }
+
+    if (current === index) {
+      return {
+        background: "#2563eb",
+        color: "#ffffff",
+      };
+    }
+
+    return {
+      background: "#ffffff",
+      color: "#172033",
+    };
   }
 
   if (loading) {
@@ -289,8 +556,26 @@ export default function Test() {
     );
   }
 
+  const section = SECTIONS[activeSection];
+
   const row = questions[current];
-  const q = row.questions;
+  const q = row?.questions;
+
+  if (!q) {
+    return (
+      <>
+        <div className="nav">
+          JD Exambook • Test
+        </div>
+
+        <main className="wrap">
+          <div className="card">
+            Question could not be loaded.
+          </div>
+        </main>
+      </>
+    );
+  }
 
   const options = {
     A: {
@@ -311,7 +596,19 @@ export default function Test() {
     },
   };
 
-  const answeredCount =
+  const activeSectionQuestions =
+    questions.slice(
+      section.start,
+      section.end + 1
+    );
+
+  const sectionAnswered =
+    activeSectionQuestions.filter(
+      (item) =>
+        answers[item.questions.id]
+    ).length;
+
+  const totalAnswered =
     Object.keys(answers).length;
 
   return (
@@ -321,43 +618,159 @@ export default function Test() {
       </div>
 
       <main className="wrap">
+
         <div className="card">
-          <div className="top">
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "12px",
+              alignItems: "flex-start",
+              flexWrap: "wrap",
+            }}
+          >
             <div>
               <b>
                 {testInfo?.title ||
                   `Test #${id}`}
               </b>
 
-              <div className="muted">
-                {questions.length} Questions
+              <div
+                className="muted"
+                style={{
+                  marginTop: "5px",
+                }}
+              >
+                {section.name}
               </div>
             </div>
 
             <div
               style={{
-                fontSize: "22px",
-                fontWeight: "800",
+                textAlign: "right",
               }}
             >
-              ⏱ {formatTime(timeLeft)}
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#667085",
+                }}
+              >
+                Section Time
+              </div>
+
+              <div
+                style={{
+                  fontSize: "26px",
+                  fontWeight: "800",
+                }}
+              >
+                ⏱ {formatTime(sectionTimeLeft)}
+              </div>
+
+              <div
+                className="muted"
+                style={{
+                  fontSize: "13px",
+                  marginTop: "5px",
+                }}
+              >
+                Total Left:{" "}
+                {formatTime(totalTimeLeft)}
+              </div>
             </div>
           </div>
         </div>
 
         <div className="card">
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              overflowX: "auto",
+            }}
+          >
+            {SECTIONS.map((item, index) => {
+              const completed =
+                index < activeSection;
+
+              const active =
+                index === activeSection;
+
+              return (
+                <div
+                  key={item.key}
+                  style={{
+                    minWidth: "130px",
+                    padding: "10px",
+                    borderRadius: "9px",
+                    textAlign: "center",
+                    fontWeight: "700",
+                    background: active
+                      ? "#1769e0"
+                      : completed
+                      ? "#e5e7eb"
+                      : "#f8fafc",
+                    color: active
+                      ? "#ffffff"
+                      : completed
+                      ? "#777"
+                      : "#172033",
+                    border:
+                      "1px solid #d7deea",
+                  }}
+                >
+                  {item.shortName}
+
+                  {completed && (
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        marginTop: "3px",
+                      }}
+                    >
+                      LOCKED
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="card">
           <div className="top">
-            <b>
-              Question {current + 1} /{" "}
-              {questions.length}
-            </b>
+            <div>
+              <b>
+                Question{" "}
+                {current -
+                  section.start +
+                  1}{" "}
+                /{" "}
+                {section.end -
+                  section.start +
+                  1}
+              </b>
+
+              <div className="muted">
+                Overall Question {current + 1} /{" "}
+                {questions.length}
+              </div>
+            </div>
 
             <span className="muted">
-              Answered: {answeredCount}
+              Section Answered:{" "}
+              {sectionAnswered}
             </span>
           </div>
 
-          <h3>{q.question_text}</h3>
+          <h3
+            style={{
+              marginTop: "24px",
+            }}
+          >
+            {q.question_text}
+          </h3>
 
           {q.question_text_hi && (
             <p
@@ -406,63 +819,103 @@ export default function Test() {
             )}
           </div>
 
-          <button
-            className="btn btn2"
-            onClick={() =>
-              clearResponse(q.id)
-            }
+          <div
             style={{
-              marginBottom: "16px",
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+              marginTop: "16px",
             }}
           >
-            Clear Response
-          </button>
+            <button
+              className="btn btn2"
+              onClick={() =>
+                clearResponse(q.id)
+              }
+            >
+              Clear Response
+            </button>
+
+            <button
+              className="btn btn2"
+              onClick={() =>
+                toggleReview(q.id)
+              }
+            >
+              {reviewed[q.id]
+                ? "Remove Review"
+                : "Mark for Review"}
+            </button>
+          </div>
 
           {error && (
-            <p style={{ color: "red" }}>
+            <p
+              style={{
+                color: "red",
+                marginTop: "15px",
+              }}
+            >
               {error}
             </p>
           )}
 
-          <div className="top">
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "10px",
+              flexWrap: "wrap",
+              marginTop: "24px",
+            }}
+          >
             <button
               className="btn btn2"
-              disabled={current === 0}
-              onClick={() =>
-                setCurrent((old) => old - 1)
+              disabled={
+                current === section.start
               }
+              onClick={previousQuestion}
             >
               Previous
             </button>
 
-            {current <
-            questions.length - 1 ? (
+            {current < section.end ? (
               <button
                 className="btn"
-                onClick={() =>
-                  setCurrent((old) => old + 1)
-                }
+                onClick={saveAndNext}
               >
                 Save & Next
               </button>
             ) : (
               <button
                 className="btn"
-                disabled={submitting}
-                onClick={() =>
-                  submitTest(false)
-                }
+                onClick={manuallySubmitSection}
               >
-                {submitting
-                  ? "Submitting..."
-                  : "Submit Test"}
+                {activeSection ===
+                SECTIONS.length - 1
+                  ? "Submit Test"
+                  : "Submit Section"}
               </button>
             )}
           </div>
         </div>
 
         <div className="card">
-          <b>Question Palette</b>
+          <div className="top">
+            <div>
+              <b>
+                {section.shortName} Palette
+              </b>
+
+              <div className="muted">
+                Section {activeSection + 1} of 3
+              </div>
+            </div>
+
+            <div>
+              {sectionAnswered} /{" "}
+              {activeSectionQuestions.length}
+            </div>
+          </div>
 
           <div
             style={{
@@ -470,67 +923,109 @@ export default function Test() {
               gridTemplateColumns:
                 "repeat(auto-fill, minmax(48px, 1fr))",
               gap: "8px",
-              marginTop: "16px",
+              marginTop: "18px",
             }}
           >
-            {questions.map(
-              (item, index) => {
+            {activeSectionQuestions.map(
+              (item, localIndex) => {
+                const absoluteIndex =
+                  section.start +
+                  localIndex;
+
                 const questionId =
                   item.questions.id;
 
-                const answered =
-                  Boolean(
-                    answers[questionId]
+                const status =
+                  getQuestionStatus(
+                    questionId,
+                    absoluteIndex
                   );
 
                 return (
                   <button
                     key={questionId}
                     onClick={() =>
-                      setCurrent(index)
+                      goToQuestion(
+                        absoluteIndex
+                      )
                     }
                     style={{
-                      padding: "10px",
+                      padding: "11px 6px",
                       borderRadius: "8px",
                       border:
-                        current === index
-                          ? "2px solid #1769e0"
+                        current ===
+                        absoluteIndex
+                          ? "3px solid #172033"
                           : "1px solid #ccd5e3",
                       fontWeight: "700",
                       cursor: "pointer",
-                      background: answered
-                        ? "#dff5e5"
-                        : "#ffffff",
+                      background:
+                        status.background,
+                      color: status.color,
                     }}
                   >
-                    {index + 1}
+                    {localIndex + 1}
                   </button>
                 );
               }
             )}
           </div>
 
-          <p className="muted">
-            Answered: {answeredCount} /{" "}
-            {questions.length}
-          </p>
+          <div
+            style={{
+              marginTop: "20px",
+              fontSize: "14px",
+              lineHeight: "2",
+            }}
+          >
+            <div>
+              🟢 Answered
+            </div>
+
+            <div>
+              🔴 Not Answered
+            </div>
+
+            <div>
+              🟣 Marked for Review
+            </div>
+
+            <div>
+              ⚪ Not Visited
+            </div>
+          </div>
         </div>
 
-        <button
-          className="btn"
-          disabled={submitting}
-          onClick={() =>
-            submitTest(false)
-          }
-          style={{
-            width: "100%",
-            marginBottom: "30px",
-          }}
-        >
-          {submitting
-            ? "Submitting..."
-            : "Submit Test"}
-        </button>
+        <div className="card">
+          <b>Overall Progress</b>
+
+          <p className="muted">
+            Answered: {totalAnswered} /{" "}
+            {questions.length}
+          </p>
+
+          <p className="muted">
+            Current Section: {section.name}
+          </p>
+
+          <button
+            className="btn"
+            onClick={manuallySubmitSection}
+            disabled={submitting}
+            style={{
+              width: "100%",
+              marginTop: "10px",
+            }}
+          >
+            {submitting
+              ? "Submitting..."
+              : activeSection ===
+                SECTIONS.length - 1
+              ? "Submit Final Test"
+              : "Submit Current Section"}
+          </button>
+        </div>
+
       </main>
     </>
   );
