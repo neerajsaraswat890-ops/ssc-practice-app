@@ -245,7 +245,7 @@ export default function Test() {
     return (
       <>
         <div className="nav">
-          SSC Practice • Test
+          JD Exambook • Test
         </div>
 
         <main className="wrap">
@@ -261,7 +261,7 @@ export default function Test() {
     return (
       <>
         <div className="nav">
-          SSC Practice • Test
+          JD Exambook • Test
         </div>
 
         <main className="wrap">
@@ -277,7 +277,7 @@ export default function Test() {
     return (
       <>
         <div className="nav">
-          SSC Practice • Test
+          JD Exambook • Test
         </div>
 
         <main className="wrap">
@@ -317,7 +317,7 @@ export default function Test() {
   return (
     <>
       <div className="nav">
-        SSC Practice • Test
+        JD Exambook • Test
       </div>
 
       <main className="wrap">
