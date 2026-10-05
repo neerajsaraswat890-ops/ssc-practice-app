@@ -87,7 +87,7 @@ export default function Result() {
   if (loading) {
     return (
       <>
-        <div className="nav">SSC Practice • Result</div>
+        <div className="nav">JD Exambook • Result</div>
         <main className="wrap">
           <div className="card">
             <h2>Loading result...</h2>
@@ -100,7 +100,7 @@ export default function Result() {
   if (error) {
     return (
       <>
-        <div className="nav">SSC Practice • Result</div>
+        <div className="nav">JD Exambook • Result</div>
         <main className="wrap">
           <div className="card">
             <h2>Result Error</h2>
@@ -119,7 +119,7 @@ export default function Result() {
 
   return (
     <>
-      <div className="nav">SSC Practice • Result</div>
+      <div className="nav">JD Exambook • Result</div>
 
       <main className="wrap">
         <div className="card">
