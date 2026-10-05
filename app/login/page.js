@@ -89,7 +89,7 @@ export default function LoginPage() {
   return (
     <>
       <div className="nav">
-        SSC Practice
+        JD Exambook
       </div>
 
       <main className="wrap">
