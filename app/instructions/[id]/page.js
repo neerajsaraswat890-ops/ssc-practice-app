@@ -79,7 +79,7 @@ export default function InstructionsPage() {
   return (
     <>
       <div className="nav">
-        JD Exambook • Test Instructions
+        JD Exambook • Test Instructions / परीक्षा निर्देश
       </div>
 
       <main className="wrap">
@@ -92,55 +92,87 @@ export default function InstructionsPage() {
           <p className="muted">
             SSC Stenographer Grade C & D Practice Test
           </p>
+
+          <p style={{ fontWeight: "600" }}>
+            परीक्षा प्रारम्भ करने से पहले सभी निर्देश ध्यानपूर्वक पढ़ें।
+          </p>
         </div>
 
         <div className="card">
-          <h2>Test Summary</h2>
+          <h2>
+            Test Summary / परीक्षा विवरण
+          </h2>
 
           <div
             style={{
               display: "grid",
               gridTemplateColumns:
-                "repeat(2, minmax(120px, 1fr))",
+                "repeat(2, minmax(125px, 1fr))",
               gap: "12px",
               marginTop: "16px",
             }}
           >
             <div style={summaryBox}>
               <b>Total Questions</b>
+
               <div style={summaryValue}>
-                {test.total_questions}
+                {test.total_questions || 200}
+              </div>
+
+              <div className="muted">
+                कुल प्रश्न
               </div>
             </div>
 
             <div style={summaryBox}>
               <b>Total Marks</b>
+
               <div style={summaryValue}>
-                {test.total_marks}
+                {test.total_marks || 200}
+              </div>
+
+              <div className="muted">
+                कुल अंक
               </div>
             </div>
 
             <div style={summaryBox}>
               <b>Total Duration</b>
+
               <div style={summaryValue}>
                 120 Min
+              </div>
+
+              <div className="muted">
+                कुल समय
               </div>
             </div>
 
             <div style={summaryBox}>
               <b>Negative Marking</b>
+
               <div style={summaryValue}>
-                {test.negative_mark}
+                {test.negative_mark ?? 0.25}
+              </div>
+
+              <div className="muted">
+                प्रत्येक गलत उत्तर पर
               </div>
             </div>
           </div>
         </div>
 
         <div className="card">
-          <h2>Sectional Timing</h2>
+          <h2>
+            Sectional Timing / अनुभागीय समय
+          </h2>
 
-          <p className="muted">
-            Each section has a fixed time limit.
+          <p>
+            Each section has a separate compulsory time limit.
+          </p>
+
+          <p style={{ fontWeight: "600" }}>
+            प्रत्येक अनुभाग के लिए अलग निर्धारित समय होगा।
           </p>
 
           <div
@@ -153,14 +185,26 @@ export default function InstructionsPage() {
               style={{
                 width: "100%",
                 borderCollapse: "collapse",
+                minWidth: "620px",
               }}
             >
               <thead>
                 <tr>
-                  <th style={cellStyle}>Section</th>
-                  <th style={cellStyle}>Questions</th>
-                  <th style={cellStyle}>Marks</th>
-                  <th style={cellStyle}>Time</th>
+                  <th style={cellStyle}>
+                    Section / अनुभाग
+                  </th>
+
+                  <th style={cellStyle}>
+                    Questions / प्रश्न
+                  </th>
+
+                  <th style={cellStyle}>
+                    Marks / अंक
+                  </th>
+
+                  <th style={cellStyle}>
+                    Time / समय
+                  </th>
                 </tr>
               </thead>
 
@@ -168,6 +212,10 @@ export default function InstructionsPage() {
                 <tr>
                   <td style={cellStyle}>
                     General Intelligence & Reasoning
+                    <br />
+                    <b>
+                      सामान्य बुद्धिमत्ता एवं तर्कशक्ति
+                    </b>
                   </td>
 
                   <td style={cellStyle}>50</td>
@@ -175,13 +223,19 @@ export default function InstructionsPage() {
                   <td style={cellStyle}>50</td>
 
                   <td style={cellStyle}>
-                    <b>30 Min</b>
+                    <b>30 Minutes</b>
+                    <br />
+                    30 मिनट
                   </td>
                 </tr>
 
                 <tr>
                   <td style={cellStyle}>
                     General Awareness
+                    <br />
+                    <b>
+                      सामान्य जागरूकता
+                    </b>
                   </td>
 
                   <td style={cellStyle}>50</td>
@@ -189,13 +243,19 @@ export default function InstructionsPage() {
                   <td style={cellStyle}>50</td>
 
                   <td style={cellStyle}>
-                    <b>30 Min</b>
+                    <b>30 Minutes</b>
+                    <br />
+                    30 मिनट
                   </td>
                 </tr>
 
                 <tr>
                   <td style={cellStyle}>
                     English Language & Comprehension
+                    <br />
+                    <b>
+                      अंग्रेजी भाषा एवं बोधगम्यता
+                    </b>
                   </td>
 
                   <td style={cellStyle}>100</td>
@@ -203,7 +263,9 @@ export default function InstructionsPage() {
                   <td style={cellStyle}>100</td>
 
                   <td style={cellStyle}>
-                    <b>60 Min</b>
+                    <b>60 Minutes</b>
+                    <br />
+                    60 मिनट
                   </td>
                 </tr>
               </tbody>
@@ -212,36 +274,29 @@ export default function InstructionsPage() {
         </div>
 
         <div className="card">
-          <h2>Important Instructions</h2>
+          <h2>
+            General Instructions
+          </h2>
 
-          <ol
-            style={{
-              lineHeight: "1.8",
-              paddingLeft: "22px",
-            }}
-          >
+          <ol style={instructionList}>
             <li>
-              The test contains 200 questions carrying
-              200 marks.
+              The examination contains 200 objective multiple-choice questions.
             </li>
 
             <li>
-              Total examination duration is 120 minutes.
+              The total duration of the examination is 120 minutes.
             </li>
 
             <li>
-              General Intelligence & Reasoning has
-              50 questions with 30 minutes.
+              General Intelligence & Reasoning contains 50 questions and must be completed within 30 minutes.
             </li>
 
             <li>
-              General Awareness has 50 questions with
-              30 minutes.
+              General Awareness contains 50 questions and must be completed within 30 minutes.
             </li>
 
             <li>
-              English Language & Comprehension has
-              100 questions with 60 minutes.
+              English Language & Comprehension contains 100 questions and must be completed within 60 minutes.
             </li>
 
             <li>
@@ -249,56 +304,43 @@ export default function InstructionsPage() {
             </li>
 
             <li>
-              0.25 mark will be deducted for every
-              wrong answer.
+              0.25 mark will be deducted for every wrong answer.
             </li>
 
             <li>
-              No marks will be deducted for
-              unattempted questions.
+              There is no negative marking for an unattempted question.
             </li>
 
             <li>
-              When the time of a section ends, that
-              section will be locked automatically.
+              A section will automatically lock when its allotted time ends.
             </li>
 
             <li>
-              After moving to the next section,
-              you will not be allowed to return
-              to the completed section.
+              After a section is completed or its time expires, you cannot return to that section.
             </li>
 
             <li>
-              Use Save & Next, Previous and
-              Question Palette to navigate within
-              the active section.
+              You may move between questions only within the currently active section.
             </li>
 
             <li>
-              The test will automatically submit
-              when the final section time ends.
+              Use Save & Next to save your response and move forward. Use Previous to return to an earlier question within the active section.
             </li>
 
             <li>
-              Detailed answer sheet and explanations
-              will be released after the configured
-              solution release period.
+              Use Clear Response to remove an answer, Mark for Review to revisit a question, and note that the test will automatically submit when the final section time ends.
             </li>
           </ol>
         </div>
 
         <div className="card">
-          <h2>हिंदी निर्देश</h2>
+          <h2>
+            सामान्य निर्देश
+          </h2>
 
-          <ol
-            style={{
-              lineHeight: "1.8",
-              paddingLeft: "22px",
-            }}
-          >
+          <ol style={instructionList}>
             <li>
-              परीक्षा में कुल 200 प्रश्न होंगे।
+              परीक्षा में कुल 200 वस्तुनिष्ठ बहुविकल्पीय प्रश्न होंगे।
             </li>
 
             <li>
@@ -306,68 +348,100 @@ export default function InstructionsPage() {
             </li>
 
             <li>
-              रीजनिंग सेक्शन में 50 प्रश्न होंगे
-              और 30 मिनट का समय मिलेगा।
+              सामान्य बुद्धिमत्ता एवं तर्कशक्ति अनुभाग में 50 प्रश्न होंगे तथा इसे 30 मिनट में पूरा करना होगा।
             </li>
 
             <li>
-              सामान्य जागरूकता सेक्शन में
-              50 प्रश्न होंगे और 30 मिनट का समय मिलेगा।
+              सामान्य जागरूकता अनुभाग में 50 प्रश्न होंगे तथा इसे 30 मिनट में पूरा करना होगा।
             </li>
 
             <li>
-              अंग्रेजी सेक्शन में 100 प्रश्न होंगे
-              और 60 मिनट का समय मिलेगा।
+              अंग्रेजी भाषा एवं बोधगम्यता अनुभाग में 100 प्रश्न होंगे तथा इसे 60 मिनट में पूरा करना होगा।
             </li>
 
             <li>
-              प्रत्येक गलत उत्तर पर 0.25 अंक
-              की कटौती होगी।
+              प्रत्येक सही उत्तर के लिए 1 अंक प्रदान किया जाएगा।
             </li>
 
             <li>
-              किसी सेक्शन का समय समाप्त होने पर
-              वह सेक्शन स्वतः लॉक हो जाएगा।
+              प्रत्येक गलत उत्तर के लिए 0.25 अंक की कटौती की जाएगी।
             </li>
 
             <li>
-              अगले सेक्शन में जाने के बाद पिछले
-              सेक्शन में वापस नहीं जा सकेंगे।
+              बिना उत्तर दिए गए प्रश्न पर कोई ऋणात्मक अंक नहीं काटा जाएगा।
+            </li>
+
+            <li>
+              किसी अनुभाग का निर्धारित समय समाप्त होते ही वह अनुभाग स्वतः लॉक हो जाएगा।
+            </li>
+
+            <li>
+              किसी अनुभाग का समय समाप्त होने या उसे पूरा करने के बाद आप उस अनुभाग में वापस नहीं जा सकेंगे।
+            </li>
+
+            <li>
+              आप केवल वर्तमान सक्रिय अनुभाग के प्रश्नों के बीच ही जा सकेंगे।
+            </li>
+
+            <li>
+              उत्तर सुरक्षित करके अगले प्रश्न पर जाने के लिए Save & Next तथा सक्रिय अनुभाग के पिछले प्रश्न पर जाने के लिए Previous का प्रयोग करें।
+            </li>
+
+            <li>
+              चयनित उत्तर हटाने के लिए Clear Response, प्रश्न को पुनः देखने हेतु Mark for Review का प्रयोग करें तथा अंतिम अनुभाग का समय समाप्त होते ही पूरा टेस्ट स्वतः submit हो जाएगा।
             </li>
           </ol>
         </div>
 
         <div className="card">
-          <h2>Question Status</h2>
+          <h2>
+            Question Status / प्रश्न स्थिति
+          </h2>
 
-          <div style={{ lineHeight: "2.2" }}>
+          <div
+            style={{
+              lineHeight: "2.1",
+            }}
+          >
             <div>
-              🟢 <b>Answered</b>
+              🟢 <b>
+                Answered / उत्तर दिया गया
+              </b>
             </div>
 
             <div>
-              🔴 <b>Not Answered</b>
+              🔴 <b>
+                Not Answered / उत्तर नहीं दिया गया
+              </b>
             </div>
 
             <div>
-              🟣 <b>Marked for Review</b>
+              🟣 <b>
+                Marked for Review / समीक्षा हेतु चिन्हित
+              </b>
             </div>
 
             <div>
-              ⚪ <b>Not Visited</b>
+              ⚪ <b>
+                Not Visited / अभी नहीं देखा गया
+              </b>
             </div>
           </div>
         </div>
 
         <div className="card">
+          <h2>
+            Declaration / घोषणा
+          </h2>
+
           <label
             style={{
               display: "flex",
               gap: "12px",
               alignItems: "flex-start",
               fontWeight: "600",
+              lineHeight: "1.6",
               cursor: "pointer",
-              lineHeight: "1.5",
             }}
           >
             <input
@@ -384,9 +458,10 @@ export default function InstructionsPage() {
             />
 
             <span>
-              I have read and understood all the
-              instructions. I agree to follow the
-              sectional timing rules of the examination.
+              I have read and understood all the instructions and agree to follow the examination and sectional timing rules.
+              <br />
+              <br />
+              मैंने उपरोक्त सभी निर्देश पढ़ एवं समझ लिए हैं तथा मैं परीक्षा एवं अनुभागीय समय संबंधी नियमों का पालन करने के लिए सहमत हूँ।
             </span>
           </label>
 
@@ -403,6 +478,8 @@ export default function InstructionsPage() {
             }}
           >
             Agree & Start Test
+            <br />
+            सहमत हूँ एवं परीक्षा प्रारम्भ करें
           </button>
         </div>
 
@@ -416,6 +493,7 @@ const cellStyle = {
   padding: "11px",
   textAlign: "left",
   fontSize: "14px",
+  verticalAlign: "top",
 };
 
 const summaryBox = {
@@ -429,4 +507,9 @@ const summaryValue = {
   fontSize: "25px",
   fontWeight: "800",
   marginTop: "7px",
+};
+
+const instructionList = {
+  lineHeight: "1.85",
+  paddingLeft: "22px",
 };
