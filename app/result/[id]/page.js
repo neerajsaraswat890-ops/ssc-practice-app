@@ -1,96 +1,285 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "../../../lib/supabase";
 
-export default function Result() {
-  const { id } = useParams();
-  const router = useRouter();
+const SECTIONS = [
+  {
+    key: "reasoning",
+    name: "Reasoning",
+    fullName: "General Intelligence & Reasoning",
+    hindi: "सामान्य बुद्धिमत्ता एवं तर्कशक्ति",
+    start: 1,
+    end: 50,
+    total: 50,
+  },
+  {
+    key: "ga",
+    name: "General Awareness",
+    fullName: "General Awareness",
+    hindi: "सामान्य जागरूकता",
+    start: 51,
+    end: 100,
+    total: 50,
+  },
+  {
+    key: "english",
+    name: "English",
+    fullName: "English Language & Comprehension",
+    hindi: "अंग्रेजी भाषा एवं बोधगम्यता",
+    start: 101,
+    end: 200,
+    total: 100,
+  },
+];
 
-  const [result, setResult] = useState(null);
-  const [solutions, setSolutions] = useState([]);
+export default function ResultPage() {
+  const { id } = useParams();
+
   const [loading, setLoading] = useState(true);
-  const [solutionStatus, setSolutionStatus] = useState("checking");
   const [error, setError] = useState("");
 
+  const [test, setTest] = useState(null);
+  const [attempt, setAttempt] = useState(null);
+
+  const [overall, setOverall] = useState(null);
+  const [sectionResults, setSectionResults] = useState([]);
+
+  const [solutions, setSolutions] = useState([]);
+  const [solutionsLocked, setSolutionsLocked] = useState(false);
+
   useEffect(() => {
-    async function loadResult() {
-      const client = supabase();
+    loadResult();
+  }, [id]);
 
-      const {
-        data: { user },
-      } = await client.auth.getUser();
+  async function loadResult() {
+    setLoading(true);
+    setError("");
 
-      if (!user) {
-        router.push("/login");
-        return;
-      }
+    const client = supabase();
 
-      // Load submitted test result
-      const { data: attempt, error: attemptError } = await client
-        .from("attempts")
-        .select(
-          "id, correct_count, wrong_count, unanswered_count, score, percentage, submitted_at"
-        )
-        .eq("test_id", Number(id))
-        .eq("user_id", user.id)
-        .eq("status", "submitted")
-        .maybeSingle();
+    const { data: testData, error: testError } =
+      await client
+        .from("tests")
+        .select(`
+          id,
+          title,
+          total_questions,
+          total_marks,
+          duration_minutes,
+          negative_mark,
+          solution_release_at
+        `)
+        .eq("id", id)
+        .single();
 
-      if (attemptError) {
-        setError(attemptError.message);
-        setLoading(false);
-        return;
-      }
-
-      if (!attempt) {
-        setError("No submitted result found for this test.");
-        setLoading(false);
-        return;
-      }
-
-      setResult(attempt);
-
-      // Try to load detailed solutions.
-      // Supabase function itself decides whether 48 hours are complete.
-      const { data: solutionData, error: solutionError } =
-        await client.rpc("get_test_solutions", {
-          p_test_id: Number(id),
-        });
-
-      if (solutionError) {
-        const message = (solutionError.message || "").toLowerCase();
-
-        if (
-          message.includes("not released") ||
-          message.includes("locked") ||
-          message.includes("release")
-        ) {
-          setSolutionStatus("locked");
-        } else {
-          setSolutionStatus("locked");
-        }
-      } else if (solutionData && solutionData.length > 0) {
-        setSolutions(solutionData);
-        setSolutionStatus("unlocked");
-      } else {
-        setSolutionStatus("locked");
-      }
-
+    if (testError) {
+      setError(testError.message);
       setLoading(false);
+      return;
     }
 
-    loadResult();
-  }, [id, router]);
+    setTest(testData);
+
+    const { data: attemptData, error: attemptError } =
+      await client
+        .from("attempts")
+        .select("*")
+        .eq("test_id", id)
+        .eq("status", "submitted")
+        .single();
+
+    if (attemptError) {
+      setError(
+        "Submitted attempt नहीं मिला। पहले test submit करें।"
+      );
+      setLoading(false);
+      return;
+    }
+
+    setAttempt(attemptData);
+
+    const { data: questionMap, error: mapError } =
+      await client
+        .from("test_questions")
+        .select(`
+          question_id,
+          question_order
+        `)
+        .eq("test_id", id)
+        .order("question_order", {
+          ascending: true,
+        });
+
+    if (mapError) {
+      setError(mapError.message);
+      setLoading(false);
+      return;
+    }
+
+    const { data: answerData, error: answerError } =
+      await client
+        .from("student_answers")
+        .select(`
+          question_id,
+          selected_answer,
+          is_correct,
+          marked_for_review
+        `)
+        .eq("attempt_id", attemptData.id);
+
+    if (answerError) {
+      setError(answerError.message);
+      setLoading(false);
+      return;
+    }
+
+    const answerMap = {};
+
+    (answerData || []).forEach((a) => {
+      answerMap[a.question_id] = a;
+    });
+
+    const rows = (questionMap || []).map((q) => {
+      const answer = answerMap[q.question_id];
+
+      return {
+        question_id: q.question_id,
+        question_order: q.question_order,
+        selected_answer:
+          answer?.selected_answer || null,
+        is_correct:
+          answer?.is_correct ?? null,
+        marked_for_review:
+          answer?.marked_for_review || false,
+      };
+    });
+
+    const negativeMark =
+      Number(testData.negative_mark ?? 0.25);
+
+    const calculatedSections =
+      SECTIONS.map((section) =>
+        calculateStats(
+          rows.filter(
+            (row) =>
+              row.question_order >= section.start &&
+              row.question_order <= section.end
+          ),
+          section,
+          negativeMark
+        )
+      );
+
+    setSectionResults(calculatedSections);
+
+    setOverall(
+      calculateStats(
+        rows,
+        {
+          name: "Overall",
+          fullName: "Overall Performance",
+          hindi: "समग्र प्रदर्शन",
+          total: rows.length,
+        },
+        negativeMark
+      )
+    );
+
+    await loadSolutions();
+
+    setLoading(false);
+  }
+
+  function calculateStats(
+    rows,
+    section,
+    negativeMark
+  ) {
+    const total =
+      section.total || rows.length;
+
+    const attempted =
+      rows.filter(
+        (r) => r.selected_answer !== null
+      ).length;
+
+    const unattempted =
+      total - attempted;
+
+    const correct =
+      rows.filter(
+        (r) => r.is_correct === true
+      ).length;
+
+    const wrong =
+      rows.filter(
+        (r) =>
+          r.is_correct === false &&
+          r.selected_answer !== null
+      ).length;
+
+    const marked =
+      rows.filter(
+        (r) => r.marked_for_review
+      ).length;
+
+    const score =
+      correct - wrong * negativeMark;
+
+    const accuracy =
+      attempted > 0
+        ? (correct / attempted) * 100
+        : 0;
+
+    return {
+      ...section,
+      total,
+      attempted,
+      unattempted,
+      correct,
+      wrong,
+      marked,
+      score,
+      accuracy,
+    };
+  }
+
+  async function loadSolutions() {
+    const { data, error } =
+      await supabase().rpc(
+        "get_test_solutions",
+        {
+          p_test_id: Number(id),
+        }
+      );
+
+    if (error) {
+      setSolutionsLocked(true);
+      setSolutions([]);
+      return;
+    }
+
+    setSolutionsLocked(false);
+    setSolutions(data || []);
+  }
+
+  function roundNumber(value) {
+    return Number(value || 0).toFixed(2);
+  }
 
   if (loading) {
     return (
       <>
-        <div className="nav">JD Exambook • Result</div>
+        <div className="nav">
+          JD Exambook • Result
+        </div>
+
         <main className="wrap">
           <div className="card">
-            <h2>Loading result...</h2>
+            Result loading...
           </div>
         </main>
       </>
@@ -100,17 +289,13 @@ export default function Result() {
   if (error) {
     return (
       <>
-        <div className="nav">JD Exambook • Result</div>
+        <div className="nav">
+          JD Exambook • Result
+        </div>
+
         <main className="wrap">
           <div className="card">
-            <h2>Result Error</h2>
-            <p>{error}</p>
-            <button
-              className="btn"
-              onClick={() => router.push("/dashboard")}
-            >
-              Back to Dashboard
-            </button>
+            <b>Error:</b> {error}
           </div>
         </main>
       </>
@@ -119,104 +304,534 @@ export default function Result() {
 
   return (
     <>
-      <div className="nav">JD Exambook • Result</div>
+      <div className="nav">
+        JD Exambook • Result & Analysis
+      </div>
 
       <main className="wrap">
-        <div className="card">
-          <h1>Test Submitted ✅</h1>
-          <p className="muted">
-            Your result has been calculated successfully.
+
+        <div className="card hero">
+          <h2>
+            {test?.title}
+          </h2>
+
+          <p>
+            Test Submitted Successfully
           </p>
 
-          <div className="grid">
-            <div className="card">
-              <h3>Correct</h3>
-              <div className="big">{result.correct_count}</div>
-            </div>
-
-            <div className="card">
-              <h3>Wrong</h3>
-              <div className="big">{result.wrong_count}</div>
-            </div>
-
-            <div className="card">
-              <h3>Unattempted</h3>
-              <div className="big">{result.unanswered_count}</div>
-            </div>
-
-            <div className="card">
-              <h3>Score</h3>
-              <div className="big">
-                {Number(result.score).toFixed(2)}
-              </div>
-              <p className="muted">0.25 negative marking applied</p>
-            </div>
-
-            <div className="card">
-              <h3>Percentage</h3>
-              <div className="big">
-                {Number(result.percentage).toFixed(2)}%
-              </div>
-            </div>
+          <div
+            style={{
+              fontSize: "38px",
+              fontWeight: "800",
+              marginTop: "10px",
+            }}
+          >
+            {roundNumber(overall?.score)}
+            {" / "}
+            {overall?.total}
           </div>
 
-          {solutionStatus === "locked" && (
-            <div className="lock">
-              <h2>🔒 Detailed Answer Sheet</h2>
-              <p>
-                Correct answers, your answers and explanations will
-                automatically unlock after 48 hours.
-              </p>
-            </div>
-          )}
+          <p>
+            Overall Score / कुल प्राप्तांक
+          </p>
+        </div>
 
-          {solutionStatus === "unlocked" && (
-            <div style={{ marginTop: "25px" }}>
-              <h2>🔓 Detailed Answer Sheet</h2>
+        <div className="card">
+          <h2>
+            Overall Performance / समग्र प्रदर्शन
+          </h2>
 
-              {solutions.map((item, index) => (
-                <div className="card" key={item.question_id || index}>
-                  <h3>
-                    Question {item.question_order || index + 1}
-                  </h3>
+          <div style={statsGrid}>
+            <StatBox
+              title="Total"
+              hindi="कुल प्रश्न"
+              value={overall?.total}
+            />
 
-                  <p>
-                    <strong>{item.question_text}</strong>
-                  </p>
+            <StatBox
+              title="Attempted"
+              hindi="प्रयास किए"
+              value={overall?.attempted}
+            />
 
-                  <p>
-                    Your Answer:{" "}
-                    <strong>
-                      {item.selected_answer || "Not Attempted"}
-                    </strong>
-                  </p>
+            <StatBox
+              title="Unattempted"
+              hindi="बिना प्रयास"
+              value={overall?.unattempted}
+            />
 
-                  <p>
-                    Correct Answer:{" "}
-                    <strong>{item.correct_answer}</strong>
-                  </p>
+            <StatBox
+              title="Correct"
+              hindi="सही"
+              value={overall?.correct}
+            />
 
-                  {item.explanation && (
-                    <p>
-                      <strong>Explanation:</strong>{" "}
-                      {item.explanation}
-                    </p>
-                  )}
+            <StatBox
+              title="Wrong"
+              hindi="गलत"
+              value={overall?.wrong}
+            />
+
+            <StatBox
+              title="Marked Review"
+              hindi="समीक्षा हेतु"
+              value={overall?.marked}
+            />
+
+            <StatBox
+              title="Score"
+              hindi="प्राप्तांक"
+              value={roundNumber(
+                overall?.score
+              )}
+            />
+
+            <StatBox
+              title="Accuracy"
+              hindi="शुद्धता"
+              value={`${roundNumber(
+                overall?.accuracy
+              )}%`}
+            />
+          </div>
+        </div>
+
+        <div className="card">
+          <h2>
+            Section-wise Analysis
+          </h2>
+
+          <p className="muted">
+            अनुभागवार प्रदर्शन
+          </p>
+
+          {sectionResults.map(
+            (section) => (
+              <div
+                key={section.key}
+                style={sectionCard}
+              >
+                <h3
+                  style={{
+                    marginBottom: "4px",
+                  }}
+                >
+                  {section.fullName}
+                </h3>
+
+                <div className="muted">
+                  {section.hindi}
                 </div>
-              ))}
-            </div>
-          )}
 
-          <div style={{ marginTop: "22px" }}>
+                <div
+                  style={{
+                    ...statsGrid,
+                    marginTop: "18px",
+                  }}
+                >
+                  <StatBox
+                    title="Total"
+                    hindi="कुल"
+                    value={section.total}
+                  />
+
+                  <StatBox
+                    title="Attempted"
+                    hindi="प्रयास"
+                    value={
+                      section.attempted
+                    }
+                  />
+
+                  <StatBox
+                    title="Unattempted"
+                    hindi="बिना प्रयास"
+                    value={
+                      section.unattempted
+                    }
+                  />
+
+                  <StatBox
+                    title="Correct"
+                    hindi="सही"
+                    value={
+                      section.correct
+                    }
+                  />
+
+                  <StatBox
+                    title="Wrong"
+                    hindi="गलत"
+                    value={
+                      section.wrong
+                    }
+                  />
+
+                  <StatBox
+                    title="Marked Review"
+                    hindi="समीक्षा"
+                    value={
+                      section.marked
+                    }
+                  />
+
+                  <StatBox
+                    title="Score"
+                    hindi="अंक"
+                    value={roundNumber(
+                      section.score
+                    )}
+                  />
+
+                  <StatBox
+                    title="Accuracy"
+                    hindi="शुद्धता"
+                    value={`${roundNumber(
+                      section.accuracy
+                    )}%`}
+                  />
+                </div>
+              </div>
+            )
+          )}
+        </div>
+
+        <div className="card">
+          <h2>
+            Section Comparison
+          </h2>
+
+          <div
+            style={{
+              overflowX: "auto",
+            }}
+          >
+            <table
+              style={{
+                width: "100%",
+                borderCollapse:
+                  "collapse",
+                minWidth: "850px",
+              }}
+            >
+              <thead>
+                <tr>
+                  <th style={cellStyle}>
+                    Section
+                  </th>
+
+                  <th style={cellStyle}>
+                    Total
+                  </th>
+
+                  <th style={cellStyle}>
+                    Attempted
+                  </th>
+
+                  <th style={cellStyle}>
+                    Unattempted
+                  </th>
+
+                  <th style={cellStyle}>
+                    Correct
+                  </th>
+
+                  <th style={cellStyle}>
+                    Wrong
+                  </th>
+
+                  <th style={cellStyle}>
+                    Review
+                  </th>
+
+                  <th style={cellStyle}>
+                    Score
+                  </th>
+
+                  <th style={cellStyle}>
+                    Accuracy
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {sectionResults.map(
+                  (section) => (
+                    <tr
+                      key={section.key}
+                    >
+                      <td style={cellStyle}>
+                        <b>
+                          {section.name}
+                        </b>
+                      </td>
+
+                      <td style={cellStyle}>
+                        {section.total}
+                      </td>
+
+                      <td style={cellStyle}>
+                        {
+                          section.attempted
+                        }
+                      </td>
+
+                      <td style={cellStyle}>
+                        {
+                          section.unattempted
+                        }
+                      </td>
+
+                      <td style={cellStyle}>
+                        {
+                          section.correct
+                        }
+                      </td>
+
+                      <td style={cellStyle}>
+                        {section.wrong}
+                      </td>
+
+                      <td style={cellStyle}>
+                        {section.marked}
+                      </td>
+
+                      <td style={cellStyle}>
+                        {roundNumber(
+                          section.score
+                        )}
+                      </td>
+
+                      <td style={cellStyle}>
+                        {roundNumber(
+                          section.accuracy
+                        )}
+                        %
+                      </td>
+                    </tr>
+                  )
+                )}
+
+                <tr>
+                  <td style={cellStyle}>
+                    <b>Overall</b>
+                  </td>
+
+                  <td style={cellStyle}>
+                    {overall?.total}
+                  </td>
+
+                  <td style={cellStyle}>
+                    {overall?.attempted}
+                  </td>
+
+                  <td style={cellStyle}>
+                    {overall?.unattempted}
+                  </td>
+
+                  <td style={cellStyle}>
+                    {overall?.correct}
+                  </td>
+
+                  <td style={cellStyle}>
+                    {overall?.wrong}
+                  </td>
+
+                  <td style={cellStyle}>
+                    {overall?.marked}
+                  </td>
+
+                  <td style={cellStyle}>
+                    {roundNumber(
+                      overall?.score
+                    )}
+                  </td>
+
+                  <td style={cellStyle}>
+                    {roundNumber(
+                      overall?.accuracy
+                    )}
+                    %
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="card">
+          <h2>
+            Detailed Answer Sheet
+          </h2>
+
+          {solutionsLocked ? (
+            <div className="lock">
+              🔒 Detailed answers and explanations are currently locked.
+              <br />
+              <br />
+              निर्धारित solution-release समय पूरा होने के बाद सही उत्तर एवं explanation उपलब्ध होंगे।
+            </div>
+          ) : (
+            <>
+              <p className="muted">
+                Solutions are now available.
+              </p>
+
+              {solutions.map(
+                (item, index) => (
+                  <div
+                    key={
+                      item.question_id ||
+                      index
+                    }
+                    style={solutionCard}
+                  >
+                    <b>
+                      Question{" "}
+                      {item.question_order ||
+                        index + 1}
+                    </b>
+
+                    <p
+                      style={{
+                        lineHeight: "1.6",
+                      }}
+                    >
+                      {item.question_text}
+                    </p>
+
+                    <div
+                      style={{
+                        lineHeight: "1.8",
+                      }}
+                    >
+                      <div>
+                        <b>
+                          Your Answer:
+                        </b>{" "}
+                        {item.selected_answer ||
+                          "Not Attempted"}
+                      </div>
+
+                      <div>
+                        <b>
+                          Correct Answer:
+                        </b>{" "}
+                        {
+                          item.correct_answer
+                        }
+                      </div>
+
+                      {item.explanation && (
+                        <div
+                          style={{
+                            marginTop:
+                              "8px",
+                          }}
+                        >
+                          <b>
+                            Explanation:
+                          </b>{" "}
+                          {
+                            item.explanation
+                          }
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="card">
+          <Link href="/dashboard">
             <button
               className="btn"
-              onClick={() => router.push("/dashboard")}
+              style={{
+                width: "100%",
+              }}
             >
               Back to Dashboard
             </button>
-          </div>
+          </Link>
         </div>
+
       </main>
     </>
   );
 }
+
+function StatBox({
+  title,
+  hindi,
+  value,
+}) {
+  return (
+    <div style={statBox}>
+      <div className="muted">
+        {title}
+      </div>
+
+      <div
+        style={{
+          fontSize: "25px",
+          fontWeight: "800",
+          margin: "5px 0",
+        }}
+      >
+        {value ?? 0}
+      </div>
+
+      <div
+        style={{
+          fontSize: "12px",
+          color: "#667085",
+        }}
+      >
+        {hindi}
+      </div>
+    </div>
+  );
+}
+
+const statsGrid = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(auto-fit, minmax(125px, 1fr))",
+  gap: "10px",
+};
+
+const statBox = {
+  padding: "14px",
+  border:
+    "1px solid #d7deea",
+  borderRadius: "12px",
+  background: "#f8fafc",
+  textAlign: "center",
+};
+
+const sectionCard = {
+  border:
+    "1px solid #d7deea",
+  borderRadius: "14px",
+  padding: "18px",
+  marginTop: "16px",
+};
+
+const cellStyle = {
+  border:
+    "1px solid #d7deea",
+  padding: "10px",
+  textAlign: "center",
+  fontSize: "14px",
+};
+
+const solutionCard = {
+  border:
+    "1px solid #d7deea",
+  borderRadius: "12px",
+  padding: "16px",
+  marginTop: "14px",
+};
