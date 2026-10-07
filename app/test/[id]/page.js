@@ -142,7 +142,9 @@ export default function TestPage() {
         setVisited(JSON.parse(oldVisited));
       }
     } catch {
-      // Ignore damaged local data
+      localStorage.removeItem(answerKey);
+      localStorage.removeItem(reviewKey);
+      localStorage.removeItem(visitedKey);
     }
 
     let savedSection =
@@ -181,14 +183,12 @@ export default function TestPage() {
     }
 
     let sectionIndex = savedSection;
-    let sectionStartedAt =
-      savedSectionStart;
+    let sectionStartedAt = savedSectionStart;
 
     while (sectionIndex < 3) {
       const elapsed =
         Math.floor(
-          (Date.now() -
-            sectionStartedAt) /
+          (Date.now() - sectionStartedAt) /
             1000
         );
 
@@ -205,9 +205,7 @@ export default function TestPage() {
         setLoading(false);
 
         setTimeout(() => {
-          if (
-            !autoSubmitting.current
-          ) {
+          if (!autoSubmitting.current) {
             autoSubmitting.current = true;
             submitTest(true);
           }
@@ -236,16 +234,15 @@ export default function TestPage() {
 
     const elapsed =
       Math.floor(
-        (Date.now() -
-          sectionStartedAt) /
+        (Date.now() - sectionStartedAt) /
           1000
       );
 
     const remaining =
       Math.max(
         0,
-        SECTIONS[sectionIndex]
-          .seconds - elapsed
+        SECTIONS[sectionIndex].seconds -
+          elapsed
       );
 
     setActiveSection(sectionIndex);
@@ -257,9 +254,8 @@ export default function TestPage() {
     setCurrent(firstQuestion);
 
     const q =
-      loadedQuestions[
-        firstQuestion
-      ]?.questions;
+      loadedQuestions[firstQuestion]
+        ?.questions;
 
     if (q?.id) {
       markVisited(q.id);
@@ -443,11 +439,20 @@ export default function TestPage() {
       sectionQuestions.length -
       answered;
 
+    const marked =
+      sectionQuestions.filter(
+        (item) =>
+          review[
+            item.questions.id
+          ]
+      ).length;
+
     const yes =
       window.confirm(
         `${section.short} section submit करना चाहते हैं?\n\n` +
         `Attempted: ${answered}\n` +
-        `Unattempted: ${unattempted}\n\n` +
+        `Unattempted: ${unattempted}\n` +
+        `Marked for Review: ${marked}\n\n` +
         `Submit करने के बाद इस section में वापस नहीं जा सकेंगे।`
       );
 
@@ -502,6 +507,7 @@ export default function TestPage() {
       SECTIONS[next];
 
     setActiveSection(next);
+
     setSectionTime(
       nextSection.seconds
     );
@@ -539,11 +545,17 @@ export default function TestPage() {
         questions.length -
         attempted;
 
+      const marked =
+        Object.values(
+          review
+        ).filter(Boolean).length;
+
       const yes =
         window.confirm(
           `क्या आप पूरा टेस्ट Submit करना चाहते हैं?\n\n` +
           `Attempted: ${attempted}\n` +
-          `Unattempted: ${unattempted}\n\n` +
+          `Unattempted: ${unattempted}\n` +
+          `Marked for Review: ${marked}\n\n` +
           `Submit करने के बाद उत्तर बदले नहीं जा सकेंगे।`
         );
 
@@ -557,10 +569,9 @@ export default function TestPage() {
       await supabase().rpc(
         "submit_test",
         {
-          p_test_id:
-            Number(id),
-          p_answers:
-            answers,
+          p_test_id: Number(id),
+          p_answers: answers,
+          p_review: review,
         }
       );
 
@@ -742,6 +753,14 @@ export default function TestPage() {
         ]
     ).length;
 
+  const sectionMarked =
+    sectionQuestions.filter(
+      (item) =>
+        review[
+          item.questions.id
+        ]
+    ).length;
+
   const options = [
     [
       "A",
@@ -909,8 +928,15 @@ export default function TestPage() {
             </div>
 
             <div>
-              Answered:{" "}
-              {sectionAnswered}
+              <div>
+                Answered:{" "}
+                {sectionAnswered}
+              </div>
+
+              <div className="muted">
+                Review:{" "}
+                {sectionMarked}
+              </div>
             </div>
           </div>
 
@@ -1084,8 +1110,7 @@ export default function TestPage() {
 
               <div className="muted">
                 Section{" "}
-                {activeSection +
-                  1}{" "}
+                {activeSection + 1}{" "}
                 of 3
               </div>
             </div>
@@ -1157,8 +1182,7 @@ export default function TestPage() {
                         status.color,
                     }}
                   >
-                    {localIndex +
-                      1}
+                    {localIndex + 1}
                   </button>
                 );
               }
