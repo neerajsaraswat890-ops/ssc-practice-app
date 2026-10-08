@@ -148,10 +148,13 @@ export default function ResultPage() {
       return {
         question_id: q.question_id,
         question_order: q.question_order,
+
         selected_answer:
           answer?.selected_answer || null,
+
         is_correct:
           answer?.is_correct ?? null,
+
         marked_for_review:
           answer?.marked_for_review || false,
       };
@@ -234,6 +237,14 @@ export default function ResultPage() {
         ? (correct / attempted) * 100
         : 0;
 
+    const attemptRate =
+      total > 0
+        ? (attempted / total) * 100
+        : 0;
+
+    const negativeLoss =
+      wrong * negativeMark;
+
     return {
       ...section,
       total,
@@ -244,6 +255,8 @@ export default function ResultPage() {
       marked,
       score,
       accuracy,
+      attemptRate,
+      negativeLoss,
     };
   }
 
@@ -268,6 +281,99 @@ export default function ResultPage() {
 
   function roundNumber(value) {
     return Number(value || 0).toFixed(2);
+  }
+
+  function getSectionName(order) {
+    if (order <= 50) {
+      return "Reasoning";
+    }
+
+    if (order <= 100) {
+      return "General Awareness";
+    }
+
+    return "English";
+  }
+
+  function getOptionText(item, answer) {
+    if (!answer) {
+      return "Not Attempted";
+    }
+
+    const key =
+      String(answer).toUpperCase();
+
+    if (key === "A") {
+      return item.option_a;
+    }
+
+    if (key === "B") {
+      return item.option_b;
+    }
+
+    if (key === "C") {
+      return item.option_c;
+    }
+
+    if (key === "D") {
+      return item.option_d;
+    }
+
+    return "";
+  }
+
+  function getHindiOptionText(
+    item,
+    answer
+  ) {
+    if (!answer) {
+      return "";
+    }
+
+    const key =
+      String(answer).toUpperCase();
+
+    if (key === "A") {
+      return item.option_a_hi;
+    }
+
+    if (key === "B") {
+      return item.option_b_hi;
+    }
+
+    if (key === "C") {
+      return item.option_c_hi;
+    }
+
+    if (key === "D") {
+      return item.option_d_hi;
+    }
+
+    return "";
+  }
+
+  function getQuestionResult(item) {
+    if (!item.selected_answer) {
+      return {
+        label: "Not Attempted / प्रयास नहीं किया",
+        symbol: "⚪",
+      };
+    }
+
+    if (
+      String(item.selected_answer).toUpperCase() ===
+      String(item.correct_answer).toUpperCase()
+    ) {
+      return {
+        label: "Correct / सही उत्तर",
+        symbol: "✅",
+      };
+    }
+
+    return {
+      label: "Incorrect / गलत उत्तर",
+      symbol: "❌",
+    };
   }
 
   if (loading) {
@@ -301,6 +407,18 @@ export default function ResultPage() {
       </>
     );
   }
+
+  const bestSection =
+    [...sectionResults].sort(
+      (a, b) =>
+        b.accuracy - a.accuracy
+    )[0];
+
+  const weakestSection =
+    [...sectionResults].sort(
+      (a, b) =>
+        a.accuracy - b.accuracy
+    )[0];
 
   return (
     <>
@@ -393,6 +511,78 @@ export default function ResultPage() {
                 overall?.accuracy
               )}%`}
             />
+
+            <StatBox
+              title="Attempt Rate"
+              hindi="प्रयास प्रतिशत"
+              value={`${roundNumber(
+                overall?.attemptRate
+              )}%`}
+            />
+
+            <StatBox
+              title="Negative Loss"
+              hindi="नेगेटिव अंक कटे"
+              value={roundNumber(
+                overall?.negativeLoss
+              )}
+            />
+          </div>
+        </div>
+
+        <div className="card">
+          <h2>
+            Performance Highlights
+          </h2>
+
+          <div style={statsGrid}>
+            <div style={highlightBox}>
+              <div className="muted">
+                Best Section
+              </div>
+
+              <div
+                style={{
+                  fontSize: "19px",
+                  fontWeight: "800",
+                  marginTop: "8px",
+                }}
+              >
+                {bestSection?.name}
+              </div>
+
+              <div>
+                Accuracy:{" "}
+                {roundNumber(
+                  bestSection?.accuracy
+                )}
+                %
+              </div>
+            </div>
+
+            <div style={highlightBox}>
+              <div className="muted">
+                Weakest Section
+              </div>
+
+              <div
+                style={{
+                  fontSize: "19px",
+                  fontWeight: "800",
+                  marginTop: "8px",
+                }}
+              >
+                {weakestSection?.name}
+              </div>
+
+              <div>
+                Accuracy:{" "}
+                {roundNumber(
+                  weakestSection?.accuracy
+                )}
+                %
+              </div>
+            </div>
           </div>
         </div>
 
@@ -490,6 +680,22 @@ export default function ResultPage() {
                       section.accuracy
                     )}%`}
                   />
+
+                  <StatBox
+                    title="Attempt Rate"
+                    hindi="प्रयास %"
+                    value={`${roundNumber(
+                      section.attemptRate
+                    )}%`}
+                  />
+
+                  <StatBox
+                    title="Negative Loss"
+                    hindi="कटे अंक"
+                    value={roundNumber(
+                      section.negativeLoss
+                    )}
+                  />
                 </div>
               </div>
             )
@@ -509,57 +715,28 @@ export default function ResultPage() {
             <table
               style={{
                 width: "100%",
-                borderCollapse:
-                  "collapse",
-                minWidth: "850px",
+                borderCollapse: "collapse",
+                minWidth: "900px",
               }}
             >
               <thead>
                 <tr>
-                  <th style={cellStyle}>
-                    Section
-                  </th>
-
-                  <th style={cellStyle}>
-                    Total
-                  </th>
-
-                  <th style={cellStyle}>
-                    Attempted
-                  </th>
-
-                  <th style={cellStyle}>
-                    Unattempted
-                  </th>
-
-                  <th style={cellStyle}>
-                    Correct
-                  </th>
-
-                  <th style={cellStyle}>
-                    Wrong
-                  </th>
-
-                  <th style={cellStyle}>
-                    Review
-                  </th>
-
-                  <th style={cellStyle}>
-                    Score
-                  </th>
-
-                  <th style={cellStyle}>
-                    Accuracy
-                  </th>
+                  <th style={cellStyle}>Section</th>
+                  <th style={cellStyle}>Total</th>
+                  <th style={cellStyle}>Attempted</th>
+                  <th style={cellStyle}>Unattempted</th>
+                  <th style={cellStyle}>Correct</th>
+                  <th style={cellStyle}>Wrong</th>
+                  <th style={cellStyle}>Review</th>
+                  <th style={cellStyle}>Score</th>
+                  <th style={cellStyle}>Accuracy</th>
                 </tr>
               </thead>
 
               <tbody>
                 {sectionResults.map(
                   (section) => (
-                    <tr
-                      key={section.key}
-                    >
+                    <tr key={section.key}>
                       <td style={cellStyle}>
                         <b>
                           {section.name}
@@ -571,21 +748,15 @@ export default function ResultPage() {
                       </td>
 
                       <td style={cellStyle}>
-                        {
-                          section.attempted
-                        }
+                        {section.attempted}
                       </td>
 
                       <td style={cellStyle}>
-                        {
-                          section.unattempted
-                        }
+                        {section.unattempted}
                       </td>
 
                       <td style={cellStyle}>
-                        {
-                          section.correct
-                        }
+                        {section.correct}
                       </td>
 
                       <td style={cellStyle}>
@@ -664,6 +835,10 @@ export default function ResultPage() {
             Detailed Answer Sheet
           </h2>
 
+          <p className="muted">
+            विस्तृत उत्तर-पत्र एवं समाधान
+          </p>
+
           {solutionsLocked ? (
             <div className="lock">
               🔒 Detailed answers and explanations are currently locked.
@@ -673,73 +848,206 @@ export default function ResultPage() {
             </div>
           ) : (
             <>
-              <p className="muted">
-                Solutions are now available.
-              </p>
-
               {solutions.map(
-                (item, index) => (
-                  <div
-                    key={
-                      item.question_id ||
-                      index
-                    }
-                    style={solutionCard}
-                  >
-                    <b>
-                      Question{" "}
-                      {item.question_order ||
-                        index + 1}
-                    </b>
+                (item, index) => {
+                  const result =
+                    getQuestionResult(item);
 
-                    <p
-                      style={{
-                        lineHeight: "1.6",
-                      }}
-                    >
-                      {item.question_text}
-                    </p>
+                  const yourText =
+                    getOptionText(
+                      item,
+                      item.selected_answer
+                    );
 
+                  const correctText =
+                    getOptionText(
+                      item,
+                      item.correct_answer
+                    );
+
+                  const yourHindi =
+                    getHindiOptionText(
+                      item,
+                      item.selected_answer
+                    );
+
+                  const correctHindi =
+                    getHindiOptionText(
+                      item,
+                      item.correct_answer
+                    );
+
+                  return (
                     <div
-                      style={{
-                        lineHeight: "1.8",
-                      }}
+                      key={
+                        item.question_id ||
+                        index
+                      }
+                      style={solutionCard}
                     >
-                      <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent:
+                            "space-between",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                        }}
+                      >
                         <b>
-                          Your Answer:
-                        </b>{" "}
-                        {item.selected_answer ||
-                          "Not Attempted"}
+                          Question{" "}
+                          {item.question_order ||
+                            index + 1}
+                        </b>
+
+                        <span
+                          style={{
+                            fontWeight: "700",
+                          }}
+                        >
+                          {getSectionName(
+                            item.question_order ||
+                              index + 1
+                          )}
+                        </span>
                       </div>
 
-                      <div>
-                        <b>
-                          Correct Answer:
-                        </b>{" "}
-                        {
-                          item.correct_answer
-                        }
+                      <div
+                        style={{
+                          marginTop: "10px",
+                          fontWeight: "800",
+                        }}
+                      >
+                        {result.symbol}{" "}
+                        {result.label}
                       </div>
 
-                      {item.explanation && (
+                      {item.marked_for_review && (
                         <div
                           style={{
-                            marginTop:
-                              "8px",
+                            marginTop: "8px",
+                            fontWeight: "700",
+                          }}
+                        >
+                          🟣 Marked for Review
+                        </div>
+                      )}
+
+                      <h3
+                        style={{
+                          lineHeight: "1.6",
+                          marginTop: "18px",
+                        }}
+                      >
+                        {item.question_text}
+                      </h3>
+
+                      {item.question_text_hi && (
+                        <div
+                          style={{
+                            fontSize: "17px",
+                            lineHeight: "1.6",
+                            fontWeight: "600",
+                            marginBottom: "15px",
+                          }}
+                        >
+                          {item.question_text_hi}
+                        </div>
+                      )}
+
+                      <div style={answerBox}>
+                        <b>
+                          Your Answer / आपका उत्तर
+                        </b>
+
+                        <div
+                          style={{
+                            marginTop: "7px",
+                          }}
+                        >
+                          {item.selected_answer
+                            ? `${item.selected_answer}. ${yourText}`
+                            : "Not Attempted / प्रयास नहीं किया"}
+                        </div>
+
+                        {yourHindi && (
+                          <div
+                            style={{
+                              marginTop: "4px",
+                              color: "#667085",
+                            }}
+                          >
+                            {yourHindi}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={answerBox}>
+                        <b>
+                          Correct Answer / सही उत्तर
+                        </b>
+
+                        <div
+                          style={{
+                            marginTop: "7px",
+                          }}
+                        >
+                          {item.correct_answer}.{" "}
+                          {correctText}
+                        </div>
+
+                        {correctHindi && (
+                          <div
+                            style={{
+                              marginTop: "4px",
+                              color: "#667085",
+                            }}
+                          >
+                            {correctHindi}
+                          </div>
+                        )}
+                      </div>
+
+                      {(item.explanation ||
+                        item.explanation_hi) && (
+                        <div
+                          style={{
+                            marginTop: "14px",
+                            padding: "14px",
+                            border:
+                              "1px solid #d7deea",
+                            borderRadius: "10px",
                           }}
                         >
                           <b>
-                            Explanation:
-                          </b>{" "}
-                          {
-                            item.explanation
-                          }
+                            Explanation / व्याख्या
+                          </b>
+
+                          {item.explanation && (
+                            <p
+                              style={{
+                                lineHeight: "1.6",
+                              }}
+                            >
+                              {item.explanation}
+                            </p>
+                          )}
+
+                          {item.explanation_hi && (
+                            <p
+                              style={{
+                                lineHeight: "1.6",
+                                marginBottom: "0",
+                              }}
+                            >
+                              {item.explanation_hi}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
-                  </div>
-                )
+                  );
+                }
               )}
             </>
           )}
@@ -751,6 +1059,7 @@ export default function ResultPage() {
               className="btn"
               style={{
                 width: "100%",
+                padding: "14px",
               }}
             >
               Back to Dashboard
@@ -805,33 +1114,44 @@ const statsGrid = {
 
 const statBox = {
   padding: "14px",
-  border:
-    "1px solid #d7deea",
+  border: "1px solid #d7deea",
   borderRadius: "12px",
   background: "#f8fafc",
   textAlign: "center",
 };
 
+const highlightBox = {
+  padding: "18px",
+  border: "1px solid #d7deea",
+  borderRadius: "12px",
+  background: "#f8fafc",
+};
+
 const sectionCard = {
-  border:
-    "1px solid #d7deea",
+  border: "1px solid #d7deea",
   borderRadius: "14px",
   padding: "18px",
   marginTop: "16px",
 };
 
 const cellStyle = {
-  border:
-    "1px solid #d7deea",
+  border: "1px solid #d7deea",
   padding: "10px",
   textAlign: "center",
   fontSize: "14px",
 };
 
 const solutionCard = {
-  border:
-    "1px solid #d7deea",
+  border: "1px solid #d7deea",
   borderRadius: "12px",
   padding: "16px",
-  marginTop: "14px",
+  marginTop: "16px",
+};
+
+const answerBox = {
+  marginTop: "12px",
+  padding: "13px",
+  border: "1px solid #d7deea",
+  borderRadius: "10px",
+  background: "#f8fafc",
 };
