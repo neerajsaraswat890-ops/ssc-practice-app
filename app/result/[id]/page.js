@@ -5,35 +5,25 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabase";
 
-const SECTIONS = [
-  {
-    key: "reasoning",
+const SECTION_INFO = {
+  reasoning: {
     name: "Reasoning",
     fullName: "General Intelligence & Reasoning",
     hindi: "सामान्य बुद्धिमत्ता एवं तर्कशक्ति",
-    start: 1,
-    end: 50,
-    total: 50,
   },
-  {
-    key: "ga",
+
+  ga: {
     name: "General Awareness",
     fullName: "General Awareness",
     hindi: "सामान्य जागरूकता",
-    start: 51,
-    end: 100,
-    total: 50,
   },
-  {
-    key: "english",
+
+  english: {
     name: "English",
     fullName: "English Language & Comprehension",
     hindi: "अंग्रेजी भाषा एवं बोधगम्यता",
-    start: 101,
-    end: 200,
-    total: 100,
   },
-];
+};
 
 export default function ResultPage() {
   const { id } = useParams();
@@ -42,10 +32,9 @@ export default function ResultPage() {
   const [error, setError] = useState("");
 
   const [test, setTest] = useState(null);
-  const [attempt, setAttempt] = useState(null);
 
   const [overall, setOverall] = useState(null);
-  const [sectionResults, setSectionResults] = useState([]);
+  const [sections, setSections] = useState([]);
 
   const [solutions, setSolutions] = useState([]);
   const [solutionsLocked, setSolutionsLocked] = useState(false);
@@ -83,111 +72,29 @@ export default function ResultPage() {
 
     setTest(testData);
 
-    const { data: attemptData, error: attemptError } =
-      await client
-        .from("attempts")
-        .select("*")
-        .eq("test_id", id)
-        .eq("status", "submitted")
-        .single();
-
-    if (attemptError) {
-      setError(
-        "Submitted attempt नहीं मिला। पहले test submit करें।"
-      );
-      setLoading(false);
-      return;
-    }
-
-    setAttempt(attemptData);
-
-    const { data: questionMap, error: mapError } =
-      await client
-        .from("test_questions")
-        .select(`
-          question_id,
-          question_order
-        `)
-        .eq("test_id", id)
-        .order("question_order", {
-          ascending: true,
-        });
-
-    if (mapError) {
-      setError(mapError.message);
-      setLoading(false);
-      return;
-    }
-
-    const { data: answerData, error: answerError } =
-      await client
-        .from("student_answers")
-        .select(`
-          question_id,
-          selected_answer,
-          is_correct,
-          marked_for_review
-        `)
-        .eq("attempt_id", attemptData.id);
-
-    if (answerError) {
-      setError(answerError.message);
-      setLoading(false);
-      return;
-    }
-
-    const answerMap = {};
-
-    (answerData || []).forEach((a) => {
-      answerMap[a.question_id] = a;
-    });
-
-    const rows = (questionMap || []).map((q) => {
-      const answer = answerMap[q.question_id];
-
-      return {
-        question_id: q.question_id,
-        question_order: q.question_order,
-
-        selected_answer:
-          answer?.selected_answer || null,
-
-        is_correct:
-          answer?.is_correct ?? null,
-
-        marked_for_review:
-          answer?.marked_for_review || false,
-      };
-    });
-
-    const negativeMark =
-      Number(testData.negative_mark ?? 0.25);
-
-    const calculatedSections =
-      SECTIONS.map((section) =>
-        calculateStats(
-          rows.filter(
-            (row) =>
-              row.question_order >= section.start &&
-              row.question_order <= section.end
-          ),
-          section,
-          negativeMark
-        )
+    const { data: analysisData, error: analysisError } =
+      await client.rpc(
+        "get_result_analysis",
+        {
+          p_test_id: Number(id),
+        }
       );
 
-    setSectionResults(calculatedSections);
+    if (analysisError) {
+      setError(analysisError.message);
+      setLoading(false);
+      return;
+    }
 
     setOverall(
-      calculateStats(
-        rows,
-        {
-          name: "Overall",
-          fullName: "Overall Performance",
-          hindi: "समग्र प्रदर्शन",
-          total: rows.length,
-        },
-        negativeMark
+      normalizeOverall(
+        analysisData?.overall
+      )
+    );
+
+    setSections(
+      (analysisData?.sections || []).map(
+        normalizeSection
       )
     );
 
@@ -196,67 +103,93 @@ export default function ResultPage() {
     setLoading(false);
   }
 
-  function calculateStats(
-    rows,
-    section,
-    negativeMark
-  ) {
-    const total =
-      section.total || rows.length;
-
-    const attempted =
-      rows.filter(
-        (r) => r.selected_answer !== null
-      ).length;
-
-    const unattempted =
-      total - attempted;
-
-    const correct =
-      rows.filter(
-        (r) => r.is_correct === true
-      ).length;
-
-    const wrong =
-      rows.filter(
-        (r) =>
-          r.is_correct === false &&
-          r.selected_answer !== null
-      ).length;
-
-    const marked =
-      rows.filter(
-        (r) => r.marked_for_review
-      ).length;
-
-    const score =
-      correct - wrong * negativeMark;
-
-    const accuracy =
-      attempted > 0
-        ? (correct / attempted) * 100
-        : 0;
-
-    const attemptRate =
-      total > 0
-        ? (attempted / total) * 100
-        : 0;
-
-    const negativeLoss =
-      wrong * negativeMark;
+  function normalizeOverall(data) {
+    if (!data) return null;
 
     return {
-      ...section,
-      total,
-      attempted,
-      unattempted,
-      correct,
-      wrong,
-      marked,
-      score,
-      accuracy,
-      attemptRate,
-      negativeLoss,
+      total: Number(data.total || 0),
+      attempted: Number(data.attempted || 0),
+      unattempted: Number(data.unattempted || 0),
+      correct: Number(data.correct || 0),
+      wrong: Number(data.wrong || 0),
+
+      marked:
+        Number(
+          data.marked_for_review || 0
+        ),
+
+      score: Number(data.score || 0),
+
+      accuracy:
+        Number(data.accuracy || 0),
+
+      attemptRate:
+        Number(
+          data.attempt_rate || 0
+        ),
+
+      negativeLoss:
+        Number(
+          data.negative_loss || 0
+        ),
+    };
+  }
+
+  function normalizeSection(data) {
+    const info =
+      SECTION_INFO[data.key] || {};
+
+    return {
+      key: data.key,
+
+      name:
+        info.name ||
+        data.name ||
+        data.key,
+
+      fullName:
+        info.fullName ||
+        data.name ||
+        data.key,
+
+      hindi:
+        info.hindi || "",
+
+      total:
+        Number(data.total || 0),
+
+      attempted:
+        Number(data.attempted || 0),
+
+      unattempted:
+        Number(data.unattempted || 0),
+
+      correct:
+        Number(data.correct || 0),
+
+      wrong:
+        Number(data.wrong || 0),
+
+      marked:
+        Number(
+          data.marked_for_review || 0
+        ),
+
+      score:
+        Number(data.score || 0),
+
+      accuracy:
+        Number(data.accuracy || 0),
+
+      attemptRate:
+        Number(
+          data.attempt_rate || 0
+        ),
+
+      negativeLoss:
+        Number(
+          data.negative_loss || 0
+        ),
     };
   }
 
@@ -295,7 +228,10 @@ export default function ResultPage() {
     return "English";
   }
 
-  function getOptionText(item, answer) {
+  function getOptionText(
+    item,
+    answer
+  ) {
     if (!answer) {
       return "Not Attempted";
     }
@@ -304,19 +240,19 @@ export default function ResultPage() {
       String(answer).toUpperCase();
 
     if (key === "A") {
-      return item.option_a;
+      return item.option_a || "";
     }
 
     if (key === "B") {
-      return item.option_b;
+      return item.option_b || "";
     }
 
     if (key === "C") {
-      return item.option_c;
+      return item.option_c || "";
     }
 
     if (key === "D") {
-      return item.option_d;
+      return item.option_d || "";
     }
 
     return "";
@@ -326,27 +262,25 @@ export default function ResultPage() {
     item,
     answer
   ) {
-    if (!answer) {
-      return "";
-    }
+    if (!answer) return "";
 
     const key =
       String(answer).toUpperCase();
 
     if (key === "A") {
-      return item.option_a_hi;
+      return item.option_a_hi || "";
     }
 
     if (key === "B") {
-      return item.option_b_hi;
+      return item.option_b_hi || "";
     }
 
     if (key === "C") {
-      return item.option_c_hi;
+      return item.option_c_hi || "";
     }
 
     if (key === "D") {
-      return item.option_d_hi;
+      return item.option_d_hi || "";
     }
 
     return "";
@@ -355,23 +289,30 @@ export default function ResultPage() {
   function getQuestionResult(item) {
     if (!item.selected_answer) {
       return {
-        label: "Not Attempted / प्रयास नहीं किया",
+        label:
+          "Not Attempted / प्रयास नहीं किया",
         symbol: "⚪",
       };
     }
 
     if (
-      String(item.selected_answer).toUpperCase() ===
-      String(item.correct_answer).toUpperCase()
+      String(
+        item.selected_answer
+      ).toUpperCase() ===
+      String(
+        item.correct_answer
+      ).toUpperCase()
     ) {
       return {
-        label: "Correct / सही उत्तर",
+        label:
+          "Correct / सही उत्तर",
         symbol: "✅",
       };
     }
 
     return {
-      label: "Incorrect / गलत उत्तर",
+      label:
+        "Incorrect / गलत उत्तर",
       symbol: "❌",
     };
   }
@@ -409,15 +350,17 @@ export default function ResultPage() {
   }
 
   const bestSection =
-    [...sectionResults].sort(
+    [...sections].sort(
       (a, b) =>
-        b.accuracy - a.accuracy
+        b.accuracy -
+        a.accuracy
     )[0];
 
   const weakestSection =
-    [...sectionResults].sort(
+    [...sections].sort(
       (a, b) =>
-        a.accuracy - b.accuracy
+        a.accuracy -
+        b.accuracy
     )[0];
 
   return (
@@ -444,7 +387,9 @@ export default function ResultPage() {
               marginTop: "10px",
             }}
           >
-            {roundNumber(overall?.score)}
+            {roundNumber(
+              overall?.score
+            )}
             {" / "}
             {overall?.total}
           </div>
@@ -530,61 +475,63 @@ export default function ResultPage() {
           </div>
         </div>
 
-        <div className="card">
-          <h2>
-            Performance Highlights
-          </h2>
+        {sections.length > 0 && (
+          <div className="card">
+            <h2>
+              Performance Highlights
+            </h2>
 
-          <div style={statsGrid}>
-            <div style={highlightBox}>
-              <div className="muted">
-                Best Section
+            <div style={statsGrid}>
+              <div style={highlightBox}>
+                <div className="muted">
+                  Best Section
+                </div>
+
+                <div
+                  style={{
+                    fontSize: "19px",
+                    fontWeight: "800",
+                    marginTop: "8px",
+                  }}
+                >
+                  {bestSection?.name}
+                </div>
+
+                <div>
+                  Accuracy:{" "}
+                  {roundNumber(
+                    bestSection?.accuracy
+                  )}
+                  %
+                </div>
               </div>
 
-              <div
-                style={{
-                  fontSize: "19px",
-                  fontWeight: "800",
-                  marginTop: "8px",
-                }}
-              >
-                {bestSection?.name}
-              </div>
+              <div style={highlightBox}>
+                <div className="muted">
+                  Weakest Section
+                </div>
 
-              <div>
-                Accuracy:{" "}
-                {roundNumber(
-                  bestSection?.accuracy
-                )}
-                %
-              </div>
-            </div>
+                <div
+                  style={{
+                    fontSize: "19px",
+                    fontWeight: "800",
+                    marginTop: "8px",
+                  }}
+                >
+                  {weakestSection?.name}
+                </div>
 
-            <div style={highlightBox}>
-              <div className="muted">
-                Weakest Section
-              </div>
-
-              <div
-                style={{
-                  fontSize: "19px",
-                  fontWeight: "800",
-                  marginTop: "8px",
-                }}
-              >
-                {weakestSection?.name}
-              </div>
-
-              <div>
-                Accuracy:{" "}
-                {roundNumber(
-                  weakestSection?.accuracy
-                )}
-                %
+                <div>
+                  Accuracy:{" "}
+                  {roundNumber(
+                    weakestSection?.accuracy
+                  )}
+                  %
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="card">
           <h2>
@@ -595,17 +542,13 @@ export default function ResultPage() {
             अनुभागवार प्रदर्शन
           </p>
 
-          {sectionResults.map(
+          {sections.map(
             (section) => (
               <div
                 key={section.key}
                 style={sectionCard}
               >
-                <h3
-                  style={{
-                    marginBottom: "4px",
-                  }}
-                >
+                <h3>
                   {section.fullName}
                 </h3>
 
@@ -715,28 +658,57 @@ export default function ResultPage() {
             <table
               style={{
                 width: "100%",
-                borderCollapse: "collapse",
+                borderCollapse:
+                  "collapse",
                 minWidth: "900px",
               }}
             >
               <thead>
                 <tr>
-                  <th style={cellStyle}>Section</th>
-                  <th style={cellStyle}>Total</th>
-                  <th style={cellStyle}>Attempted</th>
-                  <th style={cellStyle}>Unattempted</th>
-                  <th style={cellStyle}>Correct</th>
-                  <th style={cellStyle}>Wrong</th>
-                  <th style={cellStyle}>Review</th>
-                  <th style={cellStyle}>Score</th>
-                  <th style={cellStyle}>Accuracy</th>
+                  <th style={cellStyle}>
+                    Section
+                  </th>
+
+                  <th style={cellStyle}>
+                    Total
+                  </th>
+
+                  <th style={cellStyle}>
+                    Attempted
+                  </th>
+
+                  <th style={cellStyle}>
+                    Unattempted
+                  </th>
+
+                  <th style={cellStyle}>
+                    Correct
+                  </th>
+
+                  <th style={cellStyle}>
+                    Wrong
+                  </th>
+
+                  <th style={cellStyle}>
+                    Review
+                  </th>
+
+                  <th style={cellStyle}>
+                    Score
+                  </th>
+
+                  <th style={cellStyle}>
+                    Accuracy
+                  </th>
                 </tr>
               </thead>
 
               <tbody>
-                {sectionResults.map(
+                {sections.map(
                   (section) => (
-                    <tr key={section.key}>
+                    <tr
+                      key={section.key}
+                    >
                       <td style={cellStyle}>
                         <b>
                           {section.name}
@@ -851,7 +823,9 @@ export default function ResultPage() {
               {solutions.map(
                 (item, index) => {
                   const result =
-                    getQuestionResult(item);
+                    getQuestionResult(
+                      item
+                    );
 
                   const yourText =
                     getOptionText(
@@ -902,7 +876,8 @@ export default function ResultPage() {
 
                         <span
                           style={{
-                            fontWeight: "700",
+                            fontWeight:
+                              "700",
                           }}
                         >
                           {getSectionName(
@@ -926,7 +901,8 @@ export default function ResultPage() {
                         <div
                           style={{
                             marginTop: "8px",
-                            fontWeight: "700",
+                            fontWeight:
+                              "700",
                           }}
                         >
                           🟣 Marked for Review
@@ -948,10 +924,13 @@ export default function ResultPage() {
                             fontSize: "17px",
                             lineHeight: "1.6",
                             fontWeight: "600",
-                            marginBottom: "15px",
+                            marginBottom:
+                              "15px",
                           }}
                         >
-                          {item.question_text_hi}
+                          {
+                            item.question_text_hi
+                          }
                         </div>
                       )}
 
@@ -973,8 +952,10 @@ export default function ResultPage() {
                         {yourHindi && (
                           <div
                             style={{
-                              marginTop: "4px",
-                              color: "#667085",
+                              marginTop:
+                                "4px",
+                              color:
+                                "#667085",
                             }}
                           >
                             {yourHindi}
@@ -992,15 +973,19 @@ export default function ResultPage() {
                             marginTop: "7px",
                           }}
                         >
-                          {item.correct_answer}.{" "}
-                          {correctText}
+                          {
+                            item.correct_answer
+                          }
+                          . {correctText}
                         </div>
 
                         {correctHindi && (
                           <div
                             style={{
-                              marginTop: "4px",
-                              color: "#667085",
+                              marginTop:
+                                "4px",
+                              color:
+                                "#667085",
                             }}
                           >
                             {correctHindi}
@@ -1016,7 +1001,8 @@ export default function ResultPage() {
                             padding: "14px",
                             border:
                               "1px solid #d7deea",
-                            borderRadius: "10px",
+                            borderRadius:
+                              "10px",
                           }}
                         >
                           <b>
@@ -1026,21 +1012,28 @@ export default function ResultPage() {
                           {item.explanation && (
                             <p
                               style={{
-                                lineHeight: "1.6",
+                                lineHeight:
+                                  "1.6",
                               }}
                             >
-                              {item.explanation}
+                              {
+                                item.explanation
+                              }
                             </p>
                           )}
 
                           {item.explanation_hi && (
                             <p
                               style={{
-                                lineHeight: "1.6",
-                                marginBottom: "0",
+                                lineHeight:
+                                  "1.6",
+                                marginBottom:
+                                  "0",
                               }}
                             >
-                              {item.explanation_hi}
+                              {
+                                item.explanation_hi
+                              }
                             </p>
                           )}
                         </div>
