@@ -202,8 +202,7 @@ export default function TestPage() {
       );
     }, 1000);
 
-    return () =>
-      clearTimeout(timer);
+    return () => clearTimeout(timer);
   }, [
     sectionTime,
     loading,
@@ -221,7 +220,10 @@ export default function TestPage() {
 
     return () =>
       clearInterval(syncTimer);
-  }, [loading, activeSection]);
+  }, [
+    loading,
+    activeSection,
+  ]);
 
   async function refreshServerState(
     moveQuestion = true
@@ -261,7 +263,10 @@ export default function TestPage() {
     const expired =
       Boolean(data?.expired);
 
-    if (expired && serverSection === 2) {
+    if (
+      expired &&
+      serverSection === 2
+    ) {
       setSectionTime(0);
 
       if (!autoSubmitting.current) {
@@ -408,6 +413,29 @@ export default function TestPage() {
     goQuestion(current + 1);
   }
 
+  function markAndNext() {
+    const q =
+      questions[current]?.questions;
+
+    if (!q?.id) return;
+
+    setReview((old) => {
+      const updated = {
+        ...old,
+        [q.id]: true,
+      };
+
+      localStorage.setItem(
+        reviewKey,
+        JSON.stringify(updated)
+      );
+
+      return updated;
+    });
+
+    nextQuestion();
+  }
+
   async function manualSubmitSection() {
     if (
       changingSection ||
@@ -481,19 +509,15 @@ export default function TestPage() {
       return;
     }
 
-    if (
-      data?.status ===
-      "final_section"
-    ) {
-      setChangingSection(false);
-      return;
-    }
-
     const nextSection =
-      Number(data?.current_section);
+      Number(
+        data?.current_section
+      );
 
     const remaining =
-      Number(data?.remaining_seconds);
+      Number(
+        data?.remaining_seconds
+      );
 
     setActiveSection(nextSection);
     setSectionTime(remaining);
@@ -510,6 +534,7 @@ export default function TestPage() {
       markVisited(q.id);
     }
 
+    setPaletteOpen(false);
     setChangingSection(false);
   }
 
@@ -520,18 +545,15 @@ export default function TestPage() {
 
     if (!automatic) {
       const attempted =
-        Object.keys(
-          answers
-        ).length;
+        Object.keys(answers).length;
 
       const unattempted =
         questions.length -
         attempted;
 
       const marked =
-        Object.values(
-          review
-        ).filter(Boolean).length;
+        Object.values(review)
+          .filter(Boolean).length;
 
       const yes =
         window.confirm(
@@ -578,7 +600,10 @@ export default function TestPage() {
         return;
       }
 
-      setError(error.message);
+      setError(
+        error.message
+      );
+
       setSubmitting(false);
       autoSubmitting.current = false;
 
@@ -612,20 +637,36 @@ export default function TestPage() {
       return "--:--";
     }
 
+    const hours =
+      Math.floor(
+        seconds / 3600
+      );
+
     const minutes =
-      Math.floor(seconds / 60);
+      Math.floor(
+        (seconds % 3600) / 60
+      );
 
     const secs =
       seconds % 60;
 
-    return `${String(
-      minutes
-    ).padStart(
+    if (hours > 0) {
+      return `${String(hours).padStart(
+        2,
+        "0"
+      )}:${String(minutes).padStart(
+        2,
+        "0"
+      )}:${String(secs).padStart(
+        2,
+        "0"
+      )}`;
+    }
+
+    return `${String(minutes).padStart(
       2,
       "0"
-    )}:${String(
-      secs
-    ).padStart(
+    )}:${String(secs).padStart(
       2,
       "0"
     )}`;
@@ -663,17 +704,9 @@ export default function TestPage() {
 
   if (loading) {
     return (
-      <>
-        <div className="nav">
-          JD Exambook • Examination
-        </div>
-
-        <main className="wrap">
-          <div className="card">
-            Loading test...
-          </div>
-        </main>
-      </>
+      <div style={centerPage}>
+        Loading test...
+      </div>
     );
   }
 
@@ -682,34 +715,17 @@ export default function TestPage() {
     !questions.length
   ) {
     return (
-      <>
-        <div className="nav">
-          JD Exambook
-        </div>
-
-        <main className="wrap">
-          <div className="card">
-            <b>Error:</b>{" "}
-            {error}
-          </div>
-        </main>
-      </>
+      <div style={centerPage}>
+        <b>Error:</b> {error}
+      </div>
     );
   }
 
   if (!questions.length) {
     return (
-      <>
-        <div className="nav">
-          JD Exambook
-        </div>
-
-        <main className="wrap">
-          <div className="card">
-            No questions found.
-          </div>
-        </main>
-      </>
+      <div style={centerPage}>
+        No questions found.
+      </div>
     );
   }
 
@@ -724,11 +740,9 @@ export default function TestPage() {
 
   if (!q) {
     return (
-      <main className="wrap">
-        <div className="card">
-          Question not available.
-        </div>
-      </main>
+      <div style={centerPage}>
+        Question not available.
+      </div>
     );
   }
 
@@ -754,6 +768,11 @@ export default function TestPage() {
         ]
     ).length;
 
+  const currentLocalNumber =
+    current -
+    section.start +
+    1;
+
   const options = [
     [
       "A",
@@ -778,426 +797,200 @@ export default function TestPage() {
   ];
 
   return (
-    <>
-      <div className="nav">
-        JD Exambook • Examination
+    <div style={pageShell}>
+
+      {/* TOP DARK HEADER */}
+
+      <header style={topBar}>
+
+        <div style={timerBlock}>
+          <div style={timerIcon}>
+            ◉
+          </div>
+
+          <div>
+            <div style={timerText}>
+              {formatTime(
+                sectionTime
+              )}
+            </div>
+
+            <div style={sectionSmall}>
+              {section.short}
+            </div>
+          </div>
+        </div>
+
+        <div style={titleBlock}>
+          {test?.title}
+        </div>
+
+        <button
+          onClick={() =>
+            setPaletteOpen(true)
+          }
+          style={menuButton}
+        >
+          ☰
+        </button>
+
+      </header>
+
+      {/* QUESTION STATUS STRIP */}
+
+      <div style={statusStrip}>
+
+        <div style={questionCircle}>
+          {currentLocalNumber}
+        </div>
+
+        <div style={statusDivider} />
+
+        <div style={tinyStatus}>
+          ✓ {sectionAnswered}
+        </div>
+
+        <div style={tinyStatus}>
+          🟣 {sectionMarked}
+        </div>
+
+        <div
+          style={{
+            marginLeft: "auto",
+            fontSize: "13px",
+            color: "#667085",
+          }}
+        >
+          {current + 1}/{questions.length}
+        </div>
+
       </div>
 
-      <main className="wrap">
+      {/* MAIN QUESTION AREA */}
 
-        <div className="card">
-          <div
-            style={{
-              display: "flex",
-              justifyContent:
-                "space-between",
-              gap: "15px",
-              flexWrap: "wrap",
-              alignItems: "flex-start",
-            }}
-          >
-            <div>
-              <b>
-                {test?.title}
-              </b>
+      <main style={questionArea}>
 
-              <div
-                style={{
-                  marginTop: "6px",
-                  fontWeight: "700",
-                }}
-              >
-                {section.name}
-              </div>
+        <div style={sectionTitle}>
+          {section.name}
+        </div>
 
-              <div className="muted">
-                {section.hindi}
-              </div>
-            </div>
+        <div style={sectionHindi}>
+          {section.hindi}
+        </div>
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-              }}
-            >
-              <div
-                style={{
-                  textAlign: "right",
-                }}
-              >
-                <div className="muted">
-                  Section Time Left
-                </div>
+        <div style={questionNumberText}>
+          Question {currentLocalNumber}
+        </div>
 
-                <div
+        <h2 style={questionText}>
+          {q.question_text}
+        </h2>
+
+        {q.question_text_hi && (
+          <div style={questionHindi}>
+            {q.question_text_hi}
+          </div>
+        )}
+
+        <div style={optionsWrap}>
+          {options.map(
+            ([key, en, hi]) => {
+              const selected =
+                answers[q.id] === key;
+
+              return (
+                <button
+                  key={key}
+
+                  onClick={() =>
+                    selectAnswer(
+                      q.id,
+                      key
+                    )
+                  }
+
                   style={{
-                    fontSize: "30px",
-                    fontWeight: "800",
+                    ...optionCard,
+
+                    border: selected
+                      ? "2px solid #4285f4"
+                      : "1px solid #d7dce3",
+
+                    background: selected
+                      ? "#eef5ff"
+                      : "#ffffff",
                   }}
                 >
-                  {formatTime(
-                    sectionTime
-                  )}
-                </div>
-              </div>
+                  <span style={optionNumber}>
+                    {key}
+                  </span>
 
-              <button
-                onClick={() =>
-                  setPaletteOpen(true)
-                }
-                style={paletteToggle}
-              >
-                ☰
-              </button>
-            </div>
-          </div>
-        </div>
+                  <span style={optionContent}>
+                    <span style={optionEnglish}>
+                      {en}
+                    </span>
 
-        <div className="card">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(3, 1fr)",
-              gap: "8px",
-            }}
-          >
-            {SECTIONS.map(
-              (s, index) => (
-                <div
-                  key={s.short}
-                  style={{
-                    padding:
-                      "10px 5px",
-
-                    borderRadius:
-                      "8px",
-
-                    textAlign:
-                      "center",
-
-                    fontWeight:
-                      "700",
-
-                    border:
-                      "1px solid #d7deea",
-
-                    background:
-                      index ===
-                      activeSection
-                        ? "#1769e0"
-                        : index <
-                          activeSection
-                        ? "#e5e7eb"
-                        : "#f8fafc",
-
-                    color:
-                      index ===
-                      activeSection
-                        ? "white"
-                        : "#172033",
-                  }}
-                >
-                  {s.short}
-
-                  {index <
-                    activeSection && (
-                    <div
-                      style={{
-                        fontSize:
-                          "11px",
-                        marginTop:
-                          "4px",
-                      }}
-                    >
-                      🔒 LOCKED
-                    </div>
-                  )}
-                </div>
-              )
-            )}
-          </div>
-        </div>
-
-        <div className="card">
-
-          <div className="top">
-            <div>
-              <b>
-                Question{" "}
-                {current -
-                  section.start +
-                  1}{" "}
-                of{" "}
-                {section.end -
-                  section.start +
-                  1}
-              </b>
-
-              <div className="muted">
-                Overall Question{" "}
-                {current + 1} /{" "}
-                {questions.length}
-              </div>
-            </div>
-
-            <div>
-              <div>
-                Answered:{" "}
-                {sectionAnswered}
-              </div>
-
-              <div className="muted">
-                Review:{" "}
-                {sectionMarked}
-              </div>
-            </div>
-          </div>
-
-          <h3
-            style={{
-              lineHeight: "1.5",
-              marginTop: "24px",
-            }}
-          >
-            {q.question_text}
-          </h3>
-
-          {q.question_text_hi && (
-            <div
-              style={{
-                fontSize: "18px",
-                fontWeight: "600",
-                lineHeight: "1.6",
-                marginBottom: "18px",
-              }}
-            >
-              {q.question_text_hi}
-            </div>
-          )}
-
-          <div className="options">
-            {options.map(
-              ([
-                key,
-                en,
-                hi,
-              ]) => (
-                <label key={key}>
-                  <input
-                    type="radio"
-                    name={`q-${q.id}`}
-
-                    checked={
-                      answers[
-                        q.id
-                      ] === key
-                    }
-
-                    onChange={() =>
-                      selectAnswer(
-                        q.id,
-                        key
-                      )
-                    }
-                  />
-
-                  {" "}
-
-                  <b>
-                    {key}.
-                  </b>{" "}
-
-                  {en}
-
-                  {hi && (
-                    <div
-                      style={{
-                        marginLeft:
-                          "25px",
-
-                        marginTop:
-                          "5px",
-
-                        color:
-                          "#555",
-                      }}
-                    >
-                      {hi}
-                    </div>
-                  )}
-                </label>
-              )
-            )}
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              flexWrap: "wrap",
-              marginTop: "15px",
-            }}
-          >
-            <button
-              className="btn btn2"
-
-              onClick={() =>
-                clearAnswer(
-                  q.id
-                )
-              }
-            >
-              Clear Response
-            </button>
-
-            <button
-              className="btn btn2"
-
-              onClick={() =>
-                toggleReview(
-                  q.id
-                )
-              }
-            >
-              {review[q.id]
-                ? "Remove Review"
-                : "Mark for Review"}
-            </button>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent:
-                "space-between",
-
-              gap: "10px",
-              marginTop: "25px",
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              className="btn btn2"
-
-              disabled={
-                current ===
-                section.start
-              }
-
-              onClick={
-                previousQuestion
-              }
-            >
-              Previous
-            </button>
-
-            {current <
-            section.end ? (
-              <button
-                className="btn"
-
-                onClick={
-                  nextQuestion
-                }
-              >
-                Save & Next
-              </button>
-            ) : (
-              <button
-                className="btn btn2"
-                disabled
-              >
-                Last Question
-              </button>
-            )}
-          </div>
-
-          {error && (
-            <p
-              style={{
-                color: "red",
-                marginTop: "15px",
-              }}
-            >
-              {error}
-            </p>
+                    {hi && (
+                      <span style={optionHindi}>
+                        {hi}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            }
           )}
         </div>
 
-        <div className="card">
+        {error && (
+          <div style={errorBox}>
+            {error}
+          </div>
+        )}
 
-          {activeSection < 2 ? (
-            <>
-              <h3>
-                Submit Current Section
-              </h3>
-
-              <p className="muted">
-                इस अनुभाग को submit करने के बाद यह server पर lock हो जाएगा और आप इसमें वापस नहीं आ सकेंगे।
-              </p>
-
-              <button
-                className="btn"
-
-                style={{
-                  width: "100%",
-                  padding: "15px",
-                  fontSize: "16px",
-                }}
-
-                disabled={
-                  changingSection
-                }
-
-                onClick={
-                  manualSubmitSection
-                }
-              >
-                {changingSection
-                  ? "Opening Next Section..."
-                  : `Submit ${section.short} Section / अनुभाग जमा करें`}
-              </button>
-            </>
-          ) : (
-            <>
-              <h3>
-                Final Test Submission
-              </h3>
-
-              <p className="muted">
-                सभी उत्तर जाँचने के बाद पूरा टेस्ट submit करें।
-              </p>
-
-              <button
-                className="btn"
-
-                style={{
-                  width: "100%",
-                  padding: "15px",
-                  fontSize: "16px",
-                }}
-
-                disabled={
-                  submitting
-                }
-
-                onClick={() =>
-                  submitTest(false)
-                }
-              >
-                {submitting
-                  ? "Submitting..."
-                  : "Submit Final Test / परीक्षा जमा करें"}
-              </button>
-            </>
-          )}
-
-        </div>
+        <div style={{ height: "95px" }} />
 
       </main>
+
+      {/* FIXED BOTTOM BAR */}
+
+      <div style={bottomBar}>
+
+        <button
+          onClick={markAndNext}
+          style={bottomSecondary}
+        >
+          Mark & Next
+        </button>
+
+        <button
+          onClick={() =>
+            clearAnswer(q.id)
+          }
+          style={bottomSecondary}
+        >
+          Clear
+        </button>
+
+        <button
+          onClick={nextQuestion}
+          disabled={
+            current >= section.end
+          }
+          style={{
+            ...bottomPrimary,
+            opacity:
+              current >= section.end
+                ? 0.5
+                : 1,
+          }}
+        >
+          Save & Next
+        </button>
+
+      </div>
+
+      {/* PALETTE DRAWER */}
 
       {paletteOpen && (
         <>
@@ -1209,23 +1002,13 @@ export default function TestPage() {
           />
 
           <aside style={drawer}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent:
-                  "space-between",
-                alignItems: "center",
-                gap: "10px",
-              }}
-            >
+
+            <div style={drawerHeader}>
+
               <div>
-                <h3
-                  style={{
-                    margin: 0,
-                  }}
-                >
+                <div style={drawerTitle}>
                   Question Palette
-                </h3>
+                </div>
 
                 <div className="muted">
                   {section.short}
@@ -1240,27 +1023,22 @@ export default function TestPage() {
               >
                 ✕
               </button>
+
             </div>
 
-            <div
-              style={{
-                marginTop: "14px",
-                fontWeight: "700",
-              }}
-            >
-              Answered: {sectionAnswered} /{" "}
-              {sectionQuestions.length}
+            <div style={drawerStats}>
+              <span>
+                Answered:{" "}
+                <b>{sectionAnswered}</b>
+              </span>
+
+              <span>
+                Review:{" "}
+                <b>{sectionMarked}</b>
+              </span>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(5, 1fr)",
-                gap: "8px",
-                marginTop: "18px",
-              }}
-            >
+            <div style={paletteGrid}>
               {sectionQuestions.map(
                 (
                   item,
@@ -1280,9 +1058,7 @@ export default function TestPage() {
 
                   return (
                     <button
-                      key={
-                        questionId
-                      }
+                      key={questionId}
 
                       onClick={() =>
                         goQuestion(
@@ -1291,29 +1067,19 @@ export default function TestPage() {
                       }
 
                       style={{
-                        padding:
-                          "11px 4px",
-
-                        borderRadius:
-                          "7px",
-
-                        border:
-                          current ===
-                          absoluteIndex
-                            ? "3px solid #172033"
-                            : "1px solid #ccd5e3",
-
-                        fontWeight:
-                          "700",
-
-                        cursor:
-                          "pointer",
+                        ...paletteNumber,
 
                         background:
                           status.background,
 
                         color:
                           status.color,
+
+                        border:
+                          current ===
+                          absoluteIndex
+                            ? "3px solid #172033"
+                            : "1px solid #ccd5e3",
                       }}
                     >
                       {localIndex + 1}
@@ -1323,50 +1089,382 @@ export default function TestPage() {
               )}
             </div>
 
-            <div
-              style={{
-                marginTop: "22px",
-                lineHeight: "2",
-              }}
-            >
+            <div style={legendBox}>
               <div>
-                🟢 Answered / उत्तर दिया
+                🟢 Answered
               </div>
 
               <div>
-                🔴 Not Answered / उत्तर नहीं दिया
+                🔴 Not Answered
               </div>
 
               <div>
-                🟣 Marked for Review / समीक्षा
+                🟣 Marked for Review
               </div>
 
               <div>
-                ⚪ Not Visited / नहीं देखा
+                ⚪ Not Visited
               </div>
             </div>
+
+            <div style={submitArea}>
+
+              {activeSection < 2 ? (
+                <>
+                  <div style={submitTitle}>
+                    Submit Current Section
+                  </div>
+
+                  <div style={submitInfo}>
+                    Attempted:{" "}
+                    <b>
+                      {sectionAnswered}
+                    </b>
+                    <br />
+
+                    Unattempted:{" "}
+                    <b>
+                      {sectionQuestions.length -
+                        sectionAnswered}
+                    </b>
+                    <br />
+
+                    Marked for Review:{" "}
+                    <b>
+                      {sectionMarked}
+                    </b>
+                  </div>
+
+                  <button
+                    onClick={
+                      manualSubmitSection
+                    }
+
+                    disabled={
+                      changingSection
+                    }
+
+                    style={submitButton}
+                  >
+                    {changingSection
+                      ? "Opening Next Section..."
+                      : `Submit ${section.short} Section`}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={submitTitle}>
+                    Final Test Submission
+                  </div>
+
+                  <div style={submitInfo}>
+                    Total Attempted:{" "}
+                    <b>
+                      {
+                        Object.keys(
+                          answers
+                        ).length
+                      }
+                    </b>
+                    <br />
+
+                    Total Unattempted:{" "}
+                    <b>
+                      {
+                        questions.length -
+                        Object.keys(
+                          answers
+                        ).length
+                      }
+                    </b>
+                    <br />
+
+                    Marked for Review:{" "}
+                    <b>
+                      {
+                        Object.values(
+                          review
+                        ).filter(
+                          Boolean
+                        ).length
+                      }
+                    </b>
+                  </div>
+
+                  <button
+                    onClick={() =>
+                      submitTest(false)
+                    }
+
+                    disabled={
+                      submitting
+                    }
+
+                    style={submitButton}
+                  >
+                    {submitting
+                      ? "Submitting..."
+                      : "Submit Final Test"}
+                  </button>
+                </>
+              )}
+
+            </div>
+
           </aside>
         </>
       )}
-    </>
+
+    </div>
   );
 }
 
-const paletteToggle = {
-  width: "46px",
-  height: "46px",
-  borderRadius: "10px",
-  border: "1px solid #d7deea",
+/* =========================
+   STYLES
+========================= */
+
+const pageShell = {
+  minHeight: "100vh",
   background: "#ffffff",
-  fontSize: "24px",
+  color: "#15171a",
+};
+
+const topBar = {
+  minHeight: "74px",
+  background: "#17191d",
+  color: "#ffffff",
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  padding: "10px 14px",
+  position: "sticky",
+  top: 0,
+  zIndex: 50,
+};
+
+const timerBlock = {
+  display: "flex",
+  alignItems: "center",
+  gap: "9px",
+  minWidth: "95px",
+};
+
+const timerIcon = {
+  width: "34px",
+  height: "34px",
+  border: "3px solid #ffffff",
+  borderRadius: "50%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "13px",
+};
+
+const timerText = {
+  fontSize: "18px",
   fontWeight: "800",
+  whiteSpace: "nowrap",
+};
+
+const sectionSmall = {
+  fontSize: "11px",
+  opacity: 0.72,
+  marginTop: "2px",
+};
+
+const titleBlock = {
+  flex: 1,
+  minWidth: 0,
+  fontWeight: "700",
+  fontSize: "14px",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+};
+
+const menuButton = {
+  width: "44px",
+  height: "44px",
+  border: 0,
+  background: "transparent",
+  color: "#ffffff",
+  fontSize: "30px",
+  cursor: "pointer",
+  flexShrink: 0,
+};
+
+const statusStrip = {
+  minHeight: "62px",
+  borderBottom: "1px solid #e4e7eb",
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  padding: "8px 18px",
+  background: "#ffffff",
+  position: "sticky",
+  top: "74px",
+  zIndex: 40,
+};
+
+const questionCircle = {
+  width: "44px",
+  height: "44px",
+  background: "#87939b",
+  color: "#ffffff",
+  borderRadius: "50%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: "700",
+  fontSize: "17px",
+};
+
+const statusDivider = {
+  width: "1px",
+  height: "34px",
+  background: "#d7dde2",
+};
+
+const tinyStatus = {
+  fontSize: "13px",
+  fontWeight: "700",
+  color: "#55606b",
+};
+
+const questionArea = {
+  maxWidth: "820px",
+  margin: "0 auto",
+  padding: "22px 18px 0",
+};
+
+const sectionTitle = {
+  fontSize: "12px",
+  color: "#667085",
+  fontWeight: "700",
+};
+
+const sectionHindi = {
+  fontSize: "12px",
+  color: "#8a94a0",
+  marginTop: "2px",
+};
+
+const questionNumberText = {
+  marginTop: "18px",
+  fontSize: "13px",
+  color: "#667085",
+  fontWeight: "700",
+};
+
+const questionText = {
+  fontSize: "21px",
+  lineHeight: "1.45",
+  margin: "10px 0 8px",
+};
+
+const questionHindi = {
+  fontSize: "18px",
+  lineHeight: "1.55",
+  fontWeight: "600",
+  marginBottom: "20px",
+};
+
+const optionsWrap = {
+  display: "grid",
+  gap: "12px",
+  marginTop: "22px",
+};
+
+const optionCard = {
+  width: "100%",
+  minHeight: "78px",
+  borderRadius: "10px",
+  padding: "14px 16px",
+  display: "flex",
+  alignItems: "center",
+  gap: "14px",
+  textAlign: "left",
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const optionNumber = {
+  width: "34px",
+  minWidth: "34px",
+  fontSize: "18px",
+  fontStyle: "italic",
+  color: "#69737d",
+  fontWeight: "700",
+};
+
+const optionContent = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px",
+  flex: 1,
+};
+
+const optionEnglish = {
+  fontSize: "17px",
+  lineHeight: "1.45",
+  color: "#202428",
+};
+
+const optionHindi = {
+  fontSize: "15px",
+  lineHeight: "1.45",
+  color: "#5f6872",
+};
+
+const errorBox = {
+  marginTop: "16px",
+  padding: "12px",
+  borderRadius: "8px",
+  background: "#fff1f1",
+  color: "#b42318",
+};
+
+const bottomBar = {
+  position: "fixed",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  minHeight: "78px",
+  background: "#ffffff",
+  borderTop: "1px solid #dfe3e8",
+  display: "grid",
+  gridTemplateColumns: "1fr 0.8fr 1fr",
+  gap: "10px",
+  padding: "10px 14px",
+  zIndex: 60,
+};
+
+const bottomSecondary = {
+  minHeight: "52px",
+  border: "2px solid #222",
+  borderRadius: "10px",
+  background: "#ffffff",
+  color: "#202124",
+  fontSize: "15px",
+  fontWeight: "700",
+  cursor: "pointer",
+};
+
+const bottomPrimary = {
+  minHeight: "52px",
+  border: 0,
+  borderRadius: "10px",
+  background: "#4285f4",
+  color: "#ffffff",
+  fontSize: "15px",
+  fontWeight: "700",
   cursor: "pointer",
 };
 
 const overlay = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.35)",
+  background: "rgba(0,0,0,0.38)",
   zIndex: 998,
 };
 
@@ -1374,13 +1472,26 @@ const drawer = {
   position: "fixed",
   top: 0,
   right: 0,
-  width: "min(380px, 92vw)",
+  width: "min(390px, 94vw)",
   height: "100vh",
   background: "#ffffff",
   zIndex: 999,
-  padding: "20px",
+  padding: "18px",
   overflowY: "auto",
-  boxShadow: "-8px 0 25px rgba(0,0,0,0.18)",
+  boxShadow:
+    "-8px 0 25px rgba(0,0,0,0.18)",
+};
+
+const drawerHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "10px",
+};
+
+const drawerTitle = {
+  fontSize: "20px",
+  fontWeight: "800",
 };
 
 const closeButton = {
@@ -1391,4 +1502,73 @@ const closeButton = {
   background: "#ffffff",
   fontSize: "18px",
   cursor: "pointer",
+};
+
+const drawerStats = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "10px",
+  marginTop: "18px",
+  fontSize: "14px",
+};
+
+const paletteGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(5, 1fr)",
+  gap: "8px",
+  marginTop: "18px",
+};
+
+const paletteNumber = {
+  minHeight: "42px",
+  borderRadius: "7px",
+  fontWeight: "700",
+  cursor: "pointer",
+};
+
+const legendBox = {
+  marginTop: "20px",
+  lineHeight: "2",
+  fontSize: "14px",
+};
+
+const submitArea = {
+  marginTop: "22px",
+  paddingTop: "18px",
+  borderTop: "1px solid #d7deea",
+};
+
+const submitTitle = {
+  fontSize: "17px",
+  fontWeight: "800",
+  marginBottom: "10px",
+};
+
+const submitInfo = {
+  padding: "12px",
+  background: "#f8fafc",
+  border: "1px solid #d7deea",
+  borderRadius: "10px",
+  lineHeight: "1.8",
+  marginBottom: "14px",
+};
+
+const submitButton = {
+  width: "100%",
+  minHeight: "48px",
+  border: 0,
+  borderRadius: "9px",
+  background: "#1769e0",
+  color: "#ffffff",
+  fontWeight: "800",
+  fontSize: "15px",
+  cursor: "pointer",
+};
+
+const centerPage = {
+  minHeight: "100vh",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "20px",
 };
