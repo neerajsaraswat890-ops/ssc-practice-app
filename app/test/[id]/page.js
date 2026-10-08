@@ -44,7 +44,6 @@ export default function TestPage() {
 
   const [current, setCurrent] = useState(0);
   const [activeSection, setActiveSection] = useState(0);
-
   const [sectionTime, setSectionTime] = useState(null);
 
   const [loading, setLoading] = useState(true);
@@ -53,13 +52,11 @@ export default function TestPage() {
   const [error, setError] = useState("");
 
   const autoSubmitting = useRef(false);
+  const refreshingState = useRef(false);
 
   const answerKey = `jd_answers_${id}`;
   const reviewKey = `jd_review_${id}`;
   const visitedKey = `jd_visited_${id}`;
-
-  const sectionKey = `jd_section_${id}`;
-  const sectionStartKey = `jd_section_start_${id}`;
 
   useEffect(() => {
     loadTest();
@@ -147,109 +144,36 @@ export default function TestPage() {
       localStorage.removeItem(visitedKey);
     }
 
-    let savedSection =
-      Number(localStorage.getItem(sectionKey));
-
-    if (
-      Number.isNaN(savedSection) ||
-      savedSection < 0 ||
-      savedSection > 2
-    ) {
-      savedSection = 0;
-
-      localStorage.setItem(
-        sectionKey,
-        "0"
+    const { data: stateData, error: stateError } =
+      await client.rpc(
+        "get_test_state",
+        {
+          p_test_id: Number(id),
+        }
       );
+
+    if (stateError) {
+      setError(stateError.message);
+      setLoading(false);
+      return;
     }
 
-    let savedSectionStart =
-      Number(
-        localStorage.getItem(
-          sectionStartKey
-        )
-      );
-
-    if (
-      !savedSectionStart ||
-      Number.isNaN(savedSectionStart)
-    ) {
-      savedSectionStart = Date.now();
-
-      localStorage.setItem(
-        sectionStartKey,
-        String(savedSectionStart)
-      );
+    if (stateData?.status === "submitted") {
+      router.replace(`/result/${id}`);
+      return;
     }
 
-    let sectionIndex = savedSection;
-    let sectionStartedAt = savedSectionStart;
-
-    while (sectionIndex < 3) {
-      const elapsed =
-        Math.floor(
-          (Date.now() - sectionStartedAt) /
-            1000
-        );
-
-      const sectionDuration =
-        SECTIONS[sectionIndex].seconds;
-
-      if (elapsed < sectionDuration) {
-        break;
-      }
-
-      if (sectionIndex === 2) {
-        setActiveSection(2);
-        setSectionTime(0);
-        setLoading(false);
-
-        setTimeout(() => {
-          if (!autoSubmitting.current) {
-            autoSubmitting.current = true;
-            submitTest(true);
-          }
-        }, 500);
-
-        return;
-      }
-
-      sectionStartedAt =
-        sectionStartedAt +
-        sectionDuration * 1000;
-
-      sectionIndex =
-        sectionIndex + 1;
-
-      localStorage.setItem(
-        sectionKey,
-        String(sectionIndex)
-      );
-
-      localStorage.setItem(
-        sectionStartKey,
-        String(sectionStartedAt)
-      );
-    }
-
-    const elapsed =
-      Math.floor(
-        (Date.now() - sectionStartedAt) /
-          1000
-      );
+    const serverSection =
+      Number(stateData?.current_section ?? 0);
 
     const remaining =
-      Math.max(
-        0,
-        SECTIONS[sectionIndex].seconds -
-          elapsed
-      );
+      Number(stateData?.remaining_seconds ?? 0);
 
-    setActiveSection(sectionIndex);
+    setActiveSection(serverSection);
     setSectionTime(remaining);
 
     const firstQuestion =
-      SECTIONS[sectionIndex].start;
+      SECTIONS[serverSection].start;
 
     setCurrent(firstQuestion);
 
@@ -275,7 +199,7 @@ export default function TestPage() {
     }
 
     if (sectionTime <= 0) {
-      autoMoveToNextSection();
+      refreshServerState();
       return;
     }
 
@@ -287,12 +211,107 @@ export default function TestPage() {
 
     return () =>
       clearTimeout(timer);
+
   }, [
     sectionTime,
     loading,
     submitting,
     changingSection,
   ]);
+
+  useEffect(() => {
+    if (loading) return;
+
+    const syncTimer =
+      setInterval(() => {
+        refreshServerState(false);
+      }, 30000);
+
+    return () =>
+      clearInterval(syncTimer);
+
+  }, [
+    loading,
+    activeSection,
+  ]);
+
+  async function refreshServerState(
+    moveQuestion = true
+  ) {
+    if (refreshingState.current) {
+      return;
+    }
+
+    refreshingState.current = true;
+
+    const { data, error } =
+      await supabase().rpc(
+        "get_test_state",
+        {
+          p_test_id: Number(id),
+        }
+      );
+
+    refreshingState.current = false;
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    if (data?.status === "submitted") {
+      router.replace(`/result/${id}`);
+      return;
+    }
+
+    const serverSection =
+      Number(
+        data?.current_section ?? 0
+      );
+
+    const remaining =
+      Number(
+        data?.remaining_seconds ?? 0
+      );
+
+    const expired =
+      Boolean(data?.expired);
+
+    if (expired && serverSection === 2) {
+      setSectionTime(0);
+
+      if (!autoSubmitting.current) {
+        autoSubmitting.current = true;
+        submitTest(true);
+      }
+
+      return;
+    }
+
+    const sectionChanged =
+      serverSection !== activeSection;
+
+    setActiveSection(serverSection);
+    setSectionTime(remaining);
+
+    if (
+      sectionChanged &&
+      moveQuestion
+    ) {
+      const firstQuestion =
+        SECTIONS[serverSection].start;
+
+      setCurrent(firstQuestion);
+
+      const q =
+        questions[firstQuestion]
+          ?.questions;
+
+      if (q?.id) {
+        markVisited(q.id);
+      }
+    }
+  }
 
   function markVisited(questionId) {
     setVisited((old) => {
@@ -411,7 +430,12 @@ export default function TestPage() {
   }
 
   async function manualSubmitSection() {
-    if (changingSection) return;
+    if (
+      changingSection ||
+      submitting
+    ) {
+      return;
+    }
 
     if (activeSection === 2) {
       submitTest(false);
@@ -458,76 +482,61 @@ export default function TestPage() {
 
     if (!yes) return;
 
-    moveToNextSection();
-  }
-
-  function autoMoveToNextSection() {
-    if (changingSection) return;
-
-    if (activeSection === 2) {
-      if (
-        !autoSubmitting.current
-      ) {
-        autoSubmitting.current = true;
-        submitTest(true);
-      }
-
-      return;
-    }
-
-    moveToNextSection();
-  }
-
-  function moveToNextSection() {
-    if (changingSection) return;
-
     setChangingSection(true);
+    setError("");
 
-    const next =
-      activeSection + 1;
+    const { data, error } =
+      await supabase().rpc(
+        "submit_test_section",
+        {
+          p_test_id: Number(id),
+          p_section: activeSection,
+        }
+      );
 
-    if (next >= 3) {
-      submitTest(true);
+    if (error) {
+      setChangingSection(false);
+      setError(error.message);
+
+      await refreshServerState();
       return;
     }
 
-    const now = Date.now();
-
-    localStorage.setItem(
-      sectionKey,
-      String(next)
-    );
-
-    localStorage.setItem(
-      sectionStartKey,
-      String(now)
-    );
+    if (
+      data?.status ===
+      "final_section"
+    ) {
+      setChangingSection(false);
+      return;
+    }
 
     const nextSection =
-      SECTIONS[next];
+      Number(
+        data?.current_section
+      );
 
-    setActiveSection(next);
+    const remaining =
+      Number(
+        data?.remaining_seconds
+      );
 
-    setSectionTime(
-      nextSection.seconds
-    );
+    setActiveSection(nextSection);
+    setSectionTime(remaining);
 
-    setCurrent(
-      nextSection.start
-    );
+    const firstQuestion =
+      SECTIONS[nextSection].start;
+
+    setCurrent(firstQuestion);
 
     const q =
-      questions[
-        nextSection.start
-      ]?.questions;
+      questions[firstQuestion]
+        ?.questions;
 
     if (q?.id) {
       markVisited(q.id);
     }
 
-    setTimeout(() => {
-      setChangingSection(false);
-    }, 300);
+    setChangingSection(false);
   }
 
   async function submitTest(
@@ -569,16 +578,36 @@ export default function TestPage() {
       await supabase().rpc(
         "submit_test",
         {
-          p_test_id: Number(id),
-          p_answers: answers,
-          p_review: review,
+          p_test_id:
+            Number(id),
+
+          p_answers:
+            answers,
+
+          p_review:
+            review,
         }
       );
 
     if (error) {
+      if (
+        error.message
+          ?.toLowerCase()
+          .includes(
+            "already submitted"
+          )
+      ) {
+        router.replace(
+          `/result/${id}`
+        );
+
+        return;
+      }
+
       setError(error.message);
       setSubmitting(false);
       autoSubmitting.current = false;
+
       return;
     }
 
@@ -599,15 +628,7 @@ export default function TestPage() {
       visitedKey
     );
 
-    localStorage.removeItem(
-      sectionKey
-    );
-
-    localStorage.removeItem(
-      sectionStartKey
-    );
-
-    router.push(
+    router.replace(
       `/result/${id}`
     );
   }
@@ -840,6 +861,16 @@ export default function TestPage() {
                   sectionTime
                 )}
               </div>
+
+              <div
+                className="muted"
+                style={{
+                  fontSize: "12px",
+                  marginTop: "4px",
+                }}
+              >
+                Server controlled timer
+              </div>
             </div>
           </div>
         </div>
@@ -858,13 +889,18 @@ export default function TestPage() {
                 <div
                   key={s.short}
                   style={{
-                    padding: "10px 5px",
+                    padding:
+                      "10px 5px",
+
                     borderRadius:
                       "8px",
+
                     textAlign:
                       "center",
+
                     fontWeight:
                       "700",
+
                     border:
                       "1px solid #d7deea",
 
@@ -973,11 +1009,13 @@ export default function TestPage() {
                   <input
                     type="radio"
                     name={`q-${q.id}`}
+
                     checked={
                       answers[
                         q.id
                       ] === key
                     }
+
                     onChange={() =>
                       selectAnswer(
                         q.id,
@@ -999,8 +1037,10 @@ export default function TestPage() {
                       style={{
                         marginLeft:
                           "25px",
+
                         marginTop:
                           "5px",
+
                         color:
                           "#555",
                       }}
@@ -1023,6 +1063,7 @@ export default function TestPage() {
           >
             <button
               className="btn btn2"
+
               onClick={() =>
                 clearAnswer(
                   q.id
@@ -1034,6 +1075,7 @@ export default function TestPage() {
 
             <button
               className="btn btn2"
+
               onClick={() =>
                 toggleReview(
                   q.id
@@ -1051,6 +1093,7 @@ export default function TestPage() {
               display: "flex",
               justifyContent:
                 "space-between",
+
               gap: "10px",
               marginTop: "25px",
               flexWrap: "wrap",
@@ -1058,10 +1101,12 @@ export default function TestPage() {
           >
             <button
               className="btn btn2"
+
               disabled={
                 current ===
                 section.start
               }
+
               onClick={
                 previousQuestion
               }
@@ -1073,6 +1118,7 @@ export default function TestPage() {
             section.end ? (
               <button
                 className="btn"
+
                 onClick={
                   nextQuestion
                 }
@@ -1093,6 +1139,7 @@ export default function TestPage() {
             <p
               style={{
                 color: "red",
+                marginTop: "15px",
               }}
             >
               {error}
@@ -1127,8 +1174,10 @@ export default function TestPage() {
           <div
             style={{
               display: "grid",
+
               gridTemplateColumns:
                 "repeat(auto-fill, minmax(46px, 1fr))",
+
               gap: "8px",
               marginTop: "18px",
             }}
@@ -1155,14 +1204,17 @@ export default function TestPage() {
                     key={
                       questionId
                     }
+
                     onClick={() =>
                       goQuestion(
                         absoluteIndex
                       )
                     }
+
                     style={{
                       padding:
                         "11px 4px",
+
                       borderRadius:
                         "7px",
 
@@ -1174,15 +1226,19 @@ export default function TestPage() {
 
                       fontWeight:
                         "700",
+
                       cursor:
                         "pointer",
+
                       background:
                         status.background,
+
                       color:
                         status.color,
                     }}
                   >
-                    {localIndex + 1}
+                    {localIndex +
+                      1}
                   </button>
                 );
               }
@@ -1196,23 +1252,19 @@ export default function TestPage() {
             }}
           >
             <div>
-              🟢 Answered /
-              उत्तर दिया
+              🟢 Answered / उत्तर दिया
             </div>
 
             <div>
-              🔴 Not Answered /
-              उत्तर नहीं दिया
+              🔴 Not Answered / उत्तर नहीं दिया
             </div>
 
             <div>
-              🟣 Marked for Review /
-              समीक्षा
+              🟣 Marked for Review / समीक्षा
             </div>
 
             <div>
-              ⚪ Not Visited /
-              नहीं देखा
+              ⚪ Not Visited / नहीं देखा
             </div>
           </div>
         </div>
@@ -1226,19 +1278,22 @@ export default function TestPage() {
               </h3>
 
               <p className="muted">
-                इस अनुभाग को submit करने के बाद आप इसमें वापस नहीं आ सकेंगे।
+                इस अनुभाग को submit करने के बाद यह server पर lock हो जाएगा और आप इसमें वापस नहीं आ सकेंगे।
               </p>
 
               <button
                 className="btn"
+
                 style={{
                   width: "100%",
                   padding: "15px",
                   fontSize: "16px",
                 }}
+
                 disabled={
                   changingSection
                 }
+
                 onClick={
                   manualSubmitSection
                 }
@@ -1260,14 +1315,17 @@ export default function TestPage() {
 
               <button
                 className="btn"
+
                 style={{
                   width: "100%",
                   padding: "15px",
                   fontSize: "16px",
                 }}
+
                 disabled={
                   submitting
                 }
+
                 onClick={() =>
                   submitTest(false)
                 }
