@@ -51,6 +51,8 @@ export default function TestPage() {
   const [changingSection, setChangingSection] = useState(false);
   const [error, setError] = useState("");
 
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
   const autoSubmitting = useRef(false);
   const refreshingState = useRef(false);
 
@@ -118,14 +120,9 @@ export default function TestPage() {
     setQuestions(loadedQuestions);
 
     try {
-      const oldAnswers =
-        localStorage.getItem(answerKey);
-
-      const oldReview =
-        localStorage.getItem(reviewKey);
-
-      const oldVisited =
-        localStorage.getItem(visitedKey);
+      const oldAnswers = localStorage.getItem(answerKey);
+      const oldReview = localStorage.getItem(reviewKey);
+      const oldVisited = localStorage.getItem(visitedKey);
 
       if (oldAnswers) {
         setAnswers(JSON.parse(oldAnswers));
@@ -145,12 +142,9 @@ export default function TestPage() {
     }
 
     const { data: stateData, error: stateError } =
-      await client.rpc(
-        "get_test_state",
-        {
-          p_test_id: Number(id),
-        }
-      );
+      await client.rpc("get_test_state", {
+        p_test_id: Number(id),
+      });
 
     if (stateError) {
       setError(stateError.message);
@@ -178,8 +172,7 @@ export default function TestPage() {
     setCurrent(firstQuestion);
 
     const q =
-      loadedQuestions[firstQuestion]
-        ?.questions;
+      loadedQuestions[firstQuestion]?.questions;
 
     if (q?.id) {
       markVisited(q.id);
@@ -211,7 +204,6 @@ export default function TestPage() {
 
     return () =>
       clearTimeout(timer);
-
   }, [
     sectionTime,
     loading,
@@ -229,11 +221,7 @@ export default function TestPage() {
 
     return () =>
       clearInterval(syncTimer);
-
-  }, [
-    loading,
-    activeSection,
-  ]);
+  }, [loading, activeSection]);
 
   async function refreshServerState(
     moveQuestion = true
@@ -265,14 +253,10 @@ export default function TestPage() {
     }
 
     const serverSection =
-      Number(
-        data?.current_section ?? 0
-      );
+      Number(data?.current_section ?? 0);
 
     const remaining =
-      Number(
-        data?.remaining_seconds ?? 0
-      );
+      Number(data?.remaining_seconds ?? 0);
 
     const expired =
       Boolean(data?.expired);
@@ -304,8 +288,7 @@ export default function TestPage() {
       setCurrent(firstQuestion);
 
       const q =
-        questions[firstQuestion]
-          ?.questions;
+        questions[firstQuestion]?.questions;
 
       if (q?.id) {
         markVisited(q.id);
@@ -348,6 +331,8 @@ export default function TestPage() {
     if (q?.id) {
       markVisited(q.id);
     }
+
+    setPaletteOpen(false);
   }
 
   function selectAnswer(
@@ -371,9 +356,7 @@ export default function TestPage() {
 
   function clearAnswer(questionId) {
     setAnswers((old) => {
-      const updated = {
-        ...old,
-      };
+      const updated = { ...old };
 
       delete updated[questionId];
 
@@ -407,9 +390,7 @@ export default function TestPage() {
     const section =
       SECTIONS[activeSection];
 
-    if (
-      current <= section.start
-    ) {
+    if (current <= section.start) {
       return;
     }
 
@@ -420,9 +401,7 @@ export default function TestPage() {
     const section =
       SECTIONS[activeSection];
 
-    if (
-      current >= section.end
-    ) {
+    if (current >= section.end) {
       return;
     }
 
@@ -511,14 +490,10 @@ export default function TestPage() {
     }
 
     const nextSection =
-      Number(
-        data?.current_section
-      );
+      Number(data?.current_section);
 
     const remaining =
-      Number(
-        data?.remaining_seconds
-      );
+      Number(data?.remaining_seconds);
 
     setActiveSection(nextSection);
     setSectionTime(remaining);
@@ -529,8 +504,7 @@ export default function TestPage() {
     setCurrent(firstQuestion);
 
     const q =
-      questions[firstQuestion]
-        ?.questions;
+      questions[firstQuestion]?.questions;
 
     if (q?.id) {
       markVisited(q.id);
@@ -639,9 +613,7 @@ export default function TestPage() {
     }
 
     const minutes =
-      Math.floor(
-        seconds / 60
-      );
+      Math.floor(seconds / 60);
 
     const secs =
       seconds % 60;
@@ -821,6 +793,7 @@ export default function TestPage() {
                 "space-between",
               gap: "15px",
               flexWrap: "wrap",
+              alignItems: "flex-start",
             }}
           >
             <div>
@@ -844,33 +817,40 @@ export default function TestPage() {
 
             <div
               style={{
-                textAlign: "right",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
               }}
             >
-              <div className="muted">
-                Section Time Left
-              </div>
-
               <div
                 style={{
-                  fontSize: "30px",
-                  fontWeight: "800",
+                  textAlign: "right",
                 }}
               >
-                {formatTime(
-                  sectionTime
-                )}
+                <div className="muted">
+                  Section Time Left
+                </div>
+
+                <div
+                  style={{
+                    fontSize: "30px",
+                    fontWeight: "800",
+                  }}
+                >
+                  {formatTime(
+                    sectionTime
+                  )}
+                </div>
               </div>
 
-              <div
-                className="muted"
-                style={{
-                  fontSize: "12px",
-                  marginTop: "4px",
-                }}
+              <button
+                onClick={() =>
+                  setPaletteOpen(true)
+                }
+                style={paletteToggle}
               >
-                Server controlled timer
-              </div>
+                ☰
+              </button>
             </div>
           </div>
         </div>
@@ -1149,128 +1129,6 @@ export default function TestPage() {
 
         <div className="card">
 
-          <div className="top">
-            <div>
-              <b>
-                {section.short} Question Palette
-              </b>
-
-              <div className="muted">
-                Section{" "}
-                {activeSection + 1}{" "}
-                of 3
-              </div>
-            </div>
-
-            <b>
-              {sectionAnswered}
-              /
-              {
-                sectionQuestions.length
-              }
-            </b>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-
-              gridTemplateColumns:
-                "repeat(auto-fill, minmax(46px, 1fr))",
-
-              gap: "8px",
-              marginTop: "18px",
-            }}
-          >
-            {sectionQuestions.map(
-              (
-                item,
-                localIndex
-              ) => {
-                const absoluteIndex =
-                  section.start +
-                  localIndex;
-
-                const questionId =
-                  item.questions.id;
-
-                const status =
-                  paletteStyle(
-                    questionId
-                  );
-
-                return (
-                  <button
-                    key={
-                      questionId
-                    }
-
-                    onClick={() =>
-                      goQuestion(
-                        absoluteIndex
-                      )
-                    }
-
-                    style={{
-                      padding:
-                        "11px 4px",
-
-                      borderRadius:
-                        "7px",
-
-                      border:
-                        current ===
-                        absoluteIndex
-                          ? "3px solid #172033"
-                          : "1px solid #ccd5e3",
-
-                      fontWeight:
-                        "700",
-
-                      cursor:
-                        "pointer",
-
-                      background:
-                        status.background,
-
-                      color:
-                        status.color,
-                    }}
-                  >
-                    {localIndex +
-                      1}
-                  </button>
-                );
-              }
-            )}
-          </div>
-
-          <div
-            style={{
-              marginTop: "20px",
-              lineHeight: "2",
-            }}
-          >
-            <div>
-              🟢 Answered / उत्तर दिया
-            </div>
-
-            <div>
-              🔴 Not Answered / उत्तर नहीं दिया
-            </div>
-
-            <div>
-              🟣 Marked for Review / समीक्षा
-            </div>
-
-            <div>
-              ⚪ Not Visited / नहीं देखा
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-
           {activeSection < 2 ? (
             <>
               <h3>
@@ -1340,6 +1198,197 @@ export default function TestPage() {
         </div>
 
       </main>
+
+      {paletteOpen && (
+        <>
+          <div
+            onClick={() =>
+              setPaletteOpen(false)
+            }
+            style={overlay}
+          />
+
+          <aside style={drawer}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent:
+                  "space-between",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <div>
+                <h3
+                  style={{
+                    margin: 0,
+                  }}
+                >
+                  Question Palette
+                </h3>
+
+                <div className="muted">
+                  {section.short}
+                </div>
+              </div>
+
+              <button
+                onClick={() =>
+                  setPaletteOpen(false)
+                }
+                style={closeButton}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div
+              style={{
+                marginTop: "14px",
+                fontWeight: "700",
+              }}
+            >
+              Answered: {sectionAnswered} /{" "}
+              {sectionQuestions.length}
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(5, 1fr)",
+                gap: "8px",
+                marginTop: "18px",
+              }}
+            >
+              {sectionQuestions.map(
+                (
+                  item,
+                  localIndex
+                ) => {
+                  const absoluteIndex =
+                    section.start +
+                    localIndex;
+
+                  const questionId =
+                    item.questions.id;
+
+                  const status =
+                    paletteStyle(
+                      questionId
+                    );
+
+                  return (
+                    <button
+                      key={
+                        questionId
+                      }
+
+                      onClick={() =>
+                        goQuestion(
+                          absoluteIndex
+                        )
+                      }
+
+                      style={{
+                        padding:
+                          "11px 4px",
+
+                        borderRadius:
+                          "7px",
+
+                        border:
+                          current ===
+                          absoluteIndex
+                            ? "3px solid #172033"
+                            : "1px solid #ccd5e3",
+
+                        fontWeight:
+                          "700",
+
+                        cursor:
+                          "pointer",
+
+                        background:
+                          status.background,
+
+                        color:
+                          status.color,
+                      }}
+                    >
+                      {localIndex + 1}
+                    </button>
+                  );
+                }
+              )}
+            </div>
+
+            <div
+              style={{
+                marginTop: "22px",
+                lineHeight: "2",
+              }}
+            >
+              <div>
+                🟢 Answered / उत्तर दिया
+              </div>
+
+              <div>
+                🔴 Not Answered / उत्तर नहीं दिया
+              </div>
+
+              <div>
+                🟣 Marked for Review / समीक्षा
+              </div>
+
+              <div>
+                ⚪ Not Visited / नहीं देखा
+              </div>
+            </div>
+          </aside>
+        </>
+      )}
     </>
   );
 }
+
+const paletteToggle = {
+  width: "46px",
+  height: "46px",
+  borderRadius: "10px",
+  border: "1px solid #d7deea",
+  background: "#ffffff",
+  fontSize: "24px",
+  fontWeight: "800",
+  cursor: "pointer",
+};
+
+const overlay = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.35)",
+  zIndex: 998,
+};
+
+const drawer = {
+  position: "fixed",
+  top: 0,
+  right: 0,
+  width: "min(380px, 92vw)",
+  height: "100vh",
+  background: "#ffffff",
+  zIndex: 999,
+  padding: "20px",
+  overflowY: "auto",
+  boxShadow: "-8px 0 25px rgba(0,0,0,0.18)",
+};
+
+const closeButton = {
+  width: "38px",
+  height: "38px",
+  borderRadius: "8px",
+  border: "1px solid #d7deea",
+  background: "#ffffff",
+  fontSize: "18px",
+  cursor: "pointer",
+};
