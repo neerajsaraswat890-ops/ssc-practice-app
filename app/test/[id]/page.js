@@ -391,17 +391,6 @@ export default function TestPage() {
     });
   }
 
-  function previousQuestion() {
-    const section =
-      SECTIONS[activeSection];
-
-    if (current <= section.start) {
-      return;
-    }
-
-    goQuestion(current - 1);
-  }
-
   function nextQuestion() {
     const section =
       SECTIONS[activeSection];
@@ -574,14 +563,9 @@ export default function TestPage() {
       await supabase().rpc(
         "submit_test",
         {
-          p_test_id:
-            Number(id),
-
-          p_answers:
-            answers,
-
-          p_review:
-            review,
+          p_test_id: Number(id),
+          p_answers: answers,
+          p_review: review,
         }
       );
 
@@ -600,10 +584,7 @@ export default function TestPage() {
         return;
       }
 
-      setError(
-        error.message
-      );
-
+      setError(error.message);
       setSubmitting(false);
       autoSubmitting.current = false;
 
@@ -615,17 +596,9 @@ export default function TestPage() {
       JSON.stringify(data)
     );
 
-    localStorage.removeItem(
-      answerKey
-    );
-
-    localStorage.removeItem(
-      reviewKey
-    );
-
-    localStorage.removeItem(
-      visitedKey
-    );
+    localStorage.removeItem(answerKey);
+    localStorage.removeItem(reviewKey);
+    localStorage.removeItem(visitedKey);
 
     router.replace(
       `/result/${id}`
@@ -799,8 +772,6 @@ export default function TestPage() {
   return (
     <div style={pageShell}>
 
-      {/* TOP DARK HEADER */}
-
       <header style={topBar}>
 
         <div style={timerBlock}>
@@ -836,8 +807,6 @@ export default function TestPage() {
 
       </header>
 
-      {/* QUESTION STATUS STRIP */}
-
       <div style={statusStrip}>
 
         <div style={questionCircle}>
@@ -865,8 +834,6 @@ export default function TestPage() {
         </div>
 
       </div>
-
-      {/* MAIN QUESTION AREA */}
 
       <main style={questionArea}>
 
@@ -952,8 +919,6 @@ export default function TestPage() {
 
       </main>
 
-      {/* FIXED BOTTOM BAR */}
-
       <div style={bottomBar}>
 
         <button
@@ -989,8 +954,6 @@ export default function TestPage() {
         </button>
 
       </div>
-
-      {/* PALETTE DRAWER */}
 
       {paletteOpen && (
         <>
@@ -1078,7 +1041,7 @@ export default function TestPage() {
                         border:
                           current ===
                           absoluteIndex
-                            ? "3px solid #172033"
+                            ? "2px solid #172033"
                             : "1px solid #ccd5e3",
                       }}
                     >
@@ -1090,21 +1053,21 @@ export default function TestPage() {
             </div>
 
             <div style={legendBox}>
-              <div>
+              <span>
                 🟢 Answered
-              </div>
+              </span>
 
-              <div>
+              <span>
                 🔴 Not Answered
-              </div>
+              </span>
 
-              <div>
-                🟣 Marked for Review
-              </div>
+              <span>
+                🟣 Review
+              </span>
 
-              <div>
+              <span>
                 ⚪ Not Visited
-              </div>
+              </span>
             </div>
 
             <div style={submitArea}>
@@ -1120,16 +1083,18 @@ export default function TestPage() {
                     <b>
                       {sectionAnswered}
                     </b>
-                    <br />
+
+                    {" • "}
 
                     Unattempted:{" "}
                     <b>
                       {sectionQuestions.length -
                         sectionAnswered}
                     </b>
-                    <br />
 
-                    Marked for Review:{" "}
+                    {" • "}
+
+                    Review:{" "}
                     <b>
                       {sectionMarked}
                     </b>
@@ -1158,7 +1123,7 @@ export default function TestPage() {
                   </div>
 
                   <div style={submitInfo}>
-                    Total Attempted:{" "}
+                    Attempted:{" "}
                     <b>
                       {
                         Object.keys(
@@ -1166,9 +1131,10 @@ export default function TestPage() {
                         ).length
                       }
                     </b>
-                    <br />
 
-                    Total Unattempted:{" "}
+                    {" • "}
+
+                    Unattempted:{" "}
                     <b>
                       {
                         questions.length -
@@ -1177,9 +1143,10 @@ export default function TestPage() {
                         ).length
                       }
                     </b>
-                    <br />
 
-                    Marked for Review:{" "}
+                    {" • "}
+
+                    Review:{" "}
                     <b>
                       {
                         Object.values(
@@ -1468,15 +1435,17 @@ const overlay = {
   zIndex: 998,
 };
 
+/* Compact drawer */
+
 const drawer = {
   position: "fixed",
   top: 0,
   right: 0,
-  width: "min(390px, 94vw)",
+  width: "min(360px, 92vw)",
   height: "100vh",
   background: "#ffffff",
   zIndex: 999,
-  padding: "18px",
+  padding: "14px",
   overflowY: "auto",
   boxShadow:
     "-8px 0 25px rgba(0,0,0,0.18)",
@@ -1486,82 +1455,88 @@ const drawerHeader = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  gap: "10px",
+  gap: "8px",
 };
 
 const drawerTitle = {
-  fontSize: "20px",
+  fontSize: "18px",
   fontWeight: "800",
 };
 
 const closeButton = {
-  width: "38px",
-  height: "38px",
-  borderRadius: "8px",
+  width: "34px",
+  height: "34px",
+  borderRadius: "7px",
   border: "1px solid #d7deea",
   background: "#ffffff",
-  fontSize: "18px",
+  fontSize: "16px",
   cursor: "pointer",
 };
 
 const drawerStats = {
   display: "flex",
   justifyContent: "space-between",
-  gap: "10px",
-  marginTop: "18px",
-  fontSize: "14px",
+  gap: "8px",
+  marginTop: "10px",
+  fontSize: "12px",
 };
 
 const paletteGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(5, 1fr)",
-  gap: "8px",
-  marginTop: "18px",
+  gridTemplateColumns: "repeat(6, 1fr)",
+  gap: "6px",
+  marginTop: "12px",
 };
 
 const paletteNumber = {
-  minHeight: "42px",
-  borderRadius: "7px",
+  minHeight: "34px",
+  padding: "4px 2px",
+  borderRadius: "6px",
+  fontSize: "12px",
   fontWeight: "700",
   cursor: "pointer",
 };
 
 const legendBox = {
-  marginTop: "20px",
-  lineHeight: "2",
-  fontSize: "14px",
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "4px 8px",
+  marginTop: "12px",
+  lineHeight: "1.5",
+  fontSize: "11px",
 };
 
 const submitArea = {
-  marginTop: "22px",
-  paddingTop: "18px",
+  marginTop: "14px",
+  paddingTop: "12px",
   borderTop: "1px solid #d7deea",
 };
 
 const submitTitle = {
-  fontSize: "17px",
+  fontSize: "15px",
   fontWeight: "800",
-  marginBottom: "10px",
+  marginBottom: "8px",
 };
 
 const submitInfo = {
-  padding: "12px",
+  padding: "9px",
   background: "#f8fafc",
   border: "1px solid #d7deea",
-  borderRadius: "10px",
-  lineHeight: "1.8",
-  marginBottom: "14px",
+  borderRadius: "8px",
+  lineHeight: "1.5",
+  marginBottom: "10px",
+  fontSize: "11px",
 };
 
 const submitButton = {
   width: "100%",
-  minHeight: "48px",
+  minHeight: "44px",
   border: 0,
-  borderRadius: "9px",
+  borderRadius: "8px",
   background: "#1769e0",
   color: "#ffffff",
   fontWeight: "800",
-  fontSize: "15px",
+  fontSize: "14px",
   cursor: "pointer",
 };
 
