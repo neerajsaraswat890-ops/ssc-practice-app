@@ -46,6 +46,8 @@ export default function TestPage() {
   const [activeSection, setActiveSection] = useState(0);
   const [sectionTime, setSectionTime] = useState(null);
 
+  const [language, setLanguage] = useState("english");
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [changingSection, setChangingSection] = useState(false);
@@ -55,10 +57,12 @@ export default function TestPage() {
 
   const autoSubmitting = useRef(false);
   const refreshingState = useRef(false);
+  const questionScrollRef = useRef(null);
 
   const answerKey = `jd_answers_${id}`;
   const reviewKey = `jd_review_${id}`;
   const visitedKey = `jd_visited_${id}`;
+  const languageKey = `jd_language_${id}`;
 
   useEffect(() => {
     loadTest();
@@ -69,6 +73,20 @@ export default function TestPage() {
     setError("");
 
     const client = supabase();
+
+    try {
+      const savedLanguage =
+        localStorage.getItem(languageKey);
+
+      if (
+        savedLanguage === "english" ||
+        savedLanguage === "hindi"
+      ) {
+        setLanguage(savedLanguage);
+      }
+    } catch {
+      // Ignore localStorage error
+    }
 
     const { data: testData, error: testError } =
       await client
@@ -114,26 +132,38 @@ export default function TestPage() {
       return;
     }
 
-    const loadedQuestions = questionData || [];
+    const loadedQuestions =
+      questionData || [];
 
     setTest(testData);
     setQuestions(loadedQuestions);
 
     try {
-      const oldAnswers = localStorage.getItem(answerKey);
-      const oldReview = localStorage.getItem(reviewKey);
-      const oldVisited = localStorage.getItem(visitedKey);
+      const oldAnswers =
+        localStorage.getItem(answerKey);
+
+      const oldReview =
+        localStorage.getItem(reviewKey);
+
+      const oldVisited =
+        localStorage.getItem(visitedKey);
 
       if (oldAnswers) {
-        setAnswers(JSON.parse(oldAnswers));
+        setAnswers(
+          JSON.parse(oldAnswers)
+        );
       }
 
       if (oldReview) {
-        setReview(JSON.parse(oldReview));
+        setReview(
+          JSON.parse(oldReview)
+        );
       }
 
       if (oldVisited) {
-        setVisited(JSON.parse(oldVisited));
+        setVisited(
+          JSON.parse(oldVisited)
+        );
       }
     } catch {
       localStorage.removeItem(answerKey);
@@ -141,10 +171,15 @@ export default function TestPage() {
       localStorage.removeItem(visitedKey);
     }
 
-    const { data: stateData, error: stateError } =
-      await client.rpc("get_test_state", {
+    const {
+      data: stateData,
+      error: stateError,
+    } = await client.rpc(
+      "get_test_state",
+      {
         p_test_id: Number(id),
-      });
+      }
+    );
 
     if (stateError) {
       setError(stateError.message);
@@ -152,30 +187,54 @@ export default function TestPage() {
       return;
     }
 
-    if (stateData?.status === "submitted") {
-      router.replace(`/result/${id}`);
+    if (
+      stateData?.status ===
+      "submitted"
+    ) {
+      router.replace(
+        `/result/${id}`
+      );
       return;
     }
 
     const serverSection =
-      Number(stateData?.current_section ?? 0);
+      Number(
+        stateData?.current_section ??
+          0
+      );
 
     const remaining =
-      Number(stateData?.remaining_seconds ?? 0);
+      Number(
+        stateData?.remaining_seconds ??
+          0
+      );
 
-    setActiveSection(serverSection);
-    setSectionTime(remaining);
+    setActiveSection(
+      serverSection
+    );
+
+    setSectionTime(
+      remaining
+    );
 
     const firstQuestion =
-      SECTIONS[serverSection].start;
+      SECTIONS[
+        serverSection
+      ].start;
 
-    setCurrent(firstQuestion);
+    setCurrent(
+      firstQuestion
+    );
 
-    const q =
-      loadedQuestions[firstQuestion]?.questions;
+    const firstQ =
+      loadedQuestions[
+        firstQuestion
+      ]?.questions;
 
-    if (q?.id) {
-      markVisited(q.id);
+    if (firstQ?.id) {
+      markVisited(
+        firstQ.id
+      );
     }
 
     setLoading(false);
@@ -191,18 +250,26 @@ export default function TestPage() {
       return;
     }
 
-    if (sectionTime <= 0) {
+    if (
+      sectionTime <= 0
+    ) {
       refreshServerState();
       return;
     }
 
-    const timer = setTimeout(() => {
-      setSectionTime((old) =>
-        Math.max(0, old - 1)
-      );
-    }, 1000);
+    const timer =
+      setTimeout(() => {
+        setSectionTime(
+          (old) =>
+            Math.max(
+              0,
+              old - 1
+            )
+        );
+      }, 1000);
 
-    return () => clearTimeout(timer);
+    return () =>
+      clearTimeout(timer);
   }, [
     sectionTime,
     loading,
@@ -215,11 +282,15 @@ export default function TestPage() {
 
     const syncTimer =
       setInterval(() => {
-        refreshServerState(false);
+        refreshServerState(
+          false
+        );
       }, 30000);
 
     return () =>
-      clearInterval(syncTimer);
+      clearInterval(
+        syncTimer
+      );
   }, [
     loading,
     activeSection,
@@ -228,40 +299,62 @@ export default function TestPage() {
   async function refreshServerState(
     moveQuestion = true
   ) {
-    if (refreshingState.current) {
+    if (
+      refreshingState.current
+    ) {
       return;
     }
 
-    refreshingState.current = true;
+    refreshingState.current =
+      true;
 
-    const { data, error } =
-      await supabase().rpc(
-        "get_test_state",
-        {
-          p_test_id: Number(id),
-        }
-      );
+    const {
+      data,
+      error,
+    } = await supabase().rpc(
+      "get_test_state",
+      {
+        p_test_id:
+          Number(id),
+      }
+    );
 
-    refreshingState.current = false;
+    refreshingState.current =
+      false;
 
     if (error) {
-      setError(error.message);
+      setError(
+        error.message
+      );
       return;
     }
 
-    if (data?.status === "submitted") {
-      router.replace(`/result/${id}`);
+    if (
+      data?.status ===
+      "submitted"
+    ) {
+      router.replace(
+        `/result/${id}`
+      );
       return;
     }
 
     const serverSection =
-      Number(data?.current_section ?? 0);
+      Number(
+        data?.current_section ??
+          0
+      );
 
     const remaining =
-      Number(data?.remaining_seconds ?? 0);
+      Number(
+        data?.remaining_seconds ??
+          0
+      );
 
     const expired =
-      Boolean(data?.expired);
+      Boolean(
+        data?.expired
+      );
 
     if (
       expired &&
@@ -269,8 +362,12 @@ export default function TestPage() {
     ) {
       setSectionTime(0);
 
-      if (!autoSubmitting.current) {
-        autoSubmitting.current = true;
+      if (
+        !autoSubmitting.current
+      ) {
+        autoSubmitting.current =
+          true;
+
         submitTest(true);
       }
 
@@ -278,52 +375,118 @@ export default function TestPage() {
     }
 
     const sectionChanged =
-      serverSection !== activeSection;
+      serverSection !==
+      activeSection;
 
-    setActiveSection(serverSection);
-    setSectionTime(remaining);
+    setActiveSection(
+      serverSection
+    );
+
+    setSectionTime(
+      remaining
+    );
 
     if (
       sectionChanged &&
       moveQuestion
     ) {
       const firstQuestion =
-        SECTIONS[serverSection].start;
+        SECTIONS[
+          serverSection
+        ].start;
 
-      setCurrent(firstQuestion);
+      setCurrent(
+        firstQuestion
+      );
 
       const q =
-        questions[firstQuestion]?.questions;
+        questions[
+          firstQuestion
+        ]?.questions;
 
       if (q?.id) {
         markVisited(q.id);
       }
+
+      scrollQuestionToTop();
     }
   }
 
-  function markVisited(questionId) {
-    setVisited((old) => {
-      const updated = {
-        ...old,
-        [questionId]: true,
-      };
+  function changeLanguage(
+    value
+  ) {
+    if (
+      value !== "english" &&
+      value !== "hindi"
+    ) {
+      return;
+    }
 
+    setLanguage(value);
+
+    try {
       localStorage.setItem(
-        visitedKey,
-        JSON.stringify(updated)
+        languageKey,
+        value
       );
+    } catch {
+      // Ignore
+    }
 
-      return updated;
-    });
+    scrollQuestionToTop();
   }
 
-  function goQuestion(index) {
+  function scrollQuestionToTop() {
+    setTimeout(() => {
+      questionScrollRef.current?.scrollTo(
+        {
+          top: 0,
+          behavior: "smooth",
+        }
+      );
+    }, 0);
+  }
+
+  function markVisited(
+    questionId
+  ) {
+    setVisited(
+      (old) => {
+        const updated = {
+          ...old,
+          [questionId]:
+            true,
+        };
+
+        try {
+          localStorage.setItem(
+            visitedKey,
+            JSON.stringify(
+              updated
+            )
+          );
+        } catch {
+          // Ignore
+        }
+
+        return updated;
+      }
+    );
+  }
+
+  function goQuestion(
+    index
+  ) {
     const section =
-      SECTIONS[activeSection];
+      SECTIONS[
+        activeSection
+      ];
 
     if (
-      index < section.start ||
-      index > section.end
+      index <
+        section.start ||
+      index >
+        section.end
     ) {
       return;
     }
@@ -331,96 +494,122 @@ export default function TestPage() {
     setCurrent(index);
 
     const q =
-      questions[index]?.questions;
+      questions[
+        index
+      ]?.questions;
 
     if (q?.id) {
       markVisited(q.id);
     }
 
     setPaletteOpen(false);
+    scrollQuestionToTop();
   }
 
   function selectAnswer(
     questionId,
     option
   ) {
-    setAnswers((old) => {
-      const updated = {
-        ...old,
-        [questionId]: option,
-      };
+    setAnswers(
+      (old) => {
+        const updated = {
+          ...old,
+          [questionId]:
+            option,
+        };
 
-      localStorage.setItem(
-        answerKey,
-        JSON.stringify(updated)
-      );
+        try {
+          localStorage.setItem(
+            answerKey,
+            JSON.stringify(
+              updated
+            )
+          );
+        } catch {
+          // Ignore
+        }
 
-      return updated;
-    });
+        return updated;
+      }
+    );
   }
 
-  function clearAnswer(questionId) {
-    setAnswers((old) => {
-      const updated = { ...old };
+  function clearAnswer(
+    questionId
+  ) {
+    setAnswers(
+      (old) => {
+        const updated = {
+          ...old,
+        };
 
-      delete updated[questionId];
+        delete updated[
+          questionId
+        ];
 
-      localStorage.setItem(
-        answerKey,
-        JSON.stringify(updated)
-      );
+        try {
+          localStorage.setItem(
+            answerKey,
+            JSON.stringify(
+              updated
+            )
+          );
+        } catch {
+          // Ignore
+        }
 
-      return updated;
-    });
-  }
-
-  function toggleReview(questionId) {
-    setReview((old) => {
-      const updated = {
-        ...old,
-        [questionId]:
-          !old[questionId],
-      };
-
-      localStorage.setItem(
-        reviewKey,
-        JSON.stringify(updated)
-      );
-
-      return updated;
-    });
+        return updated;
+      }
+    );
   }
 
   function nextQuestion() {
     const section =
-      SECTIONS[activeSection];
+      SECTIONS[
+        activeSection
+      ];
 
-    if (current >= section.end) {
+    if (
+      current >=
+      section.end
+    ) {
       return;
     }
 
-    goQuestion(current + 1);
+    goQuestion(
+      current + 1
+    );
   }
 
   function markAndNext() {
     const q =
-      questions[current]?.questions;
+      questions[
+        current
+      ]?.questions;
 
     if (!q?.id) return;
 
-    setReview((old) => {
-      const updated = {
-        ...old,
-        [q.id]: true,
-      };
+    setReview(
+      (old) => {
+        const updated = {
+          ...old,
+          [q.id]: true,
+        };
 
-      localStorage.setItem(
-        reviewKey,
-        JSON.stringify(updated)
-      );
+        try {
+          localStorage.setItem(
+            reviewKey,
+            JSON.stringify(
+              updated
+            )
+          );
+        } catch {
+          // Ignore
+        }
 
-      return updated;
-    });
+        return updated;
+      }
+    );
 
     nextQuestion();
   }
@@ -433,13 +622,17 @@ export default function TestPage() {
       return;
     }
 
-    if (activeSection === 2) {
+    if (
+      activeSection === 2
+    ) {
       submitTest(false);
       return;
     }
 
     const section =
-      SECTIONS[activeSection];
+      SECTIONS[
+        activeSection
+      ];
 
     const sectionQuestions =
       questions.slice(
@@ -478,23 +671,37 @@ export default function TestPage() {
 
     if (!yes) return;
 
-    setChangingSection(true);
+    setChangingSection(
+      true
+    );
+
     setError("");
 
-    const { data, error } =
-      await supabase().rpc(
-        "submit_test_section",
-        {
-          p_test_id: Number(id),
-          p_section: activeSection,
-        }
-      );
+    const {
+      data,
+      error,
+    } = await supabase().rpc(
+      "submit_test_section",
+      {
+        p_test_id:
+          Number(id),
+
+        p_section:
+          activeSection,
+      }
+    );
 
     if (error) {
-      setChangingSection(false);
-      setError(error.message);
+      setChangingSection(
+        false
+      );
+
+      setError(
+        error.message
+      );
 
       await refreshServerState();
+
       return;
     }
 
@@ -508,16 +715,27 @@ export default function TestPage() {
         data?.remaining_seconds
       );
 
-    setActiveSection(nextSection);
-    setSectionTime(remaining);
+    setActiveSection(
+      nextSection
+    );
+
+    setSectionTime(
+      remaining
+    );
 
     const firstQuestion =
-      SECTIONS[nextSection].start;
+      SECTIONS[
+        nextSection
+      ].start;
 
-    setCurrent(firstQuestion);
+    setCurrent(
+      firstQuestion
+    );
 
     const q =
-      questions[firstQuestion]?.questions;
+      questions[
+        firstQuestion
+      ]?.questions;
 
     if (q?.id) {
       markVisited(q.id);
@@ -525,24 +743,33 @@ export default function TestPage() {
 
     setPaletteOpen(false);
     setChangingSection(false);
+
+    scrollQuestionToTop();
   }
 
   async function submitTest(
     automatic = false
   ) {
-    if (submitting) return;
+    if (submitting) {
+      return;
+    }
 
     if (!automatic) {
       const attempted =
-        Object.keys(answers).length;
+        Object.keys(
+          answers
+        ).length;
 
       const unattempted =
         questions.length -
         attempted;
 
       const marked =
-        Object.values(review)
-          .filter(Boolean).length;
+        Object.values(
+          review
+        ).filter(
+          Boolean
+        ).length;
 
       const yes =
         window.confirm(
@@ -559,15 +786,22 @@ export default function TestPage() {
     setSubmitting(true);
     setError("");
 
-    const { data, error } =
-      await supabase().rpc(
-        "submit_test",
-        {
-          p_test_id: Number(id),
-          p_answers: answers,
-          p_review: review,
-        }
-      );
+    const {
+      data,
+      error,
+    } = await supabase().rpc(
+      "submit_test",
+      {
+        p_test_id:
+          Number(id),
+
+        p_answers:
+          answers,
+
+        p_review:
+          review,
+      }
+    );
 
     if (error) {
       if (
@@ -584,9 +818,16 @@ export default function TestPage() {
         return;
       }
 
-      setError(error.message);
-      setSubmitting(false);
-      autoSubmitting.current = false;
+      setError(
+        error.message
+      );
+
+      setSubmitting(
+        false
+      );
+
+      autoSubmitting.current =
+        false;
 
       return;
     }
@@ -596,17 +837,29 @@ export default function TestPage() {
       JSON.stringify(data)
     );
 
-    localStorage.removeItem(answerKey);
-    localStorage.removeItem(reviewKey);
-    localStorage.removeItem(visitedKey);
+    localStorage.removeItem(
+      answerKey
+    );
+
+    localStorage.removeItem(
+      reviewKey
+    );
+
+    localStorage.removeItem(
+      visitedKey
+    );
 
     router.replace(
       `/result/${id}`
     );
   }
 
-  function formatTime(seconds) {
-    if (seconds === null) {
+  function formatTime(
+    seconds
+  ) {
+    if (
+      seconds === null
+    ) {
       return "--:--";
     }
 
@@ -617,29 +870,40 @@ export default function TestPage() {
 
     const minutes =
       Math.floor(
-        (seconds % 3600) / 60
+        (seconds % 3600) /
+          60
       );
 
     const secs =
       seconds % 60;
 
     if (hours > 0) {
-      return `${String(hours).padStart(
+      return `${String(
+        hours
+      ).padStart(
         2,
         "0"
-      )}:${String(minutes).padStart(
+      )}:${String(
+        minutes
+      ).padStart(
         2,
         "0"
-      )}:${String(secs).padStart(
+      )}:${String(
+        secs
+      ).padStart(
         2,
         "0"
       )}`;
     }
 
-    return `${String(minutes).padStart(
+    return `${String(
+      minutes
+    ).padStart(
       2,
       "0"
-    )}:${String(secs).padStart(
+    )}:${String(
+      secs
+    ).padStart(
       2,
       "0"
     )}`;
@@ -648,30 +912,47 @@ export default function TestPage() {
   function paletteStyle(
     questionId
   ) {
-    if (review[questionId]) {
+    if (
+      review[
+        questionId
+      ]
+    ) {
       return {
-        background: "#7c3aed",
+        background:
+          "#7c3aed",
         color: "white",
       };
     }
 
-    if (answers[questionId]) {
+    if (
+      answers[
+        questionId
+      ]
+    ) {
       return {
-        background: "#16a34a",
+        background:
+          "#16a34a",
         color: "white",
       };
     }
 
-    if (visited[questionId]) {
+    if (
+      visited[
+        questionId
+      ]
+    ) {
       return {
-        background: "#dc2626",
+        background:
+          "#dc2626",
         color: "white",
       };
     }
 
     return {
-      background: "white",
-      color: "#172033",
+      background:
+        "#ffffff",
+      color:
+        "#172033",
     };
   }
 
@@ -689,12 +970,15 @@ export default function TestPage() {
   ) {
     return (
       <div style={centerPage}>
-        <b>Error:</b> {error}
+        <b>Error:</b>{" "}
+        {error}
       </div>
     );
   }
 
-  if (!questions.length) {
+  if (
+    !questions.length
+  ) {
     return (
       <div style={centerPage}>
         No questions found.
@@ -703,10 +987,14 @@ export default function TestPage() {
   }
 
   const section =
-    SECTIONS[activeSection];
+    SECTIONS[
+      activeSection
+    ];
 
   const item =
-    questions[current];
+    questions[
+      current
+    ];
 
   const q =
     item?.questions;
@@ -746,37 +1034,57 @@ export default function TestPage() {
     section.start +
     1;
 
+  const displayQuestion =
+    language === "hindi"
+      ? q.question_text_hi ||
+        q.question_text
+      : q.question_text;
+
   const options = [
-    [
-      "A",
-      q.option_a,
-      q.option_a_hi,
-    ],
-    [
-      "B",
-      q.option_b,
-      q.option_b_hi,
-    ],
-    [
-      "C",
-      q.option_c,
-      q.option_c_hi,
-    ],
-    [
-      "D",
-      q.option_d,
-      q.option_d_hi,
-    ],
+    {
+      key: "A",
+      text:
+        language === "hindi"
+          ? q.option_a_hi ||
+            q.option_a
+          : q.option_a,
+    },
+    {
+      key: "B",
+      text:
+        language === "hindi"
+          ? q.option_b_hi ||
+            q.option_b
+          : q.option_b,
+    },
+    {
+      key: "C",
+      text:
+        language === "hindi"
+          ? q.option_c_hi ||
+            q.option_c
+          : q.option_c,
+    },
+    {
+      key: "D",
+      text:
+        language === "hindi"
+          ? q.option_d_hi ||
+            q.option_d
+          : q.option_d,
+    },
   ];
 
   return (
     <div style={pageShell}>
 
+      {/* HEADER */}
+
       <header style={topBar}>
 
         <div style={timerBlock}>
           <div style={timerIcon}>
-            ◉
+            ◷
           </div>
 
           <div>
@@ -786,26 +1094,55 @@ export default function TestPage() {
               )}
             </div>
 
-            <div style={sectionSmall}>
-              {section.short}
+            <div style={timerLabel}>
+              Time Left
             </div>
           </div>
         </div>
 
-        <div style={titleBlock}>
-          {test?.title}
+        <div style={headerMiddle}>
+
+          <div style={testTitle}>
+            {test?.title}
+          </div>
+
+          <select
+            value={language}
+            onChange={(e) =>
+              changeLanguage(
+                e.target.value
+              )
+            }
+            style={headerLanguageSelect}
+            aria-label="Change default language"
+          >
+            <option value="english">
+              English
+            </option>
+
+            <option value="hindi">
+              हिन्दी
+            </option>
+          </select>
+
         </div>
 
         <button
+          type="button"
           onClick={() =>
-            setPaletteOpen(true)
+            setPaletteOpen(
+              true
+            )
           }
           style={menuButton}
+          aria-label="Open question palette"
         >
           ☰
         </button>
 
       </header>
+
+      {/* STATUS BAR */}
 
       <div style={statusStrip}>
 
@@ -813,155 +1150,209 @@ export default function TestPage() {
           {currentLocalNumber}
         </div>
 
-        <div style={statusDivider} />
+        <div style={statusTextBlock}>
+          <div style={sectionName}>
+            {language === "hindi"
+              ? section.hindi
+              : section.name}
+          </div>
 
-        <div style={tinyStatus}>
-          ✓ {sectionAnswered}
+          <div style={statusMini}>
+            Answered{" "}
+            <b>
+              {sectionAnswered}
+            </b>
+            {" · "}
+            Review{" "}
+            <b>
+              {sectionMarked}
+            </b>
+          </div>
         </div>
 
-        <div style={tinyStatus}>
-          🟣 {sectionMarked}
-        </div>
-
-        <div
-          style={{
-            marginLeft: "auto",
-            fontSize: "13px",
-            color: "#667085",
-          }}
-        >
-          {current + 1}/{questions.length}
+        <div style={overallCount}>
+          {current + 1}/
+          {questions.length}
         </div>
 
       </div>
 
-      <main style={questionArea}>
+      {/* SCROLLABLE QUESTION AREA */}
 
-        <div style={sectionTitle}>
-          {section.name}
-        </div>
+      <main
+        ref={questionScrollRef}
+        style={questionScrollArea}
+      >
 
-        <div style={sectionHindi}>
-          {section.hindi}
-        </div>
+        <div style={questionInner}>
 
-        <div style={questionNumberText}>
-          Question {currentLocalNumber}
-        </div>
-
-        <h2 style={questionText}>
-          {q.question_text}
-        </h2>
-
-        {q.question_text_hi && (
-          <div style={questionHindi}>
-            {q.question_text_hi}
+          <div style={questionMeta}>
+            {language === "hindi"
+              ? `प्रश्न ${currentLocalNumber}`
+              : `Question ${currentLocalNumber}`}
           </div>
-        )}
 
-        <div style={optionsWrap}>
-          {options.map(
-            ([key, en, hi]) => {
-              const selected =
-                answers[q.id] === key;
+          <div style={questionText}>
+            {displayQuestion}
+          </div>
 
-              return (
-                <button
-                  key={key}
+          <div style={optionsWrap}>
 
-                  onClick={() =>
-                    selectAnswer(
-                      q.id,
-                      key
-                    )
-                  }
+            {options.map(
+              (option) => {
+                const selected =
+                  answers[
+                    q.id
+                  ] ===
+                  option.key;
 
-                  style={{
-                    ...optionCard,
+                return (
+                  <button
+                    type="button"
+                    key={
+                      option.key
+                    }
+                    onClick={() =>
+                      selectAnswer(
+                        q.id,
+                        option.key
+                      )
+                    }
+                    style={{
+                      ...optionCard,
 
-                    border: selected
-                      ? "2px solid #4285f4"
-                      : "1px solid #d7dce3",
+                      ...(selected
+                        ? selectedOption
+                        : {}),
+                    }}
+                  >
 
-                    background: selected
-                      ? "#eef5ff"
-                      : "#ffffff",
-                  }}
-                >
-                  <span style={optionNumber}>
-                    {key}
-                  </span>
+                    <span
+                      style={{
+                        ...optionLetter,
 
-                  <span style={optionContent}>
-                    <span style={optionEnglish}>
-                      {en}
+                        ...(selected
+                          ? selectedOptionLetter
+                          : {}),
+                      }}
+                    >
+                      {option.key}
                     </span>
 
-                    {hi && (
-                      <span style={optionHindi}>
-                        {hi}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              );
-            }
+                    <span style={optionText}>
+                      {option.text}
+                    </span>
+
+                    <span
+                      style={{
+                        ...radioMark,
+
+                        ...(selected
+                          ? selectedRadio
+                          : {}),
+                      }}
+                    >
+                      {selected
+                        ? "✓"
+                        : ""}
+                    </span>
+
+                  </button>
+                );
+              }
+            )}
+
+          </div>
+
+          {error && (
+            <div style={errorBox}>
+              {error}
+            </div>
           )}
+
         </div>
 
-        {error && (
-          <div style={errorBox}>
-            {error}
-          </div>
-        )}
-
-        <div style={{ height: "95px" }} />
-
       </main>
+
+      {/* BOTTOM ACTION BAR */}
 
       <div style={bottomBar}>
 
         <button
-          onClick={markAndNext}
-          style={bottomSecondary}
-        >
-          Mark & Next
-        </button>
-
-        <button
-          onClick={() =>
-            clearAnswer(q.id)
+          type="button"
+          onClick={
+            markAndNext
           }
-          style={bottomSecondary}
+          style={markButton}
         >
-          Clear
+          <span style={buttonMainText}>
+            Mark & Next
+          </span>
+
+          <span style={buttonSubText}>
+            Review
+          </span>
         </button>
 
         <button
-          onClick={nextQuestion}
+          type="button"
+          onClick={() =>
+            clearAnswer(
+              q.id
+            )
+          }
+          style={clearButton}
+        >
+          <span style={buttonMainText}>
+            Clear
+          </span>
+
+          <span style={buttonSubText}>
+            Response
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={
+            nextQuestion
+          }
           disabled={
-            current >= section.end
+            current >=
+            section.end
           }
           style={{
-            ...bottomPrimary,
+            ...saveNextButton,
+
             opacity:
-              current >= section.end
+              current >=
+              section.end
                 ? 0.5
                 : 1,
           }}
         >
-          Save & Next
+          <span style={buttonMainText}>
+            Save & Next
+          </span>
+
+          <span style={buttonSubText}>
+            Next Question
+          </span>
         </button>
 
       </div>
 
+      {/* QUESTION PALETTE */}
+
       {paletteOpen && (
         <>
           <div
-            onClick={() =>
-              setPaletteOpen(false)
-            }
             style={overlay}
+            onClick={() =>
+              setPaletteOpen(
+                false
+              )
+            }
           />
 
           <aside style={drawer}>
@@ -973,14 +1364,19 @@ export default function TestPage() {
                   Question Palette
                 </div>
 
-                <div className="muted">
-                  {section.short}
+                <div style={drawerSubtitle}>
+                  {language === "hindi"
+                    ? section.hindi
+                    : section.name}
                 </div>
               </div>
 
               <button
+                type="button"
                 onClick={() =>
-                  setPaletteOpen(false)
+                  setPaletteOpen(
+                    false
+                  )
                 }
                 style={closeButton}
               >
@@ -990,18 +1386,25 @@ export default function TestPage() {
             </div>
 
             <div style={drawerStats}>
+
               <span>
-                Answered:{" "}
-                <b>{sectionAnswered}</b>
+                Answered{" "}
+                <b>
+                  {sectionAnswered}
+                </b>
               </span>
 
               <span>
-                Review:{" "}
-                <b>{sectionMarked}</b>
+                Review{" "}
+                <b>
+                  {sectionMarked}
+                </b>
               </span>
+
             </div>
 
             <div style={paletteGrid}>
+
               {sectionQuestions.map(
                 (
                   item,
@@ -1021,14 +1424,15 @@ export default function TestPage() {
 
                   return (
                     <button
-                      key={questionId}
-
+                      type="button"
+                      key={
+                        questionId
+                      }
                       onClick={() =>
                         goQuestion(
                           absoluteIndex
                         )
                       }
-
                       style={{
                         ...paletteNumber,
 
@@ -1041,33 +1445,37 @@ export default function TestPage() {
                         border:
                           current ===
                           absoluteIndex
-                            ? "2px solid #172033"
-                            : "1px solid #ccd5e3",
+                            ? "2px solid #111827"
+                            : "1px solid #cbd5e1",
                       }}
                     >
-                      {localIndex + 1}
+                      {localIndex +
+                        1}
                     </button>
                   );
                 }
               )}
+
             </div>
 
             <div style={legendBox}>
-              <span>
+
+              <div>
                 🟢 Answered
-              </span>
+              </div>
 
-              <span>
+              <div>
                 🔴 Not Answered
-              </span>
+              </div>
 
-              <span>
+              <div>
                 🟣 Review
-              </span>
+              </div>
 
-              <span>
+              <div>
                 ⚪ Not Visited
-              </span>
+              </div>
+
             </div>
 
             <div style={submitArea}>
@@ -1079,36 +1487,39 @@ export default function TestPage() {
                   </div>
 
                   <div style={submitInfo}>
-                    Attempted:{" "}
-                    <b>
-                      {sectionAnswered}
-                    </b>
 
-                    {" • "}
+                    <span>
+                      Attempted{" "}
+                      <b>
+                        {sectionAnswered}
+                      </b>
+                    </span>
 
-                    Unattempted:{" "}
-                    <b>
-                      {sectionQuestions.length -
-                        sectionAnswered}
-                    </b>
+                    <span>
+                      Unattempted{" "}
+                      <b>
+                        {sectionQuestions.length -
+                          sectionAnswered}
+                      </b>
+                    </span>
 
-                    {" • "}
+                    <span>
+                      Review{" "}
+                      <b>
+                        {sectionMarked}
+                      </b>
+                    </span>
 
-                    Review:{" "}
-                    <b>
-                      {sectionMarked}
-                    </b>
                   </div>
 
                   <button
+                    type="button"
                     onClick={
                       manualSubmitSection
                     }
-
                     disabled={
                       changingSection
                     }
-
                     style={submitButton}
                   >
                     {changingSection
@@ -1123,50 +1534,55 @@ export default function TestPage() {
                   </div>
 
                   <div style={submitInfo}>
-                    Attempted:{" "}
-                    <b>
-                      {
-                        Object.keys(
-                          answers
-                        ).length
-                      }
-                    </b>
 
-                    {" • "}
+                    <span>
+                      Attempted{" "}
+                      <b>
+                        {
+                          Object.keys(
+                            answers
+                          ).length
+                        }
+                      </b>
+                    </span>
 
-                    Unattempted:{" "}
-                    <b>
-                      {
-                        questions.length -
-                        Object.keys(
-                          answers
-                        ).length
-                      }
-                    </b>
+                    <span>
+                      Unattempted{" "}
+                      <b>
+                        {
+                          questions.length -
+                          Object.keys(
+                            answers
+                          ).length
+                        }
+                      </b>
+                    </span>
 
-                    {" • "}
+                    <span>
+                      Review{" "}
+                      <b>
+                        {
+                          Object.values(
+                            review
+                          ).filter(
+                            Boolean
+                          ).length
+                        }
+                      </b>
+                    </span>
 
-                    Review:{" "}
-                    <b>
-                      {
-                        Object.values(
-                          review
-                        ).filter(
-                          Boolean
-                        ).length
-                      }
-                    </b>
                   </div>
 
                   <button
+                    type="button"
                     onClick={() =>
-                      submitTest(false)
+                      submitTest(
+                        false
+                      )
                     }
-
                     disabled={
                       submitting
                     }
-
                     style={submitButton}
                   >
                     {submitting
@@ -1186,40 +1602,46 @@ export default function TestPage() {
   );
 }
 
-/* =========================
-   STYLES
-========================= */
+/* ===============================
+   RESPONSIVE EXAM UI STYLES
+================================ */
 
 const pageShell = {
+  height: "100dvh",
   minHeight: "100vh",
-  background: "#ffffff",
-  color: "#15171a",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+  background: "#f8fafc",
+  color: "#111827",
 };
 
 const topBar = {
-  minHeight: "74px",
+  flexShrink: 0,
+  minHeight: "66px",
   background: "#17191d",
   color: "#ffffff",
   display: "flex",
   alignItems: "center",
-  gap: "12px",
-  padding: "10px 14px",
-  position: "sticky",
-  top: 0,
+  gap: "10px",
+  padding:
+    "8px max(10px, env(safe-area-inset-left))",
+  paddingRight:
+    "max(10px, env(safe-area-inset-right))",
   zIndex: 50,
 };
 
 const timerBlock = {
   display: "flex",
   alignItems: "center",
-  gap: "9px",
-  minWidth: "95px",
+  gap: "6px",
+  flexShrink: 0,
 };
 
 const timerIcon = {
-  width: "34px",
-  height: "34px",
-  border: "3px solid #ffffff",
+  width: "28px",
+  height: "28px",
+  border: "2px solid #ffffff",
   borderRadius: "50%",
   display: "flex",
   alignItems: "center",
@@ -1228,224 +1650,297 @@ const timerIcon = {
 };
 
 const timerText = {
-  fontSize: "18px",
+  fontSize: "16px",
   fontWeight: "800",
+  lineHeight: 1.1,
   whiteSpace: "nowrap",
 };
 
-const sectionSmall = {
-  fontSize: "11px",
+const timerLabel = {
+  fontSize: "9px",
   opacity: 0.72,
   marginTop: "2px",
 };
 
-const titleBlock = {
+const headerMiddle = {
   flex: 1,
   minWidth: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px",
+  alignItems: "center",
+};
+
+const testTitle = {
+  width: "100%",
+  textAlign: "center",
+  fontSize: "12px",
   fontWeight: "700",
-  fontSize: "14px",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const headerLanguageSelect = {
+  width: "118px",
+  maxWidth: "100%",
+  height: "26px",
+  border: "1px solid #71717a",
+  borderRadius: "6px",
+  background: "#27272a",
+  color: "#ffffff",
+  padding: "0 6px",
+  fontSize: "11px",
+  fontWeight: "700",
+  outline: "none",
+};
+
+const menuButton = {
+  width: "40px",
+  height: "40px",
+  flexShrink: 0,
+  border: 0,
+  borderRadius: "8px",
+  background: "transparent",
+  color: "#ffffff",
+  fontSize: "27px",
+  cursor: "pointer",
+};
+
+const statusStrip = {
+  flexShrink: 0,
+  minHeight: "52px",
+  background: "#ffffff",
+  borderBottom: "1px solid #e5e7eb",
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  padding: "6px 12px",
+};
+
+const questionCircle = {
+  width: "38px",
+  height: "38px",
+  minWidth: "38px",
+  borderRadius: "50%",
+  background: "#64748b",
+  color: "#ffffff",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: "800",
+  fontSize: "15px",
+};
+
+const statusTextBlock = {
+  minWidth: 0,
+  flex: 1,
+};
+
+const sectionName = {
+  fontSize: "12px",
+  fontWeight: "800",
   overflow: "hidden",
   whiteSpace: "nowrap",
   textOverflow: "ellipsis",
 };
 
-const menuButton = {
-  width: "44px",
-  height: "44px",
-  border: 0,
-  background: "transparent",
-  color: "#ffffff",
-  fontSize: "30px",
-  cursor: "pointer",
+const statusMini = {
+  fontSize: "10px",
+  marginTop: "3px",
+  color: "#64748b",
+};
+
+const overallCount = {
   flexShrink: 0,
-};
-
-const statusStrip = {
-  minHeight: "62px",
-  borderBottom: "1px solid #e4e7eb",
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-  padding: "8px 18px",
-  background: "#ffffff",
-  position: "sticky",
-  top: "74px",
-  zIndex: 40,
-};
-
-const questionCircle = {
-  width: "44px",
-  height: "44px",
-  background: "#87939b",
-  color: "#ffffff",
-  borderRadius: "50%",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+  fontSize: "11px",
   fontWeight: "700",
-  fontSize: "17px",
+  color: "#64748b",
 };
 
-const statusDivider = {
-  width: "1px",
-  height: "34px",
-  background: "#d7dde2",
+const questionScrollArea = {
+  flex: 1,
+  minHeight: 0,
+  overflowY: "auto",
+  WebkitOverflowScrolling: "touch",
+  overscrollBehavior: "contain",
 };
 
-const tinyStatus = {
-  fontSize: "13px",
-  fontWeight: "700",
-  color: "#55606b",
-};
-
-const questionArea = {
-  maxWidth: "820px",
+const questionInner = {
+  width: "100%",
+  maxWidth: "800px",
   margin: "0 auto",
-  padding: "22px 18px 0",
+  padding: "12px 12px 18px",
 };
 
-const sectionTitle = {
-  fontSize: "12px",
-  color: "#667085",
-  fontWeight: "700",
-};
-
-const sectionHindi = {
-  fontSize: "12px",
-  color: "#8a94a0",
-  marginTop: "2px",
-};
-
-const questionNumberText = {
-  marginTop: "18px",
-  fontSize: "13px",
-  color: "#667085",
-  fontWeight: "700",
+const questionMeta = {
+  fontSize: "11px",
+  fontWeight: "800",
+  color: "#64748b",
+  marginBottom: "7px",
 };
 
 const questionText = {
-  fontSize: "21px",
-  lineHeight: "1.45",
-  margin: "10px 0 8px",
-};
-
-const questionHindi = {
-  fontSize: "18px",
-  lineHeight: "1.55",
-  fontWeight: "600",
-  marginBottom: "20px",
+  fontSize: "clamp(16px, 4.3vw, 21px)",
+  lineHeight: "1.42",
+  fontWeight: "700",
+  color: "#111827",
+  marginBottom: "14px",
 };
 
 const optionsWrap = {
   display: "grid",
-  gap: "12px",
-  marginTop: "22px",
+  gap: "8px",
 };
 
 const optionCard = {
   width: "100%",
-  minHeight: "78px",
-  borderRadius: "10px",
-  padding: "14px 16px",
+  minHeight: "52px",
+  border: "1px solid #d7dce3",
+  borderRadius: "9px",
+  background: "#ffffff",
+  padding: "9px 10px",
   display: "flex",
   alignItems: "center",
-  gap: "14px",
+  gap: "10px",
   textAlign: "left",
   cursor: "pointer",
   fontFamily: "inherit",
 };
 
-const optionNumber = {
-  width: "34px",
-  minWidth: "34px",
-  fontSize: "18px",
-  fontStyle: "italic",
-  color: "#69737d",
-  fontWeight: "700",
+const selectedOption = {
+  border: "2px solid #2563eb",
+  background: "#eff6ff",
 };
 
-const optionContent = {
+const optionLetter = {
+  width: "30px",
+  height: "30px",
+  minWidth: "30px",
+  borderRadius: "50%",
+  border: "1px solid #cbd5e1",
+  background: "#f8fafc",
   display: "flex",
-  flexDirection: "column",
-  gap: "4px",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: "800",
+  fontSize: "13px",
+  color: "#475569",
+};
+
+const selectedOptionLetter = {
+  background: "#2563eb",
+  color: "#ffffff",
+  border: "1px solid #2563eb",
+};
+
+const optionText = {
   flex: 1,
+  fontSize: "clamp(14px, 3.8vw, 17px)",
+  lineHeight: "1.35",
+  color: "#1f2937",
 };
 
-const optionEnglish = {
-  fontSize: "17px",
-  lineHeight: "1.45",
-  color: "#202428",
+const radioMark = {
+  width: "22px",
+  height: "22px",
+  minWidth: "22px",
+  borderRadius: "50%",
+  border: "2px solid #cbd5e1",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "11px",
+  color: "#ffffff",
 };
 
-const optionHindi = {
-  fontSize: "15px",
-  lineHeight: "1.45",
-  color: "#5f6872",
+const selectedRadio = {
+  background: "#2563eb",
+  border: "2px solid #2563eb",
 };
 
 const errorBox = {
-  marginTop: "16px",
-  padding: "12px",
-  borderRadius: "8px",
-  background: "#fff1f1",
-  color: "#b42318",
+  marginTop: "10px",
+  padding: "9px",
+  background: "#fef2f2",
+  borderRadius: "7px",
+  color: "#b91c1c",
+  fontSize: "12px",
 };
 
 const bottomBar = {
-  position: "fixed",
-  left: 0,
-  right: 0,
-  bottom: 0,
-  minHeight: "78px",
+  flexShrink: 0,
+  minHeight: "68px",
   background: "#ffffff",
   borderTop: "1px solid #dfe3e8",
   display: "grid",
-  gridTemplateColumns: "1fr 0.8fr 1fr",
-  gap: "10px",
-  padding: "10px 14px",
+  gridTemplateColumns: "1fr 0.72fr 1fr",
+  gap: "7px",
+  padding:
+    "7px 9px max(7px, env(safe-area-inset-bottom))",
   zIndex: 60,
 };
 
-const bottomSecondary = {
-  minHeight: "52px",
-  border: "2px solid #222",
-  borderRadius: "10px",
-  background: "#ffffff",
-  color: "#202124",
-  fontSize: "15px",
-  fontWeight: "700",
+const actionBase = {
+  minHeight: "50px",
+  borderRadius: "8px",
+  fontFamily: "inherit",
   cursor: "pointer",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
+  alignItems: "center",
+  lineHeight: 1.1,
 };
 
-const bottomPrimary = {
-  minHeight: "52px",
+const markButton = {
+  ...actionBase,
+  border: "1px solid #7c3aed",
+  background: "#ffffff",
+  color: "#6d28d9",
+};
+
+const clearButton = {
+  ...actionBase,
+  border: "1px solid #475569",
+  background: "#ffffff",
+  color: "#334155",
+};
+
+const saveNextButton = {
+  ...actionBase,
   border: 0,
-  borderRadius: "10px",
-  background: "#4285f4",
+  background: "#2563eb",
   color: "#ffffff",
-  fontSize: "15px",
-  fontWeight: "700",
-  cursor: "pointer",
+};
+
+const buttonMainText = {
+  fontSize: "12px",
+  fontWeight: "800",
+};
+
+const buttonSubText = {
+  fontSize: "9px",
+  marginTop: "3px",
+  opacity: 0.75,
 };
 
 const overlay = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.38)",
+  background: "rgba(0,0,0,0.42)",
   zIndex: 998,
 };
-
-/* Compact drawer */
 
 const drawer = {
   position: "fixed",
   top: 0,
   right: 0,
-  width: "min(360px, 92vw)",
-  height: "100vh",
+  width: "min(350px, 92vw)",
+  height: "100dvh",
   background: "#ffffff",
   zIndex: 999,
-  padding: "14px",
+  padding: "12px",
   overflowY: "auto",
   boxShadow:
     "-8px 0 25px rgba(0,0,0,0.18)",
@@ -1453,23 +1948,34 @@ const drawer = {
 
 const drawerHeader = {
   display: "flex",
-  justifyContent: "space-between",
   alignItems: "center",
+  justifyContent: "space-between",
   gap: "8px",
 };
 
 const drawerTitle = {
-  fontSize: "18px",
+  fontSize: "17px",
   fontWeight: "800",
 };
 
+const drawerSubtitle = {
+  maxWidth: "250px",
+  marginTop: "2px",
+  fontSize: "10px",
+  color: "#64748b",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
 const closeButton = {
-  width: "34px",
-  height: "34px",
+  width: "32px",
+  height: "32px",
+  minWidth: "32px",
   borderRadius: "7px",
   border: "1px solid #d7deea",
   background: "#ffffff",
-  fontSize: "16px",
+  fontSize: "15px",
   cursor: "pointer",
 };
 
@@ -1477,66 +1983,72 @@ const drawerStats = {
   display: "flex",
   justifyContent: "space-between",
   gap: "8px",
-  marginTop: "10px",
-  fontSize: "12px",
+  marginTop: "9px",
+  padding: "7px 8px",
+  borderRadius: "7px",
+  background: "#f8fafc",
+  fontSize: "11px",
 };
 
 const paletteGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(6, 1fr)",
-  gap: "6px",
-  marginTop: "12px",
+  gridTemplateColumns:
+    "repeat(7, 1fr)",
+  gap: "5px",
+  marginTop: "10px",
 };
 
 const paletteNumber = {
-  minHeight: "34px",
-  padding: "4px 2px",
-  borderRadius: "6px",
-  fontSize: "12px",
-  fontWeight: "700",
+  minHeight: "30px",
+  padding: "2px",
+  borderRadius: "5px",
+  fontSize: "11px",
+  fontWeight: "800",
   cursor: "pointer",
 };
 
 const legendBox = {
   display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: "4px 8px",
-  marginTop: "12px",
-  lineHeight: "1.5",
-  fontSize: "11px",
+  gridTemplateColumns:
+    "1fr 1fr",
+  gap: "3px 6px",
+  marginTop: "10px",
+  fontSize: "10px",
+  lineHeight: "1.45",
 };
 
 const submitArea = {
-  marginTop: "14px",
-  paddingTop: "12px",
-  borderTop: "1px solid #d7deea",
+  marginTop: "10px",
+  paddingTop: "10px",
+  borderTop: "1px solid #e2e8f0",
 };
 
 const submitTitle = {
-  fontSize: "15px",
+  fontSize: "14px",
   fontWeight: "800",
-  marginBottom: "8px",
+  marginBottom: "7px",
 };
 
 const submitInfo = {
-  padding: "9px",
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "5px 12px",
+  padding: "7px 8px",
+  marginBottom: "8px",
   background: "#f8fafc",
-  border: "1px solid #d7deea",
-  borderRadius: "8px",
-  lineHeight: "1.5",
-  marginBottom: "10px",
-  fontSize: "11px",
+  borderRadius: "7px",
+  fontSize: "10px",
 };
 
 const submitButton = {
   width: "100%",
-  minHeight: "44px",
+  minHeight: "42px",
   border: 0,
   borderRadius: "8px",
   background: "#1769e0",
   color: "#ffffff",
   fontWeight: "800",
-  fontSize: "14px",
+  fontSize: "13px",
   cursor: "pointer",
 };
 
