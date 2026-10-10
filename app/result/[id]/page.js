@@ -1,43 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
-
-const SECTION_INFO = {
-  reasoning: {
-    name: "Reasoning",
-    fullName: "General Intelligence & Reasoning",
-    hindi: "सामान्य बुद्धिमत्ता एवं तर्कशक्ति",
-  },
-
-  ga: {
-    name: "General Awareness",
-    fullName: "General Awareness",
-    hindi: "सामान्य जागरूकता",
-  },
-
-  english: {
-    name: "English",
-    fullName: "English Language & Comprehension",
-    hindi: "अंग्रेजी भाषा एवं बोधगम्यता",
-  },
-};
 
 export default function ResultPage() {
   const { id } = useParams();
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const router = useRouter();
 
   const [test, setTest] = useState(null);
-
-  const [overall, setOverall] = useState(null);
-  const [sections, setSections] = useState([]);
+  const [config, setConfig] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
 
   const [solutions, setSolutions] = useState([]);
   const [solutionsLocked, setSolutionsLocked] = useState(false);
+  const [solutionError, setSolutionError] = useState("");
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     loadResult();
@@ -46,23 +26,30 @@ export default function ResultPage() {
   async function loadResult() {
     setLoading(true);
     setError("");
+    setSolutionError("");
 
     const client = supabase();
 
-    const { data: testData, error: testError } =
-      await client
-        .from("tests")
-        .select(`
-          id,
-          title,
-          total_questions,
-          total_marks,
-          duration_minutes,
-          negative_mark,
-          solution_release_at
-        `)
-        .eq("id", id)
-        .single();
+    /*
+      ---------------------------------------------------
+      TEST META
+      ---------------------------------------------------
+    */
+
+    const {
+      data: testData,
+      error: testError,
+    } = await client
+      .from("tests")
+      .select(`
+        id,
+        title,
+        test_type,
+        solution_release_at,
+        exam_stage_id
+      `)
+      .eq("id", id)
+      .single();
 
     if (testError) {
       setError(testError.message);
@@ -72,13 +59,41 @@ export default function ResultPage() {
 
     setTest(testData);
 
-    const { data: analysisData, error: analysisError } =
-      await client.rpc(
-        "get_result_analysis",
-        {
-          p_test_id: Number(id),
-        }
-      );
+    /*
+      ---------------------------------------------------
+      EXAM CONFIG
+      ---------------------------------------------------
+    */
+
+    const {
+      data: configData,
+      error: configError,
+    } = await client.rpc(
+      "get_test_exam_config",
+      {
+        p_test_id: Number(id),
+      }
+    );
+
+    if (!configError) {
+      setConfig(configData);
+    }
+
+    /*
+      ---------------------------------------------------
+      DYNAMIC RESULT ANALYSIS
+      ---------------------------------------------------
+    */
+
+    const {
+      data: analysisData,
+      error: analysisError,
+    } = await client.rpc(
+      "get_result_analysis",
+      {
+        p_test_id: Number(id),
+      }
+    );
 
     if (analysisError) {
       setError(analysisError.message);
@@ -86,1065 +101,1694 @@ export default function ResultPage() {
       return;
     }
 
-    setOverall(
-      normalizeOverall(
-        analysisData?.overall
-      )
+    setAnalysis(analysisData);
+
+    /*
+      ---------------------------------------------------
+      DETAILED SOLUTIONS
+      ---------------------------------------------------
+    */
+
+    const {
+      data: solutionData,
+      error: solutionsError,
+    } = await client.rpc(
+      "get_test_solutions",
+      {
+        p_test_id: Number(id),
+      }
     );
 
-    setSections(
-      (analysisData?.sections || []).map(
-        normalizeSection
-      )
-    );
+    if (solutionsError) {
+      const message =
+        solutionsError.message || "";
 
-    await loadSolutions();
+      const lower =
+        message.toLowerCase();
+
+      if (
+        lower.includes("release") ||
+        lower.includes("locked") ||
+        lower.includes("available") ||
+        lower.includes("solution")
+      ) {
+        setSolutionsLocked(true);
+      } else {
+        setSolutionError(message);
+      }
+    } else {
+      setSolutions(
+        solutionData || []
+      );
+
+      setSolutionsLocked(false);
+    }
 
     setLoading(false);
   }
 
-  function normalizeOverall(data) {
-    if (!data) return null;
+  /*
+    =====================================================
+    DERIVED DATA
+    =====================================================
+  */
 
-    return {
-      total: Number(data.total || 0),
-      attempted: Number(data.attempted || 0),
-      unattempted: Number(data.unattempted || 0),
-      correct: Number(data.correct || 0),
-      wrong: Number(data.wrong || 0),
+  const overall =
+    analysis?.overall || {};
 
-      marked:
-        Number(
-          data.marked_for_review || 0
-        ),
+  const sections =
+    Array.isArray(
+      analysis?.sections
+    )
+      ? analysis.sections
+      : [];
 
-      score: Number(data.score || 0),
+  const bestSection =
+    useMemo(() => {
+      if (!sections.length) {
+        return null;
+      }
 
-      accuracy:
-        Number(data.accuracy || 0),
+      return [...sections].sort(
+        (a, b) => {
+          const accuracyDiff =
+            Number(
+              b.accuracy || 0
+            ) -
+            Number(
+              a.accuracy || 0
+            );
 
-      attemptRate:
-        Number(
-          data.attempt_rate || 0
-        ),
+          if (accuracyDiff !== 0) {
+            return accuracyDiff;
+          }
 
-      negativeLoss:
-        Number(
-          data.negative_loss || 0
-        ),
-    };
-  }
-
-  function normalizeSection(data) {
-    const info =
-      SECTION_INFO[data.key] || {};
-
-    return {
-      key: data.key,
-
-      name:
-        info.name ||
-        data.name ||
-        data.key,
-
-      fullName:
-        info.fullName ||
-        data.name ||
-        data.key,
-
-      hindi:
-        info.hindi || "",
-
-      total:
-        Number(data.total || 0),
-
-      attempted:
-        Number(data.attempted || 0),
-
-      unattempted:
-        Number(data.unattempted || 0),
-
-      correct:
-        Number(data.correct || 0),
-
-      wrong:
-        Number(data.wrong || 0),
-
-      marked:
-        Number(
-          data.marked_for_review || 0
-        ),
-
-      score:
-        Number(data.score || 0),
-
-      accuracy:
-        Number(data.accuracy || 0),
-
-      attemptRate:
-        Number(
-          data.attempt_rate || 0
-        ),
-
-      negativeLoss:
-        Number(
-          data.negative_loss || 0
-        ),
-    };
-  }
-
-  async function loadSolutions() {
-    const { data, error } =
-      await supabase().rpc(
-        "get_test_solutions",
-        {
-          p_test_id: Number(id),
+          return (
+            Number(
+              b.score || 0
+            ) -
+            Number(
+              a.score || 0
+            )
+          );
         }
+      )[0];
+    }, [sections]);
+
+  const weakestSection =
+    useMemo(() => {
+      if (!sections.length) {
+        return null;
+      }
+
+      return [...sections].sort(
+        (a, b) => {
+          const accuracyDiff =
+            Number(
+              a.accuracy || 0
+            ) -
+            Number(
+              b.accuracy || 0
+            );
+
+          if (accuracyDiff !== 0) {
+            return accuracyDiff;
+          }
+
+          return (
+            Number(
+              a.score || 0
+            ) -
+            Number(
+              b.score || 0
+            )
+          );
+        }
+      )[0];
+    }, [sections]);
+
+  function getSectionForQuestion(
+    questionOrder
+  ) {
+    const order =
+      Number(questionOrder);
+
+    const found =
+      sections.find(
+        (section) =>
+          order >=
+            Number(
+              section.start_order ||
+                1
+            ) &&
+          order <=
+            Number(
+              section.end_order ||
+                0
+            )
       );
 
-    if (error) {
-      setSolutionsLocked(true);
-      setSolutions([]);
-      return;
+    if (found) {
+      return found;
     }
 
-    setSolutionsLocked(false);
-    setSolutions(data || []);
+    return {
+      section_name:
+        "Full Paper",
+
+      section_name_hi:
+        "सम्पूर्ण प्रश्नपत्र",
+    };
   }
 
-  function roundNumber(value) {
-    return Number(value || 0).toFixed(2);
-  }
-
-  function getSectionName(order) {
-    if (order <= 50) {
-      return "Reasoning";
-    }
-
-    if (order <= 100) {
-      return "General Awareness";
-    }
-
-    return "English";
-  }
-
-  function getOptionText(
-    item,
-    answer
+  function getSectionName(
+    section
   ) {
-    if (!answer) {
-      return "Not Attempted";
+    return (
+      section?.section_name ||
+      section?.section_code ||
+      "Section"
+    );
+  }
+
+  function formatNumber(
+    value,
+    digits = 2
+  ) {
+    const number =
+      Number(value || 0);
+
+    if (
+      Number.isInteger(number)
+    ) {
+      return number;
+    }
+
+    return number.toFixed(
+      digits
+    );
+  }
+
+  function optionText(
+    solution,
+    letter
+  ) {
+    if (!letter) {
+      return "";
     }
 
     const key =
-      String(answer).toUpperCase();
+      String(letter)
+        .toUpperCase();
 
-    if (key === "A") {
-      return item.option_a || "";
-    }
+    const map = {
+      A: {
+        en:
+          solution.option_a,
+        hi:
+          solution.option_a_hi,
+      },
 
-    if (key === "B") {
-      return item.option_b || "";
-    }
+      B: {
+        en:
+          solution.option_b,
+        hi:
+          solution.option_b_hi,
+      },
 
-    if (key === "C") {
-      return item.option_c || "";
-    }
+      C: {
+        en:
+          solution.option_c,
+        hi:
+          solution.option_c_hi,
+      },
 
-    if (key === "D") {
-      return item.option_d || "";
-    }
+      D: {
+        en:
+          solution.option_d,
+        hi:
+          solution.option_d_hi,
+      },
+    };
 
-    return "";
+    return map[key] || {
+      en: "",
+      hi: "",
+    };
   }
 
-  function getHindiOptionText(
-    item,
-    answer
+  function solutionStatus(
+    solution
   ) {
-    if (!answer) return "";
-
-    const key =
-      String(answer).toUpperCase();
-
-    if (key === "A") {
-      return item.option_a_hi || "";
-    }
-
-    if (key === "B") {
-      return item.option_b_hi || "";
-    }
-
-    if (key === "C") {
-      return item.option_c_hi || "";
-    }
-
-    if (key === "D") {
-      return item.option_d_hi || "";
-    }
-
-    return "";
-  }
-
-  function getQuestionResult(item) {
-    if (!item.selected_answer) {
+    if (
+      !solution.selected_answer
+    ) {
       return {
         label:
-          "Not Attempted / प्रयास नहीं किया",
-        symbol: "⚪",
+          "Not Attempted",
+
+        symbol:
+          "⚪",
+
+        style:
+          statusUnattempted,
       };
     }
 
     if (
       String(
-        item.selected_answer
+        solution.selected_answer
       ).toUpperCase() ===
       String(
-        item.correct_answer
+        solution.correct_answer
       ).toUpperCase()
     ) {
       return {
         label:
-          "Correct / सही उत्तर",
-        symbol: "✅",
+          "Correct",
+
+        symbol:
+          "✅",
+
+        style:
+          statusCorrect,
       };
     }
 
     return {
       label:
-        "Incorrect / गलत उत्तर",
-      symbol: "❌",
+        "Incorrect",
+
+      symbol:
+        "❌",
+
+      style:
+        statusWrong,
     };
   }
 
+  /*
+    =====================================================
+    LOADING / ERROR
+    =====================================================
+  */
+
   if (loading) {
     return (
-      <>
-        <div className="nav">
-          JD Exambook • Result
-        </div>
-
-        <main className="wrap">
-          <div className="card">
-            Result loading...
-          </div>
-        </main>
-      </>
+      <div style={centerPage}>
+        Loading result...
+      </div>
     );
   }
 
-  if (error) {
+  if (
+    error ||
+    !analysis
+  ) {
     return (
-      <>
-        <div className="nav">
-          JD Exambook • Result
-        </div>
+      <div style={centerPage}>
+        <div style={errorCard}>
+          <b>
+            Unable to load result
+          </b>
 
-        <main className="wrap">
-          <div className="card">
-            <b>Error:</b> {error}
+          <div
+            style={{
+              marginTop: "8px",
+            }}
+          >
+            {error ||
+              "Result not available"}
           </div>
-        </main>
-      </>
+
+          <button
+            style={primaryButton}
+            onClick={() =>
+              router.push(
+                "/dashboard"
+              )
+            }
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
     );
   }
-
-  const bestSection =
-    [...sections].sort(
-      (a, b) =>
-        b.accuracy -
-        a.accuracy
-    )[0];
-
-  const weakestSection =
-    [...sections].sort(
-      (a, b) =>
-        a.accuracy -
-        b.accuracy
-    )[0];
 
   return (
     <>
-      <div className="nav">
-        JD Exambook • Result & Analysis
+      {/* ===============================================
+          TOP NAV
+      =============================================== */}
+
+      <div style={navBar}>
+
+        <div>
+          <div style={brand}>
+            JD Exambook
+          </div>
+
+          <div style={navSubtitle}>
+            Result & Performance Analysis
+          </div>
+        </div>
+
+        <button
+          style={navButton}
+          onClick={() =>
+            router.push(
+              "/dashboard"
+            )
+          }
+        >
+          Dashboard
+        </button>
+
       </div>
 
-      <main className="wrap">
+      <main style={pageWrap}>
 
-        <div className="card hero">
-          <h2>
+        {/* =============================================
+            RESULT HERO
+        ============================================= */}
+
+        <section style={hero}>
+
+          <div style={heroExam}>
+            {config?.exam
+              ?.exam_name ||
+              "Examination"}
+          </div>
+
+          <h1 style={heroTitle}>
             {test?.title}
-          </h2>
+          </h1>
 
-          <p>
-            Test Submitted Successfully
-          </p>
-
-          <div
-            style={{
-              fontSize: "38px",
-              fontWeight: "800",
-              marginTop: "10px",
-            }}
-          >
-            {roundNumber(
-              overall?.score
-            )}
-            {" / "}
-            {overall?.total}
+          <div style={heroStage}>
+            {config?.stage
+              ?.stage_name ||
+              ""}
           </div>
 
-          <p>
-            Overall Score / कुल प्राप्तांक
-          </p>
-        </div>
+          <div style={scoreRow}>
 
-        <div className="card">
-          <h2>
-            Overall Performance / समग्र प्रदर्शन
+            <div>
+              <div style={scoreLabel}>
+                Your Score
+              </div>
+
+              <div style={mainScore}>
+                {formatNumber(
+                  overall.score
+                )}
+
+                <span style={scoreTotal}>
+                  {" / "}
+                  {formatNumber(
+                    overall.total_marks ||
+                      config?.stage
+                        ?.total_marks
+                  )}
+                </span>
+              </div>
+            </div>
+
+            <div style={percentageBox}>
+              <div style={percentageValue}>
+                {overall.total_marks
+                  ? formatNumber(
+                      (
+                        Number(
+                          overall.score ||
+                            0
+                        ) /
+                        Number(
+                          overall.total_marks
+                        )
+                      ) * 100
+                    )
+                  : "0"}
+                %
+              </div>
+
+              <div style={percentageLabel}>
+                Score Percentage
+              </div>
+            </div>
+
+          </div>
+
+        </section>
+
+        {/* =============================================
+            OVERALL PERFORMANCE
+        ============================================= */}
+
+        <section style={card}>
+
+          <h2 style={cardTitle}>
+            Overall Performance
           </h2>
 
-          <div style={statsGrid}>
-            <StatBox
-              title="Total"
-              hindi="कुल प्रश्न"
-              value={overall?.total}
+          <div style={metricGrid}>
+
+            <Metric
+              label="Total Questions"
+              value={
+                overall.total
+              }
             />
 
-            <StatBox
-              title="Attempted"
-              hindi="प्रयास किए"
-              value={overall?.attempted}
+            <Metric
+              label="Attempted"
+              value={
+                overall.attempted
+              }
             />
 
-            <StatBox
-              title="Unattempted"
-              hindi="बिना प्रयास"
-              value={overall?.unattempted}
+            <Metric
+              label="Unattempted"
+              value={
+                overall.unattempted
+              }
             />
 
-            <StatBox
-              title="Correct"
-              hindi="सही"
-              value={overall?.correct}
+            <Metric
+              label="Correct"
+              value={
+                overall.correct
+              }
+              type="success"
             />
 
-            <StatBox
-              title="Wrong"
-              hindi="गलत"
-              value={overall?.wrong}
+            <Metric
+              label="Wrong"
+              value={
+                overall.wrong
+              }
+              type="danger"
             />
 
-            <StatBox
-              title="Marked Review"
-              hindi="समीक्षा हेतु"
-              value={overall?.marked}
+            <Metric
+              label="Marked Review"
+              value={
+                overall.marked_for_review
+              }
             />
 
-            <StatBox
-              title="Score"
-              hindi="प्राप्तांक"
-              value={roundNumber(
-                overall?.score
-              )}
-            />
-
-            <StatBox
-              title="Accuracy"
-              hindi="शुद्धता"
-              value={`${roundNumber(
-                overall?.accuracy
+            <Metric
+              label="Accuracy"
+              value={`${formatNumber(
+                overall.accuracy
               )}%`}
             />
 
-            <StatBox
-              title="Attempt Rate"
-              hindi="प्रयास प्रतिशत"
-              value={`${roundNumber(
-                overall?.attemptRate
+            <Metric
+              label="Attempt Rate"
+              value={`${formatNumber(
+                overall.attempt_rate
               )}%`}
             />
 
-            <StatBox
-              title="Negative Loss"
-              hindi="नेगेटिव अंक कटे"
-              value={roundNumber(
-                overall?.negativeLoss
-              )}
+            <Metric
+              label="Negative Loss"
+              value={
+                formatNumber(
+                  overall.negative_loss
+                )
+              }
+              type="danger"
             />
-          </div>
-        </div>
 
-        {sections.length > 0 && (
-          <div className="card">
-            <h2>
+            <Metric
+              label="Final Score"
+              value={
+                formatNumber(
+                  overall.score
+                )
+              }
+              type="primary"
+            />
+
+          </div>
+
+        </section>
+
+        {/* =============================================
+            PERFORMANCE HIGHLIGHTS
+        ============================================= */}
+
+        {sections.length >
+          1 && (
+          <section style={card}>
+
+            <h2 style={cardTitle}>
               Performance Highlights
             </h2>
 
-            <div style={statsGrid}>
-              <div style={highlightBox}>
-                <div className="muted">
+            <div style={highlightGrid}>
+
+              <div style={bestCard}>
+                <div style={highlightIcon}>
+                  🏆
+                </div>
+
+                <div style={highlightSmall}>
                   Best Section
                 </div>
 
-                <div
-                  style={{
-                    fontSize: "19px",
-                    fontWeight: "800",
-                    marginTop: "8px",
-                  }}
-                >
-                  {bestSection?.name}
+                <div style={highlightName}>
+                  {getSectionName(
+                    bestSection
+                  )}
                 </div>
 
-                <div>
-                  Accuracy:{" "}
-                  {roundNumber(
-                    bestSection?.accuracy
+                <div style={highlightScore}>
+                  {formatNumber(
+                    bestSection
+                      ?.accuracy
                   )}
-                  %
+                  % Accuracy
                 </div>
               </div>
 
-              <div style={highlightBox}>
-                <div className="muted">
-                  Weakest Section
+              <div style={weakCard}>
+                <div style={highlightIcon}>
+                  🎯
                 </div>
 
-                <div
-                  style={{
-                    fontSize: "19px",
-                    fontWeight: "800",
-                    marginTop: "8px",
-                  }}
-                >
-                  {weakestSection?.name}
+                <div style={highlightSmall}>
+                  Needs More Practice
                 </div>
 
-                <div>
-                  Accuracy:{" "}
-                  {roundNumber(
-                    weakestSection?.accuracy
+                <div style={highlightName}>
+                  {getSectionName(
+                    weakestSection
                   )}
-                  %
+                </div>
+
+                <div style={highlightScore}>
+                  {formatNumber(
+                    weakestSection
+                      ?.accuracy
+                  )}
+                  % Accuracy
                 </div>
               </div>
+
             </div>
-          </div>
+
+          </section>
         )}
 
-        <div className="card">
-          <h2>
-            Section-wise Analysis
+        {/* =============================================
+            DYNAMIC SECTION-WISE PERFORMANCE
+        ============================================= */}
+
+        <section style={card}>
+
+          <h2 style={cardTitle}>
+            Section-wise Performance
           </h2>
 
-          <p className="muted">
-            अनुभागवार प्रदर्शन
-          </p>
+          <div style={sectionCards}>
 
-          {sections.map(
-            (section) => (
-              <div
-                key={section.key}
-                style={sectionCard}
-              >
-                <h3>
-                  {section.fullName}
-                </h3>
-
-                <div className="muted">
-                  {section.hindi}
-                </div>
-
+            {sections.map(
+              (section) => (
                 <div
-                  style={{
-                    ...statsGrid,
-                    marginTop: "18px",
-                  }}
+                  key={
+                    section.section_code ||
+                    section.display_order
+                  }
+                  style={sectionCard}
                 >
-                  <StatBox
-                    title="Total"
-                    hindi="कुल"
-                    value={section.total}
-                  />
 
-                  <StatBox
-                    title="Attempted"
-                    hindi="प्रयास"
-                    value={
-                      section.attempted
-                    }
-                  />
+                  <div style={sectionHeader}>
 
-                  <StatBox
-                    title="Unattempted"
-                    hindi="बिना प्रयास"
-                    value={
-                      section.unattempted
-                    }
-                  />
+                    <div>
+                      <div style={sectionTitle}>
+                        {section.section_name}
+                      </div>
 
-                  <StatBox
-                    title="Correct"
-                    hindi="सही"
-                    value={
-                      section.correct
-                    }
-                  />
+                      {section.section_name_hi && (
+                        <div style={sectionHindi}>
+                          {
+                            section.section_name_hi
+                          }
+                        </div>
+                      )}
+                    </div>
 
-                  <StatBox
-                    title="Wrong"
-                    hindi="गलत"
-                    value={
-                      section.wrong
-                    }
-                  />
+                    <div style={sectionScore}>
+                      {formatNumber(
+                        section.score
+                      )}
+                      {" / "}
+                      {formatNumber(
+                        section.total_marks
+                      )}
+                    </div>
 
-                  <StatBox
-                    title="Marked Review"
-                    hindi="समीक्षा"
-                    value={
-                      section.marked
-                    }
-                  />
+                  </div>
 
-                  <StatBox
-                    title="Score"
-                    hindi="अंक"
-                    value={roundNumber(
-                      section.score
-                    )}
-                  />
+                  <div style={sectionMetricGrid}>
 
-                  <StatBox
-                    title="Accuracy"
-                    hindi="शुद्धता"
-                    value={`${roundNumber(
-                      section.accuracy
-                    )}%`}
-                  />
+                    <SmallMetric
+                      label="Total"
+                      value={
+                        section.total
+                      }
+                    />
 
-                  <StatBox
-                    title="Attempt Rate"
-                    hindi="प्रयास %"
-                    value={`${roundNumber(
-                      section.attemptRate
-                    )}%`}
-                  />
+                    <SmallMetric
+                      label="Attempted"
+                      value={
+                        section.attempted
+                      }
+                    />
 
-                  <StatBox
-                    title="Negative Loss"
-                    hindi="कटे अंक"
-                    value={roundNumber(
-                      section.negativeLoss
-                    )}
-                  />
+                    <SmallMetric
+                      label="Correct"
+                      value={
+                        section.correct
+                      }
+                    />
+
+                    <SmallMetric
+                      label="Wrong"
+                      value={
+                        section.wrong
+                      }
+                    />
+
+                    <SmallMetric
+                      label="Accuracy"
+                      value={`${formatNumber(
+                        section.accuracy
+                      )}%`}
+                    />
+
+                    <SmallMetric
+                      label="Attempt Rate"
+                      value={`${formatNumber(
+                        section.attempt_rate
+                      )}%`}
+                    />
+
+                    <SmallMetric
+                      label="Negative Loss"
+                      value={
+                        formatNumber(
+                          section.negative_loss
+                        )
+                      }
+                    />
+
+                    <SmallMetric
+                      label="Review"
+                      value={
+                        section.marked_for_review
+                      }
+                    />
+
+                  </div>
+
                 </div>
-              </div>
-            )
-          )}
-        </div>
+              )
+            )}
 
-        <div className="card">
-          <h2>
+          </div>
+
+        </section>
+
+        {/* =============================================
+            SECTION COMPARISON
+        ============================================= */}
+
+        <section style={card}>
+
+          <h2 style={cardTitle}>
             Section Comparison
           </h2>
 
-          <div
-            style={{
-              overflowX: "auto",
-            }}
-          >
-            <table
-              style={{
-                width: "100%",
-                borderCollapse:
-                  "collapse",
-                minWidth: "900px",
-              }}
-            >
+          <div style={tableScroll}>
+
+            <table style={comparisonTable}>
+
               <thead>
                 <tr>
-                  <th style={cellStyle}>
+                  <th style={th}>
                     Section
                   </th>
 
-                  <th style={cellStyle}>
-                    Total
+                  <th style={th}>
+                    Q
                   </th>
 
-                  <th style={cellStyle}>
-                    Attempted
+                  <th style={th}>
+                    Attempt
                   </th>
 
-                  <th style={cellStyle}>
-                    Unattempted
-                  </th>
-
-                  <th style={cellStyle}>
+                  <th style={th}>
                     Correct
                   </th>
 
-                  <th style={cellStyle}>
+                  <th style={th}>
                     Wrong
                   </th>
 
-                  <th style={cellStyle}>
-                    Review
-                  </th>
-
-                  <th style={cellStyle}>
+                  <th style={th}>
                     Score
                   </th>
 
-                  <th style={cellStyle}>
+                  <th style={th}>
                     Accuracy
+                  </th>
+
+                  <th style={th}>
+                    Negative
                   </th>
                 </tr>
               </thead>
 
               <tbody>
+
                 {sections.map(
                   (section) => (
                     <tr
-                      key={section.key}
+                      key={`table-${section.section_code || section.display_order}`}
                     >
-                      <td style={cellStyle}>
+
+                      <td style={tdLeft}>
                         <b>
-                          {section.name}
+                          {
+                            section.section_name
+                          }
                         </b>
                       </td>
 
-                      <td style={cellStyle}>
-                        {section.total}
+                      <td style={td}>
+                        {
+                          section.total
+                        }
                       </td>
 
-                      <td style={cellStyle}>
-                        {section.attempted}
+                      <td style={td}>
+                        {
+                          section.attempted
+                        }
                       </td>
 
-                      <td style={cellStyle}>
-                        {section.unattempted}
+                      <td style={td}>
+                        {
+                          section.correct
+                        }
                       </td>
 
-                      <td style={cellStyle}>
-                        {section.correct}
+                      <td style={td}>
+                        {
+                          section.wrong
+                        }
                       </td>
 
-                      <td style={cellStyle}>
-                        {section.wrong}
-                      </td>
-
-                      <td style={cellStyle}>
-                        {section.marked}
-                      </td>
-
-                      <td style={cellStyle}>
-                        {roundNumber(
+                      <td style={td}>
+                        {formatNumber(
                           section.score
                         )}
                       </td>
 
-                      <td style={cellStyle}>
-                        {roundNumber(
+                      <td style={td}>
+                        {formatNumber(
                           section.accuracy
                         )}
                         %
                       </td>
+
+                      <td style={td}>
+                        {formatNumber(
+                          section.negative_loss
+                        )}
+                      </td>
+
                     </tr>
                   )
                 )}
 
-                <tr>
-                  <td style={cellStyle}>
-                    <b>Overall</b>
-                  </td>
-
-                  <td style={cellStyle}>
-                    {overall?.total}
-                  </td>
-
-                  <td style={cellStyle}>
-                    {overall?.attempted}
-                  </td>
-
-                  <td style={cellStyle}>
-                    {overall?.unattempted}
-                  </td>
-
-                  <td style={cellStyle}>
-                    {overall?.correct}
-                  </td>
-
-                  <td style={cellStyle}>
-                    {overall?.wrong}
-                  </td>
-
-                  <td style={cellStyle}>
-                    {overall?.marked}
-                  </td>
-
-                  <td style={cellStyle}>
-                    {roundNumber(
-                      overall?.score
-                    )}
-                  </td>
-
-                  <td style={cellStyle}>
-                    {roundNumber(
-                      overall?.accuracy
-                    )}
-                    %
-                  </td>
-                </tr>
               </tbody>
-            </table>
-          </div>
-        </div>
 
-        <div className="card">
-          <h2>
+            </table>
+
+          </div>
+
+        </section>
+
+        {/* =============================================
+            DETAILED ANSWER SHEET
+        ============================================= */}
+
+        <section style={card}>
+
+          <h2 style={cardTitle}>
             Detailed Answer Sheet
           </h2>
 
-          <p className="muted">
-            विस्तृत उत्तर-पत्र एवं समाधान
-          </p>
-
           {solutionsLocked ? (
-            <div className="lock">
-              🔒 Detailed answers and explanations are currently locked.
-              <br />
-              <br />
-              निर्धारित solution-release समय पूरा होने के बाद सही उत्तर एवं explanation उपलब्ध होंगे।
+            <div style={lockedBox}>
+
+              <div style={lockIcon}>
+                🔒
+              </div>
+
+              <h3>
+                Detailed Solutions Locked
+              </h3>
+
+              <p style={mutedText}>
+                इस test की detailed answer sheet निर्धारित solution release time के बाद उपलब्ध होगी।
+              </p>
+
+              {test?.solution_release_at && (
+                <div style={releaseBox}>
+                  Solution Release:
+                  {" "}
+                  <b>
+                    {new Date(
+                      test.solution_release_at
+                    ).toLocaleString(
+                      "en-IN"
+                    )}
+                  </b>
+                </div>
+              )}
+
+            </div>
+          ) : solutionError ? (
+            <div style={warningBox}>
+              {solutionError}
+            </div>
+          ) : solutions.length ===
+            0 ? (
+            <div style={emptyBox}>
+              Detailed solutions are not available.
             </div>
           ) : (
-            <>
+            <div style={solutionList}>
+
               {solutions.map(
-                (item, index) => {
-                  const result =
-                    getQuestionResult(
-                      item
+                (
+                  solution,
+                  index
+                ) => {
+                  const section =
+                    getSectionForQuestion(
+                      solution.question_order
                     );
 
-                  const yourText =
-                    getOptionText(
-                      item,
-                      item.selected_answer
+                  const status =
+                    solutionStatus(
+                      solution
                     );
 
-                  const correctText =
-                    getOptionText(
-                      item,
-                      item.correct_answer
+                  const selected =
+                    optionText(
+                      solution,
+                      solution.selected_answer
                     );
 
-                  const yourHindi =
-                    getHindiOptionText(
-                      item,
-                      item.selected_answer
-                    );
-
-                  const correctHindi =
-                    getHindiOptionText(
-                      item,
-                      item.correct_answer
+                  const correct =
+                    optionText(
+                      solution,
+                      solution.correct_answer
                     );
 
                   return (
                     <div
                       key={
-                        item.question_id ||
+                        solution.question_id ||
                         index
                       }
                       style={solutionCard}
                     >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent:
-                            "space-between",
-                          gap: "10px",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <b>
-                          Question{" "}
-                          {item.question_order ||
-                            index + 1}
-                        </b>
 
-                        <span
-                          style={{
-                            fontWeight:
-                              "700",
-                          }}
-                        >
-                          {getSectionName(
-                            item.question_order ||
-                              index + 1
-                          )}
-                        </span>
-                      </div>
+                      <div style={solutionTop}>
 
-                      <div
-                        style={{
-                          marginTop: "10px",
-                          fontWeight: "800",
-                        }}
-                      >
-                        {result.symbol}{" "}
-                        {result.label}
-                      </div>
+                        <div>
+                          <div style={solutionQuestionNo}>
+                            Question{" "}
+                            {
+                              solution.question_order
+                            }
+                          </div>
 
-                      {item.marked_for_review && (
+                          <div style={solutionSection}>
+                            {
+                              section.section_name
+                            }
+                          </div>
+                        </div>
+
                         <div
                           style={{
-                            marginTop: "8px",
-                            fontWeight:
-                              "700",
+                            ...statusBadge,
+                            ...status.style,
                           }}
                         >
+                          {status.symbol}
+                          {" "}
+                          {status.label}
+                        </div>
+
+                      </div>
+
+                      {solution.marked_for_review && (
+                        <div style={reviewBadge}>
                           🟣 Marked for Review
                         </div>
                       )}
 
-                      <h3
-                        style={{
-                          lineHeight: "1.6",
-                          marginTop: "18px",
-                        }}
-                      >
-                        {item.question_text}
-                      </h3>
+                      <div style={solutionQuestion}>
+                        {
+                          solution.question_text
+                        }
+                      </div>
 
-                      {item.question_text_hi && (
-                        <div
-                          style={{
-                            fontSize: "17px",
-                            lineHeight: "1.6",
-                            fontWeight: "600",
-                            marginBottom:
-                              "15px",
-                          }}
-                        >
+                      {solution.question_text_hi && (
+                        <div style={solutionQuestionHi}>
                           {
-                            item.question_text_hi
+                            solution.question_text_hi
                           }
                         </div>
                       )}
 
-                      <div style={answerBox}>
-                        <b>
-                          Your Answer / आपका उत्तर
-                        </b>
+                      <div style={answerGrid}>
 
-                        <div
-                          style={{
-                            marginTop: "7px",
-                          }}
-                        >
-                          {item.selected_answer
-                            ? `${item.selected_answer}. ${yourText}`
-                            : "Not Attempted / प्रयास नहीं किया"}
+                        <div style={yourAnswerBox}>
+                          <div style={answerLabel}>
+                            Your Answer
+                          </div>
+
+                          {solution.selected_answer ? (
+                            <>
+                              <div style={answerLetter}>
+                                {
+                                  solution.selected_answer
+                                }
+                                .
+                              </div>
+
+                              <div>
+                                {selected.en ||
+                                  "—"}
+                              </div>
+
+                              {selected.hi && (
+                                <div style={answerHindi}>
+                                  {
+                                    selected.hi
+                                  }
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div style={notAttemptedText}>
+                              Not Attempted
+                            </div>
+                          )}
                         </div>
 
-                        {yourHindi && (
-                          <div
-                            style={{
-                              marginTop:
-                                "4px",
-                              color:
-                                "#667085",
-                            }}
-                          >
-                            {yourHindi}
+                        <div style={correctAnswerBox}>
+                          <div style={answerLabel}>
+                            Correct Answer
                           </div>
-                        )}
-                      </div>
 
-                      <div style={answerBox}>
-                        <b>
-                          Correct Answer / सही उत्तर
-                        </b>
+                          <div style={answerLetter}>
+                            {
+                              solution.correct_answer
+                            }
+                            .
+                          </div>
 
-                        <div
-                          style={{
-                            marginTop: "7px",
-                          }}
-                        >
-                          {
-                            item.correct_answer
-                          }
-                          . {correctText}
+                          <div>
+                            {correct.en ||
+                              "—"}
+                          </div>
+
+                          {correct.hi && (
+                            <div style={answerHindi}>
+                              {
+                                correct.hi
+                              }
+                            </div>
+                          )}
                         </div>
 
-                        {correctHindi && (
-                          <div
-                            style={{
-                              marginTop:
-                                "4px",
-                              color:
-                                "#667085",
-                            }}
-                          >
-                            {correctHindi}
-                          </div>
-                        )}
                       </div>
 
-                      {(item.explanation ||
-                        item.explanation_hi) && (
-                        <div
-                          style={{
-                            marginTop: "14px",
-                            padding: "14px",
-                            border:
-                              "1px solid #d7deea",
-                            borderRadius:
-                              "10px",
-                          }}
-                        >
-                          <b>
-                            Explanation / व्याख्या
-                          </b>
+                      {(solution.explanation ||
+                        solution.explanation_hi) && (
+                        <div style={explanationBox}>
 
-                          {item.explanation && (
-                            <p
-                              style={{
-                                lineHeight:
-                                  "1.6",
-                              }}
-                            >
+                          <div style={explanationTitle}>
+                            Explanation
+                          </div>
+
+                          {solution.explanation && (
+                            <div style={explanationText}>
                               {
-                                item.explanation
+                                solution.explanation
                               }
-                            </p>
+                            </div>
                           )}
 
-                          {item.explanation_hi && (
-                            <p
-                              style={{
-                                lineHeight:
-                                  "1.6",
-                                marginBottom:
-                                  "0",
-                              }}
-                            >
+                          {solution.explanation_hi && (
+                            <div style={explanationHindi}>
                               {
-                                item.explanation_hi
+                                solution.explanation_hi
                               }
-                            </p>
+                            </div>
                           )}
+
                         </div>
                       )}
+
                     </div>
                   );
                 }
               )}
-            </>
-          )}
-        </div>
 
-        <div className="card">
-          <Link href="/dashboard">
-            <button
-              className="btn"
-              style={{
-                width: "100%",
-                padding: "14px",
-              }}
-            >
-              Back to Dashboard
-            </button>
-          </Link>
-        </div>
+            </div>
+          )}
+
+        </section>
+
+        {/* =============================================
+            DASHBOARD
+        ============================================= */}
+
+        <button
+          style={dashboardButton}
+          onClick={() =>
+            router.push(
+              "/dashboard"
+            )
+          }
+        >
+          ← Back to Dashboard
+        </button>
 
       </main>
     </>
   );
 }
 
-function StatBox({
-  title,
-  hindi,
+/* =====================================================
+   COMPONENTS
+===================================================== */
+
+function Metric({
+  label,
   value,
+  type,
 }) {
+  let valueStyle =
+    metricValue;
+
+  if (
+    type === "success"
+  ) {
+    valueStyle = {
+      ...metricValue,
+      color: "#15803d",
+    };
+  }
+
+  if (
+    type === "danger"
+  ) {
+    valueStyle = {
+      ...metricValue,
+      color: "#dc2626",
+    };
+  }
+
+  if (
+    type === "primary"
+  ) {
+    valueStyle = {
+      ...metricValue,
+      color: "#2563eb",
+    };
+  }
+
   return (
-    <div style={statBox}>
-      <div className="muted">
-        {title}
+    <div style={metricCard}>
+      <div style={metricLabel}>
+        {label}
       </div>
 
-      <div
-        style={{
-          fontSize: "25px",
-          fontWeight: "800",
-          margin: "5px 0",
-        }}
-      >
+      <div style={valueStyle}>
         {value ?? 0}
-      </div>
-
-      <div
-        style={{
-          fontSize: "12px",
-          color: "#667085",
-        }}
-      >
-        {hindi}
       </div>
     </div>
   );
 }
 
-const statsGrid = {
+function SmallMetric({
+  label,
+  value,
+}) {
+  return (
+    <div style={smallMetric}>
+      <div style={smallMetricLabel}>
+        {label}
+      </div>
+
+      <div style={smallMetricValue}>
+        {value ?? 0}
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================
+   STYLES
+===================================================== */
+
+const navBar = {
+  minHeight: "62px",
+  background: "#172033",
+  color: "#ffffff",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "12px",
+  padding: "10px 18px",
+};
+
+const brand = {
+  fontSize: "18px",
+  fontWeight: "800",
+};
+
+const navSubtitle = {
+  fontSize: "10px",
+  opacity: 0.7,
+  marginTop: "2px",
+};
+
+const navButton = {
+  border: "1px solid #ffffff55",
+  background: "#ffffff12",
+  color: "#ffffff",
+  borderRadius: "8px",
+  padding: "8px 11px",
+  cursor: "pointer",
+  fontWeight: "700",
+};
+
+const pageWrap = {
+  maxWidth: "1100px",
+  margin: "0 auto",
+  padding: "16px 12px 30px",
+};
+
+const hero = {
+  borderRadius: "18px",
+  padding: "22px",
+  background:
+    "linear-gradient(135deg,#173b75,#246ee9)",
+  color: "#ffffff",
+  marginBottom: "14px",
+};
+
+const heroExam = {
+  fontSize: "12px",
+  opacity: 0.8,
+  fontWeight: "700",
+};
+
+const heroTitle = {
+  margin: "6px 0 2px",
+  fontSize: "clamp(20px,5vw,30px)",
+};
+
+const heroStage = {
+  fontSize: "12px",
+  opacity: 0.8,
+};
+
+const scoreRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-end",
+  gap: "16px",
+  flexWrap: "wrap",
+  marginTop: "24px",
+};
+
+const scoreLabel = {
+  fontSize: "12px",
+  opacity: 0.82,
+};
+
+const mainScore = {
+  fontSize: "38px",
+  lineHeight: 1.1,
+  fontWeight: "900",
+  marginTop: "5px",
+};
+
+const scoreTotal = {
+  fontSize: "18px",
+  fontWeight: "600",
+  opacity: 0.8,
+};
+
+const percentageBox = {
+  background: "#ffffff18",
+  border: "1px solid #ffffff30",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  textAlign: "center",
+};
+
+const percentageValue = {
+  fontSize: "23px",
+  fontWeight: "900",
+};
+
+const percentageLabel = {
+  fontSize: "9px",
+  opacity: 0.75,
+  marginTop: "3px",
+};
+
+const card = {
+  background: "#ffffff",
+  border: "1px solid #e6eaf0",
+  borderRadius: "16px",
+  padding: "16px",
+  marginBottom: "14px",
+  boxShadow:
+    "0 4px 18px rgba(0,0,0,0.04)",
+};
+
+const cardTitle = {
+  margin: "0 0 14px",
+  fontSize: "19px",
+};
+
+const metricGrid = {
   display: "grid",
   gridTemplateColumns:
-    "repeat(auto-fit, minmax(125px, 1fr))",
+    "repeat(auto-fit,minmax(115px,1fr))",
+  gap: "9px",
+};
+
+const metricCard = {
+  background: "#f8fafc",
+  border: "1px solid #e7ebf0",
+  borderRadius: "10px",
+  padding: "11px",
+};
+
+const metricLabel = {
+  fontSize: "10px",
+  color: "#667085",
+};
+
+const metricValue = {
+  fontSize: "21px",
+  fontWeight: "900",
+  marginTop: "5px",
+  color: "#172033",
+};
+
+const highlightGrid = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(auto-fit,minmax(220px,1fr))",
   gap: "10px",
 };
 
-const statBox = {
-  padding: "14px",
-  border: "1px solid #d7deea",
+const bestCard = {
   borderRadius: "12px",
-  background: "#f8fafc",
-  textAlign: "center",
+  padding: "15px",
+  border: "1px solid #bbf7d0",
+  background: "#f0fdf4",
 };
 
-const highlightBox = {
-  padding: "18px",
-  border: "1px solid #d7deea",
+const weakCard = {
   borderRadius: "12px",
-  background: "#f8fafc",
+  padding: "15px",
+  border: "1px solid #fed7aa",
+  background: "#fff7ed",
+};
+
+const highlightIcon = {
+  fontSize: "24px",
+};
+
+const highlightSmall = {
+  marginTop: "6px",
+  fontSize: "10px",
+  color: "#667085",
+  fontWeight: "700",
+};
+
+const highlightName = {
+  marginTop: "3px",
+  fontSize: "16px",
+  fontWeight: "900",
+};
+
+const highlightScore = {
+  marginTop: "5px",
+  fontSize: "12px",
+  color: "#475569",
+};
+
+const sectionCards = {
+  display: "grid",
+  gap: "11px",
 };
 
 const sectionCard = {
-  border: "1px solid #d7deea",
-  borderRadius: "14px",
-  padding: "18px",
-  marginTop: "16px",
+  border: "1px solid #e4e8ee",
+  borderRadius: "12px",
+  padding: "13px",
 };
 
-const cellStyle = {
-  border: "1px solid #d7deea",
+const sectionHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "10px",
+};
+
+const sectionTitle = {
+  fontSize: "15px",
+  fontWeight: "900",
+};
+
+const sectionHindi = {
+  fontSize: "11px",
+  color: "#667085",
+  marginTop: "3px",
+};
+
+const sectionScore = {
+  flexShrink: 0,
+  fontWeight: "900",
+  fontSize: "16px",
+  color: "#2563eb",
+};
+
+const sectionMetricGrid = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(auto-fit,minmax(85px,1fr))",
+  gap: "7px",
+  marginTop: "12px",
+};
+
+const smallMetric = {
+  background: "#f8fafc",
+  borderRadius: "8px",
+  padding: "8px",
+};
+
+const smallMetricLabel = {
+  fontSize: "9px",
+  color: "#667085",
+};
+
+const smallMetricValue = {
+  fontSize: "15px",
+  fontWeight: "800",
+  marginTop: "3px",
+};
+
+const tableScroll = {
+  overflowX: "auto",
+};
+
+const comparisonTable = {
+  width: "100%",
+  minWidth: "720px",
+  borderCollapse: "collapse",
+};
+
+const th = {
+  background: "#f8fafc",
   padding: "10px",
+  borderBottom: "1px solid #dde3eb",
   textAlign: "center",
-  fontSize: "14px",
+  fontSize: "11px",
+};
+
+const td = {
+  padding: "10px",
+  borderBottom: "1px solid #eef1f5",
+  textAlign: "center",
+  fontSize: "12px",
+};
+
+const tdLeft = {
+  ...td,
+  textAlign: "left",
+};
+
+const lockedBox = {
+  padding: "28px 15px",
+  textAlign: "center",
+  background: "#f8fafc",
+  borderRadius: "12px",
+};
+
+const lockIcon = {
+  fontSize: "36px",
+};
+
+const mutedText = {
+  color: "#667085",
+  lineHeight: "1.6",
+};
+
+const releaseBox = {
+  marginTop: "12px",
+  display: "inline-block",
+  padding: "9px 12px",
+  background: "#ffffff",
+  border: "1px solid #dfe5ec",
+  borderRadius: "8px",
+  fontSize: "12px",
+};
+
+const warningBox = {
+  padding: "12px",
+  background: "#fff7ed",
+  border: "1px solid #fed7aa",
+  borderRadius: "9px",
+  color: "#9a3412",
+};
+
+const emptyBox = {
+  padding: "18px",
+  background: "#f8fafc",
+  borderRadius: "9px",
+  color: "#667085",
+};
+
+const solutionList = {
+  display: "grid",
+  gap: "13px",
 };
 
 const solutionCard = {
-  border: "1px solid #d7deea",
+  border: "1px solid #e1e6ed",
   borderRadius: "12px",
-  padding: "16px",
-  marginTop: "16px",
+  padding: "13px",
 };
 
-const answerBox = {
+const solutionTop = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "10px",
+  alignItems: "flex-start",
+};
+
+const solutionQuestionNo = {
+  fontSize: "12px",
+  fontWeight: "900",
+};
+
+const solutionSection = {
+  fontSize: "10px",
+  color: "#667085",
+  marginTop: "2px",
+};
+
+const statusBadge = {
+  flexShrink: 0,
+  borderRadius: "20px",
+  padding: "5px 9px",
+  fontSize: "10px",
+  fontWeight: "800",
+};
+
+const statusCorrect = {
+  background: "#dcfce7",
+  color: "#166534",
+};
+
+const statusWrong = {
+  background: "#fee2e2",
+  color: "#991b1b",
+};
+
+const statusUnattempted = {
+  background: "#f1f5f9",
+  color: "#475569",
+};
+
+const reviewBadge = {
+  display: "inline-block",
+  marginTop: "8px",
+  padding: "4px 8px",
+  background: "#f3e8ff",
+  color: "#6b21a8",
+  borderRadius: "15px",
+  fontSize: "9px",
+  fontWeight: "800",
+};
+
+const solutionQuestion = {
   marginTop: "12px",
-  padding: "13px",
-  border: "1px solid #d7deea",
+  fontWeight: "800",
+  fontSize: "15px",
+  lineHeight: "1.45",
+};
+
+const solutionQuestionHi = {
+  marginTop: "5px",
+  fontSize: "14px",
+  lineHeight: "1.5",
+  color: "#374151",
+};
+
+const answerGrid = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(auto-fit,minmax(220px,1fr))",
+  gap: "9px",
+  marginTop: "12px",
+};
+
+const yourAnswerBox = {
+  border: "1px solid #e2e8f0",
+  borderRadius: "9px",
+  padding: "10px",
+  background: "#fafafa",
+};
+
+const correctAnswerBox = {
+  border: "1px solid #bbf7d0",
+  borderRadius: "9px",
+  padding: "10px",
+  background: "#f0fdf4",
+};
+
+const answerLabel = {
+  fontSize: "9px",
+  color: "#667085",
+  fontWeight: "800",
+  marginBottom: "6px",
+  textTransform: "uppercase",
+};
+
+const answerLetter = {
+  fontWeight: "900",
+  marginBottom: "3px",
+};
+
+const answerHindi = {
+  marginTop: "4px",
+  color: "#475569",
+  fontSize: "12px",
+};
+
+const notAttemptedText = {
+  color: "#64748b",
+  fontStyle: "italic",
+};
+
+const explanationBox = {
+  marginTop: "12px",
+  padding: "11px",
+  borderRadius: "9px",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+};
+
+const explanationTitle = {
+  fontSize: "10px",
+  fontWeight: "900",
+  color: "#1d4ed8",
+  marginBottom: "5px",
+};
+
+const explanationText = {
+  lineHeight: "1.55",
+  fontSize: "13px",
+};
+
+const explanationHindi = {
+  marginTop: "7px",
+  lineHeight: "1.55",
+  fontSize: "13px",
+  color: "#374151",
+};
+
+const dashboardButton = {
+  width: "100%",
+  minHeight: "48px",
+  background: "#172033",
+  color: "#ffffff",
+  border: 0,
   borderRadius: "10px",
-  background: "#f8fafc",
+  fontSize: "14px",
+  fontWeight: "800",
+  cursor: "pointer",
+};
+
+const centerPage = {
+  minHeight: "100vh",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  padding: "20px",
+  background: "#f5f7fb",
+};
+
+const errorCard = {
+  maxWidth: "450px",
+  width: "100%",
+  background: "#ffffff",
+  borderRadius: "14px",
+  padding: "20px",
+  boxShadow:
+    "0 5px 20px rgba(0,0,0,0.08)",
+};
+
+const primaryButton = {
+  marginTop: "16px",
+  border: 0,
+  background: "#2563eb",
+  color: "#ffffff",
+  borderRadius: "8px",
+  padding: "10px 14px",
+  fontWeight: "800",
+  cursor: "pointer",
 };
