@@ -29,7 +29,7 @@ export default function InstructionsPage() {
           setLanguage(savedLanguage);
         }
       } catch {
-        // localStorage unavailable
+        // Ignore localStorage error
       }
 
       const { data, error } = await supabase()
@@ -59,7 +59,7 @@ export default function InstructionsPage() {
     loadTest();
   }, [id]);
 
-  function chooseLanguage(value) {
+  function changeLanguage(value) {
     setLanguage(value);
 
     try {
@@ -68,7 +68,7 @@ export default function InstructionsPage() {
         value
       );
     } catch {
-      // ignore
+      // Ignore localStorage error
     }
   }
 
@@ -81,7 +81,7 @@ export default function InstructionsPage() {
         language
       );
     } catch {
-      // ignore
+      // Ignore localStorage error
     }
 
     router.push(`/test/${id}`);
@@ -128,6 +128,8 @@ export default function InstructionsPage() {
 
       <main className="wrap">
 
+        {/* TEST TITLE */}
+
         <div className="card">
           <h2
             style={{
@@ -146,114 +148,8 @@ export default function InstructionsPage() {
               lineHeight: "1.6",
             }}
           >
-            परीक्षा प्रारम्भ करने से पहले सभी निर्देश ध्यानपूर्वक पढ़ें और अपनी परीक्षा की डिफॉल्ट भाषा चुनें।
+            परीक्षा प्रारम्भ करने से पहले सभी निर्देश ध्यानपूर्वक पढ़ें।
           </p>
-        </div>
-
-        {/* LANGUAGE SELECTION */}
-
-        <div className="card">
-          <h2
-            style={{
-              marginTop: 0,
-              marginBottom: "4px",
-            }}
-          >
-            Exam Language
-          </h2>
-
-          <div className="muted">
-            परीक्षा की भाषा चुनें
-          </div>
-
-          <div style={languageGrid}>
-
-            <button
-              type="button"
-              onClick={() =>
-                chooseLanguage("english")
-              }
-              style={{
-                ...languageButton,
-                ...(language === "english"
-                  ? selectedLanguage
-                  : {}),
-              }}
-            >
-              <div style={languageRadioRow}>
-                <span
-                  style={{
-                    ...radioCircle,
-                    ...(language === "english"
-                      ? selectedRadioCircle
-                      : {}),
-                  }}
-                >
-                  {language === "english"
-                    ? "✓"
-                    : ""}
-                </span>
-
-                <div>
-                  <div style={languageTitle}>
-                    English
-                  </div>
-
-                  <div style={languageSub}>
-                    Questions will open in English
-                  </div>
-                </div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                chooseLanguage("hindi")
-              }
-              style={{
-                ...languageButton,
-                ...(language === "hindi"
-                  ? selectedLanguage
-                  : {}),
-              }}
-            >
-              <div style={languageRadioRow}>
-                <span
-                  style={{
-                    ...radioCircle,
-                    ...(language === "hindi"
-                      ? selectedRadioCircle
-                      : {}),
-                  }}
-                >
-                  {language === "hindi"
-                    ? "✓"
-                    : ""}
-                </span>
-
-                <div>
-                  <div style={languageTitle}>
-                    हिन्दी
-                  </div>
-
-                  <div style={languageSub}>
-                    प्रश्न हिन्दी में खुलेंगे
-                  </div>
-                </div>
-              </div>
-            </button>
-
-          </div>
-
-          <div style={languageNote}>
-            Default Exam Language:{" "}
-            <b>
-              {language === "hindi"
-                ? "हिन्दी"
-                : "English"}
-            </b>
-          </div>
         </div>
 
         {/* TEST SUMMARY */}
@@ -273,8 +169,7 @@ export default function InstructionsPage() {
               title="Total Questions"
               hindi="कुल प्रश्न"
               value={
-                test.total_questions ||
-                200
+                test.total_questions || 200
               }
             />
 
@@ -282,32 +177,28 @@ export default function InstructionsPage() {
               title="Total Marks"
               hindi="कुल अंक"
               value={
-                test.total_marks ||
-                200
+                test.total_marks || 200
               }
             />
 
             <SummaryBox
               title="Duration"
               hindi="कुल समय"
-              value={
-                `${test.duration_minutes || 120} Min`
-              }
+              value={`${test.duration_minutes || 120} Min`}
             />
 
             <SummaryBox
               title="Negative Marking"
               hindi="गलत उत्तर पर कटौती"
               value={
-                test.negative_mark ??
-                0.25
+                test.negative_mark ?? 0.25
               }
             />
 
           </div>
         </div>
 
-        {/* SECTION TIMING */}
+        {/* SECTIONAL TIMING */}
 
         <div className="card">
           <h2
@@ -429,7 +320,6 @@ export default function InstructionsPage() {
           </h2>
 
           <ol style={instructionList}>
-
             <li>
               The examination contains 200 objective multiple-choice questions.
             </li>
@@ -481,7 +371,6 @@ export default function InstructionsPage() {
             <li>
               The final test will automatically submit when the final section time expires.
             </li>
-
           </ol>
         </div>
 
@@ -497,7 +386,6 @@ export default function InstructionsPage() {
           </h2>
 
           <ol style={instructionList}>
-
             <li>
               परीक्षा में कुल 200 वस्तुनिष्ठ बहुविकल्पीय प्रश्न होंगे।
             </li>
@@ -549,8 +437,64 @@ export default function InstructionsPage() {
             <li>
               अंतिम अनुभाग का समय समाप्त होते ही पूरा टेस्ट स्वतः submit हो जाएगा।
             </li>
-
           </ol>
+        </div>
+
+        {/* DEFAULT LANGUAGE DROPDOWN */}
+
+        <div className="card">
+
+          <h2
+            style={{
+              marginTop: 0,
+              marginBottom: "6px",
+            }}
+          >
+            Default Exam Language
+          </h2>
+
+          <div className="muted">
+            परीक्षा की डिफॉल्ट भाषा चुनें
+          </div>
+
+          <label style={selectLabel}>
+            Select Language / भाषा चुनें
+
+            <select
+              value={language}
+              onChange={(e) =>
+                changeLanguage(
+                  e.target.value
+                )
+              }
+              style={languageSelect}
+            >
+              <option value="english">
+                English
+              </option>
+
+              <option value="hindi">
+                हिन्दी
+              </option>
+            </select>
+          </label>
+
+          <div style={languageInfo}>
+            आपका test{" "}
+            <b>
+              {language === "hindi"
+                ? "हिन्दी"
+                : "English"}
+            </b>{" "}
+            को default language रखकर खुलेगा।
+          </div>
+
+          <div style={changeNote}>
+            परीक्षा के दौरान भी ऊपर दिए गए
+            <b> Change Language </b>
+            विकल्प से English और हिन्दी के बीच बदला जा सकेगा।
+          </div>
+
         </div>
 
         {/* DECLARATION */}
@@ -584,12 +528,12 @@ export default function InstructionsPage() {
             />
 
             <span>
-              I have read and understood all instructions and selected my preferred exam language.
+              I have read and understood all instructions and selected my default exam language.
 
               <br />
               <br />
 
-              मैंने सभी निर्देश पढ़ एवं समझ लिए हैं तथा परीक्षा की अपनी पसंदीदा भाषा चुन ली है।
+              मैंने सभी निर्देश पढ़ एवं समझ लिए हैं तथा परीक्षा की डिफॉल्ट भाषा चुन ली है।
             </span>
 
           </label>
@@ -647,75 +591,6 @@ function SummaryBox({
   );
 }
 
-const languageGrid = {
-  display: "grid",
-  gridTemplateColumns:
-    "repeat(2, minmax(0, 1fr))",
-  gap: "10px",
-  marginTop: "16px",
-};
-
-const languageButton = {
-  minHeight: "92px",
-  border: "1px solid #d7deea",
-  borderRadius: "12px",
-  background: "#ffffff",
-  cursor: "pointer",
-  padding: "14px",
-  textAlign: "left",
-  fontFamily: "inherit",
-};
-
-const selectedLanguage = {
-  border: "2px solid #1769e0",
-  background: "#eef5ff",
-};
-
-const languageRadioRow = {
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-};
-
-const radioCircle = {
-  width: "26px",
-  height: "26px",
-  minWidth: "26px",
-  borderRadius: "50%",
-  border: "2px solid #aab2bd",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "14px",
-  fontWeight: "800",
-};
-
-const selectedRadioCircle = {
-  border: "2px solid #1769e0",
-  background: "#1769e0",
-  color: "#ffffff",
-};
-
-const languageTitle = {
-  fontSize: "18px",
-  fontWeight: "800",
-};
-
-const languageSub = {
-  marginTop: "5px",
-  fontSize: "12px",
-  color: "#667085",
-  lineHeight: "1.4",
-};
-
-const languageNote = {
-  marginTop: "14px",
-  padding: "11px 12px",
-  borderRadius: "9px",
-  background: "#f8fafc",
-  border: "1px solid #e4e7ec",
-};
-
 const summaryGrid = {
   display: "grid",
   gridTemplateColumns:
@@ -753,6 +628,43 @@ const cellStyle = {
 const instructionList = {
   lineHeight: "1.8",
   paddingLeft: "22px",
+};
+
+const selectLabel = {
+  display: "block",
+  marginTop: "18px",
+  fontSize: "14px",
+  fontWeight: "700",
+};
+
+const languageSelect = {
+  width: "100%",
+  minHeight: "52px",
+  marginTop: "8px",
+  padding: "0 14px",
+  border: "2px solid #1769e0",
+  borderRadius: "10px",
+  background: "#ffffff",
+  fontSize: "17px",
+  fontWeight: "700",
+  color: "#172033",
+  cursor: "pointer",
+};
+
+const languageInfo = {
+  marginTop: "13px",
+  padding: "11px 12px",
+  background: "#eef5ff",
+  borderRadius: "9px",
+  lineHeight: "1.5",
+  fontSize: "14px",
+};
+
+const changeNote = {
+  marginTop: "9px",
+  color: "#667085",
+  fontSize: "13px",
+  lineHeight: "1.5",
 };
 
 const declarationStyle = {
