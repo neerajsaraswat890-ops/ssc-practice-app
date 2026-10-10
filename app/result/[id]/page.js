@@ -31,9 +31,9 @@ export default function ResultPage() {
     const client = supabase();
 
     /*
-      ---------------------------------------------------
+      =====================================================
       TEST META
-      ---------------------------------------------------
+      =====================================================
     */
 
     const {
@@ -60,9 +60,9 @@ export default function ResultPage() {
     setTest(testData);
 
     /*
-      ---------------------------------------------------
+      =====================================================
       EXAM CONFIG
-      ---------------------------------------------------
+      =====================================================
     */
 
     const {
@@ -75,14 +75,14 @@ export default function ResultPage() {
       }
     );
 
-    if (!configError) {
+    if (!configError && configData) {
       setConfig(configData);
     }
 
     /*
-      ---------------------------------------------------
-      DYNAMIC RESULT ANALYSIS
-      ---------------------------------------------------
+      =====================================================
+      RESULT ANALYSIS
+      =====================================================
     */
 
     const {
@@ -104,9 +104,9 @@ export default function ResultPage() {
     setAnalysis(analysisData);
 
     /*
-      ---------------------------------------------------
+      =====================================================
       DETAILED SOLUTIONS
-      ---------------------------------------------------
+      =====================================================
     */
 
     const {
@@ -137,10 +137,7 @@ export default function ResultPage() {
         setSolutionError(message);
       }
     } else {
-      setSolutions(
-        solutionData || []
-      );
-
+      setSolutions(solutionData || []);
       setSolutionsLocked(false);
     }
 
@@ -149,7 +146,7 @@ export default function ResultPage() {
 
   /*
     =====================================================
-    DERIVED DATA
+    RESULT DATA
     =====================================================
   */
 
@@ -157,11 +154,73 @@ export default function ResultPage() {
     analysis?.overall || {};
 
   const sections =
-    Array.isArray(
-      analysis?.sections
-    )
+    Array.isArray(analysis?.sections)
       ? analysis.sections
       : [];
+
+  /*
+    =====================================================
+    SECTION NAME FALLBACK
+    =====================================================
+  */
+
+  function findConfigSection(section) {
+    if (!section) {
+      return null;
+    }
+
+    const configSections =
+      Array.isArray(config?.sections)
+        ? config.sections
+        : [];
+
+    return (
+      configSections.find(
+        (item) =>
+          String(item.section_code || "") ===
+            String(section.section_code || "") ||
+          Number(item.display_order) ===
+            Number(section.display_order)
+      ) || null
+    );
+  }
+
+  function getSectionName(section) {
+    if (!section) {
+      return "Section";
+    }
+
+    const configSection =
+      findConfigSection(section);
+
+    return (
+      section.section_name ||
+      configSection?.section_name ||
+      humanizeCode(section.section_code) ||
+      "Section"
+    );
+  }
+
+  function getSectionHindiName(section) {
+    if (!section) {
+      return "";
+    }
+
+    const configSection =
+      findConfigSection(section);
+
+    return (
+      section.section_name_hi ||
+      configSection?.section_name_hi ||
+      ""
+    );
+  }
+
+  /*
+    =====================================================
+    BEST / WEAKEST SECTION
+    =====================================================
+  */
 
   const bestSection =
     useMemo(() => {
@@ -172,24 +231,16 @@ export default function ResultPage() {
       return [...sections].sort(
         (a, b) => {
           const accuracyDiff =
-            Number(
-              b.accuracy || 0
-            ) -
-            Number(
-              a.accuracy || 0
-            );
+            Number(b.accuracy || 0) -
+            Number(a.accuracy || 0);
 
           if (accuracyDiff !== 0) {
             return accuracyDiff;
           }
 
           return (
-            Number(
-              b.score || 0
-            ) -
-            Number(
-              a.score || 0
-            )
+            Number(b.score || 0) -
+            Number(a.score || 0)
           );
         }
       )[0];
@@ -204,32 +255,28 @@ export default function ResultPage() {
       return [...sections].sort(
         (a, b) => {
           const accuracyDiff =
-            Number(
-              a.accuracy || 0
-            ) -
-            Number(
-              b.accuracy || 0
-            );
+            Number(a.accuracy || 0) -
+            Number(b.accuracy || 0);
 
           if (accuracyDiff !== 0) {
             return accuracyDiff;
           }
 
           return (
-            Number(
-              a.score || 0
-            ) -
-            Number(
-              b.score || 0
-            )
+            Number(a.score || 0) -
+            Number(b.score || 0)
           );
         }
       )[0];
     }, [sections]);
 
-  function getSectionForQuestion(
-    questionOrder
-  ) {
+  /*
+    =====================================================
+    SOLUTION SECTION MAPPING
+    =====================================================
+  */
+
+  function getSectionForQuestion(questionOrder) {
     const order =
       Number(questionOrder);
 
@@ -238,13 +285,11 @@ export default function ResultPage() {
         (section) =>
           order >=
             Number(
-              section.start_order ||
-                1
+              section.start_order || 1
             ) &&
           order <=
             Number(
-              section.end_order ||
-                0
+              section.end_order || 0
             )
       );
 
@@ -253,23 +298,19 @@ export default function ResultPage() {
     }
 
     return {
-      section_name:
-        "Full Paper",
-
+      section_code: "FULL_PAPER",
+      section_name: "Full Paper",
       section_name_hi:
         "सम्पूर्ण प्रश्नपत्र",
+      display_order: 1,
     };
   }
 
-  function getSectionName(
-    section
-  ) {
-    return (
-      section?.section_name ||
-      section?.section_code ||
-      "Section"
-    );
-  }
+  /*
+    =====================================================
+    FORMATTERS
+    =====================================================
+  */
 
   function formatNumber(
     value,
@@ -278,15 +319,11 @@ export default function ResultPage() {
     const number =
       Number(value || 0);
 
-    if (
-      Number.isInteger(number)
-    ) {
+    if (Number.isInteger(number)) {
       return number;
     }
 
-    return number.toFixed(
-      digits
-    );
+    return number.toFixed(digits);
   }
 
   function optionText(
@@ -294,7 +331,10 @@ export default function ResultPage() {
     letter
   ) {
     if (!letter) {
-      return "";
+      return {
+        en: "",
+        hi: "",
+      };
     }
 
     const key =
@@ -303,55 +343,40 @@ export default function ResultPage() {
 
     const map = {
       A: {
-        en:
-          solution.option_a,
-        hi:
-          solution.option_a_hi,
+        en: solution.option_a,
+        hi: solution.option_a_hi,
       },
 
       B: {
-        en:
-          solution.option_b,
-        hi:
-          solution.option_b_hi,
+        en: solution.option_b,
+        hi: solution.option_b_hi,
       },
 
       C: {
-        en:
-          solution.option_c,
-        hi:
-          solution.option_c_hi,
+        en: solution.option_c,
+        hi: solution.option_c_hi,
       },
 
       D: {
-        en:
-          solution.option_d,
-        hi:
-          solution.option_d_hi,
+        en: solution.option_d,
+        hi: solution.option_d_hi,
       },
     };
 
-    return map[key] || {
-      en: "",
-      hi: "",
-    };
+    return (
+      map[key] || {
+        en: "",
+        hi: "",
+      }
+    );
   }
 
-  function solutionStatus(
-    solution
-  ) {
-    if (
-      !solution.selected_answer
-    ) {
+  function solutionStatus(solution) {
+    if (!solution.selected_answer) {
       return {
-        label:
-          "Not Attempted",
-
-        symbol:
-          "⚪",
-
-        style:
-          statusUnattempted,
+        label: "Not Attempted",
+        symbol: "⚪",
+        style: statusUnattempted,
       };
     }
 
@@ -364,32 +389,22 @@ export default function ResultPage() {
       ).toUpperCase()
     ) {
       return {
-        label:
-          "Correct",
-
-        symbol:
-          "✅",
-
-        style:
-          statusCorrect,
+        label: "Correct",
+        symbol: "✅",
+        style: statusCorrect,
       };
     }
 
     return {
-      label:
-        "Incorrect",
-
-      symbol:
-        "❌",
-
-      style:
-        statusWrong,
+      label: "Incorrect",
+      symbol: "❌",
+      style: statusWrong,
     };
   }
 
   /*
     =====================================================
-    LOADING / ERROR
+    LOADING
     =====================================================
   */
 
@@ -401,10 +416,13 @@ export default function ResultPage() {
     );
   }
 
-  if (
-    error ||
-    !analysis
-  ) {
+  /*
+    =====================================================
+    ERROR
+    =====================================================
+  */
+
+  if (error || !analysis) {
     return (
       <div style={centerPage}>
         <div style={errorCard}>
@@ -436,11 +454,33 @@ export default function ResultPage() {
     );
   }
 
+  /*
+    =====================================================
+    SCORE PERCENTAGE
+    =====================================================
+  */
+
+  const totalMarks =
+    Number(
+      overall.total_marks ||
+        config?.stage?.total_marks ||
+        0
+    );
+
+  const scorePercentage =
+    totalMarks > 0
+      ? (
+          (Number(overall.score || 0) /
+            totalMarks) *
+          100
+        )
+      : 0;
+
   return (
     <>
-      {/* ===============================================
+      {/* =================================================
           TOP NAV
-      =============================================== */}
+      ================================================= */}
 
       <div style={navBar}>
 
@@ -469,15 +509,14 @@ export default function ResultPage() {
 
       <main style={pageWrap}>
 
-        {/* =============================================
+        {/* =================================================
             RESULT HERO
-        ============================================= */}
+        ================================================= */}
 
         <section style={hero}>
 
           <div style={heroExam}>
-            {config?.exam
-              ?.exam_name ||
+            {config?.exam?.exam_name ||
               "Examination"}
           </div>
 
@@ -486,19 +525,20 @@ export default function ResultPage() {
           </h1>
 
           <div style={heroStage}>
-            {config?.stage
-              ?.stage_name ||
+            {config?.stage?.stage_name ||
               ""}
           </div>
 
           <div style={scoreRow}>
 
             <div>
+
               <div style={scoreLabel}>
                 Your Score
               </div>
 
               <div style={mainScore}>
+
                 {formatNumber(
                   overall.score
                 )}
@@ -506,44 +546,36 @@ export default function ResultPage() {
                 <span style={scoreTotal}>
                   {" / "}
                   {formatNumber(
-                    overall.total_marks ||
-                      config?.stage
-                        ?.total_marks
+                    totalMarks
                   )}
                 </span>
+
               </div>
+
             </div>
 
             <div style={percentageBox}>
+
               <div style={percentageValue}>
-                {overall.total_marks
-                  ? formatNumber(
-                      (
-                        Number(
-                          overall.score ||
-                            0
-                        ) /
-                        Number(
-                          overall.total_marks
-                        )
-                      ) * 100
-                    )
-                  : "0"}
+                {formatNumber(
+                  scorePercentage
+                )}
                 %
               </div>
 
               <div style={percentageLabel}>
                 Score Percentage
               </div>
+
             </div>
 
           </div>
 
         </section>
 
-        {/* =============================================
+        {/* =================================================
             OVERALL PERFORMANCE
-        ============================================= */}
+        ================================================= */}
 
         <section style={card}>
 
@@ -555,38 +587,28 @@ export default function ResultPage() {
 
             <Metric
               label="Total Questions"
-              value={
-                overall.total
-              }
+              value={overall.total}
             />
 
             <Metric
               label="Attempted"
-              value={
-                overall.attempted
-              }
+              value={overall.attempted}
             />
 
             <Metric
               label="Unattempted"
-              value={
-                overall.unattempted
-              }
+              value={overall.unattempted}
             />
 
             <Metric
               label="Correct"
-              value={
-                overall.correct
-              }
+              value={overall.correct}
               type="success"
             />
 
             <Metric
               label="Wrong"
-              value={
-                overall.wrong
-              }
+              value={overall.wrong}
               type="danger"
             />
 
@@ -613,21 +635,17 @@ export default function ResultPage() {
 
             <Metric
               label="Negative Loss"
-              value={
-                formatNumber(
-                  overall.negative_loss
-                )
-              }
+              value={formatNumber(
+                overall.negative_loss
+              )}
               type="danger"
             />
 
             <Metric
               label="Final Score"
-              value={
-                formatNumber(
-                  overall.score
-                )
-              }
+              value={formatNumber(
+                overall.score
+              )}
               type="primary"
             />
 
@@ -635,12 +653,11 @@ export default function ResultPage() {
 
         </section>
 
-        {/* =============================================
+        {/* =================================================
             PERFORMANCE HIGHLIGHTS
-        ============================================= */}
+        ================================================= */}
 
-        {sections.length >
-          1 && (
+        {sections.length > 1 && (
           <section style={card}>
 
             <h2 style={cardTitle}>
@@ -650,6 +667,7 @@ export default function ResultPage() {
             <div style={highlightGrid}>
 
               <div style={bestCard}>
+
                 <div style={highlightIcon}>
                   🏆
                 </div>
@@ -664,16 +682,27 @@ export default function ResultPage() {
                   )}
                 </div>
 
+                {getSectionHindiName(
+                  bestSection
+                ) && (
+                  <div style={highlightHindi}>
+                    {getSectionHindiName(
+                      bestSection
+                    )}
+                  </div>
+                )}
+
                 <div style={highlightScore}>
                   {formatNumber(
-                    bestSection
-                      ?.accuracy
+                    bestSection?.accuracy
                   )}
                   % Accuracy
                 </div>
+
               </div>
 
               <div style={weakCard}>
+
                 <div style={highlightIcon}>
                   🎯
                 </div>
@@ -688,13 +717,23 @@ export default function ResultPage() {
                   )}
                 </div>
 
+                {getSectionHindiName(
+                  weakestSection
+                ) && (
+                  <div style={highlightHindi}>
+                    {getSectionHindiName(
+                      weakestSection
+                    )}
+                  </div>
+                )}
+
                 <div style={highlightScore}>
                   {formatNumber(
-                    weakestSection
-                      ?.accuracy
+                    weakestSection?.accuracy
                   )}
                   % Accuracy
                 </div>
+
               </div>
 
             </div>
@@ -702,9 +741,9 @@ export default function ResultPage() {
           </section>
         )}
 
-        {/* =============================================
-            DYNAMIC SECTION-WISE PERFORMANCE
-        ============================================= */}
+        {/* =================================================
+            SECTION-WISE PERFORMANCE
+        ================================================= */}
 
         <section style={card}>
 
@@ -715,116 +754,131 @@ export default function ResultPage() {
           <div style={sectionCards}>
 
             {sections.map(
-              (section) => (
-                <div
-                  key={
-                    section.section_code ||
-                    section.display_order
-                  }
-                  style={sectionCard}
-                >
+              (section, index) => {
 
-                  <div style={sectionHeader}>
+                const sectionName =
+                  getSectionName(section);
 
-                    <div>
-                      <div style={sectionTitle}>
-                        {section.section_name}
+                const sectionHindiName =
+                  getSectionHindiName(
+                    section
+                  );
+
+                return (
+                  <div
+                    key={
+                      section.section_code ||
+                      section.section_id ||
+                      index
+                    }
+                    style={sectionCard}
+                  >
+
+                    <div style={sectionHeader}>
+
+                      <div>
+
+                        <div style={sectionTitle}>
+                          {sectionName}
+                        </div>
+
+                        {sectionHindiName && (
+                          <div style={sectionHindi}>
+                            {sectionHindiName}
+                          </div>
+                        )}
+
                       </div>
 
-                      {section.section_name_hi && (
-                        <div style={sectionHindi}>
-                          {
-                            section.section_name_hi
-                          }
-                        </div>
-                      )}
+                      <div style={sectionScore}>
+                        {formatNumber(
+                          section.score
+                        )}
+                        {" / "}
+                        {formatNumber(
+                          section.total_marks
+                        )}
+                      </div>
+
                     </div>
 
-                    <div style={sectionScore}>
-                      {formatNumber(
-                        section.score
-                      )}
-                      {" / "}
-                      {formatNumber(
-                        section.total_marks
-                      )}
-                    </div>
+                    <div style={sectionMetricGrid}>
 
-                  </div>
+                      <SmallMetric
+                        label="Total"
+                        value={section.total}
+                      />
 
-                  <div style={sectionMetricGrid}>
+                      <SmallMetric
+                        label="Attempted"
+                        value={
+                          section.attempted
+                        }
+                      />
 
-                    <SmallMetric
-                      label="Total"
-                      value={
-                        section.total
-                      }
-                    />
+                      <SmallMetric
+                        label="Unattempted"
+                        value={
+                          section.unattempted
+                        }
+                      />
 
-                    <SmallMetric
-                      label="Attempted"
-                      value={
-                        section.attempted
-                      }
-                    />
+                      <SmallMetric
+                        label="Correct"
+                        value={
+                          section.correct
+                        }
+                      />
 
-                    <SmallMetric
-                      label="Correct"
-                      value={
-                        section.correct
-                      }
-                    />
+                      <SmallMetric
+                        label="Wrong"
+                        value={
+                          section.wrong
+                        }
+                      />
 
-                    <SmallMetric
-                      label="Wrong"
-                      value={
-                        section.wrong
-                      }
-                    />
+                      <SmallMetric
+                        label="Accuracy"
+                        value={`${formatNumber(
+                          section.accuracy
+                        )}%`}
+                      />
 
-                    <SmallMetric
-                      label="Accuracy"
-                      value={`${formatNumber(
-                        section.accuracy
-                      )}%`}
-                    />
+                      <SmallMetric
+                        label="Attempt Rate"
+                        value={`${formatNumber(
+                          section.attempt_rate
+                        )}%`}
+                      />
 
-                    <SmallMetric
-                      label="Attempt Rate"
-                      value={`${formatNumber(
-                        section.attempt_rate
-                      )}%`}
-                    />
-
-                    <SmallMetric
-                      label="Negative Loss"
-                      value={
-                        formatNumber(
+                      <SmallMetric
+                        label="Negative Loss"
+                        value={formatNumber(
                           section.negative_loss
-                        )
-                      }
-                    />
+                        )}
+                      />
 
-                    <SmallMetric
-                      label="Review"
-                      value={
-                        section.marked_for_review
-                      }
-                    />
+                      <SmallMetric
+                        label="Review"
+                        value={
+                          section.marked_for_review
+                        }
+                      />
+
+                    </div>
 
                   </div>
-
-                </div>
-              )
+                );
+              }
             )}
 
           </div>
 
         </section>
 
-        {/* =============================================
+        {/* =================================================
             SECTION COMPARISON
-        ============================================= */}
+        ================================================= */}
 
         <section style={card}>
 
@@ -837,7 +891,9 @@ export default function ResultPage() {
             <table style={comparisonTable}>
 
               <thead>
+
                 <tr>
+
                   <th style={th}>
                     Section
                   </th>
@@ -869,47 +925,59 @@ export default function ResultPage() {
                   <th style={th}>
                     Negative
                   </th>
+
                 </tr>
+
               </thead>
 
               <tbody>
 
                 {sections.map(
-                  (section) => (
+                  (section, index) => (
                     <tr
-                      key={`table-${section.section_code || section.display_order}`}
+                      key={
+                        `table-${
+                          section.section_code ||
+                          section.section_id ||
+                          index
+                        }`
+                      }
                     >
 
                       <td style={tdLeft}>
+
                         <b>
-                          {
-                            section.section_name
-                          }
+                          {getSectionName(
+                            section
+                          )}
                         </b>
+
+                        {getSectionHindiName(
+                          section
+                        ) && (
+                          <div style={tableHindi}>
+                            {getSectionHindiName(
+                              section
+                            )}
+                          </div>
+                        )}
+
                       </td>
 
                       <td style={td}>
-                        {
-                          section.total
-                        }
+                        {section.total}
                       </td>
 
                       <td style={td}>
-                        {
-                          section.attempted
-                        }
+                        {section.attempted}
                       </td>
 
                       <td style={td}>
-                        {
-                          section.correct
-                        }
+                        {section.correct}
                       </td>
 
                       <td style={td}>
-                        {
-                          section.wrong
-                        }
+                        {section.wrong}
                       </td>
 
                       <td style={td}>
@@ -943,9 +1011,9 @@ export default function ResultPage() {
 
         </section>
 
-        {/* =============================================
+        {/* =================================================
             DETAILED ANSWER SHEET
-        ============================================= */}
+        ================================================= */}
 
         <section style={card}>
 
@@ -954,6 +1022,7 @@ export default function ResultPage() {
           </h2>
 
           {solutionsLocked ? (
+
             <div style={lockedBox}>
 
               <div style={lockIcon}>
@@ -970,8 +1039,10 @@ export default function ResultPage() {
 
               {test?.solution_release_at && (
                 <div style={releaseBox}>
+
                   Solution Release:
                   {" "}
+
                   <b>
                     {new Date(
                       test.solution_release_at
@@ -979,20 +1050,26 @@ export default function ResultPage() {
                       "en-IN"
                     )}
                   </b>
+
                 </div>
               )}
 
             </div>
+
           ) : solutionError ? (
+
             <div style={warningBox}>
               {solutionError}
             </div>
-          ) : solutions.length ===
-            0 ? (
+
+          ) : solutions.length === 0 ? (
+
             <div style={emptyBox}>
               Detailed solutions are not available.
             </div>
+
           ) : (
+
             <div style={solutionList}>
 
               {solutions.map(
@@ -1000,6 +1077,7 @@ export default function ResultPage() {
                   solution,
                   index
                 ) => {
+
                   const section =
                     getSectionForQuestion(
                       solution.question_order
@@ -1034,6 +1112,7 @@ export default function ResultPage() {
                       <div style={solutionTop}>
 
                         <div>
+
                           <div style={solutionQuestionNo}>
                             Question{" "}
                             {
@@ -1042,10 +1121,21 @@ export default function ResultPage() {
                           </div>
 
                           <div style={solutionSection}>
-                            {
-                              section.section_name
-                            }
+                            {getSectionName(
+                              section
+                            )}
                           </div>
+
+                          {getSectionHindiName(
+                            section
+                          ) && (
+                            <div style={solutionSectionHi}>
+                              {getSectionHindiName(
+                                section
+                              )}
+                            </div>
+                          )}
+
                         </div>
 
                         <div
@@ -1084,6 +1174,7 @@ export default function ResultPage() {
                       <div style={answerGrid}>
 
                         <div style={yourAnswerBox}>
+
                           <div style={answerLabel}>
                             Your Answer
                           </div>
@@ -1115,9 +1206,11 @@ export default function ResultPage() {
                               Not Attempted
                             </div>
                           )}
+
                         </div>
 
                         <div style={correctAnswerBox}>
+
                           <div style={answerLabel}>
                             Correct Answer
                           </div>
@@ -1141,6 +1234,7 @@ export default function ResultPage() {
                               }
                             </div>
                           )}
+
                         </div>
 
                       </div>
@@ -1178,13 +1272,14 @@ export default function ResultPage() {
               )}
 
             </div>
+
           )}
 
         </section>
 
-        {/* =============================================
-            DASHBOARD
-        ============================================= */}
+        {/* =================================================
+            BACK TO DASHBOARD
+        ================================================= */}
 
         <button
           style={dashboardButton}
@@ -1202,9 +1297,30 @@ export default function ResultPage() {
   );
 }
 
-/* =====================================================
-   COMPONENTS
-===================================================== */
+/*
+  =========================================================
+  HELPERS
+  =========================================================
+*/
+
+function humanizeCode(code) {
+  if (!code) {
+    return "";
+  }
+
+  return String(code)
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) =>
+      char.toUpperCase()
+    );
+}
+
+/*
+  =========================================================
+  COMPONENTS
+  =========================================================
+*/
 
 function Metric({
   label,
@@ -1214,27 +1330,21 @@ function Metric({
   let valueStyle =
     metricValue;
 
-  if (
-    type === "success"
-  ) {
+  if (type === "success") {
     valueStyle = {
       ...metricValue,
       color: "#15803d",
     };
   }
 
-  if (
-    type === "danger"
-  ) {
+  if (type === "danger") {
     valueStyle = {
       ...metricValue,
       color: "#dc2626",
     };
   }
 
-  if (
-    type === "primary"
-  ) {
+  if (type === "primary") {
     valueStyle = {
       ...metricValue,
       color: "#2563eb",
@@ -1243,6 +1353,7 @@ function Metric({
 
   return (
     <div style={metricCard}>
+
       <div style={metricLabel}>
         {label}
       </div>
@@ -1250,6 +1361,7 @@ function Metric({
       <div style={valueStyle}>
         {value ?? 0}
       </div>
+
     </div>
   );
 }
@@ -1260,6 +1372,7 @@ function SmallMetric({
 }) {
   return (
     <div style={smallMetric}>
+
       <div style={smallMetricLabel}>
         {label}
       </div>
@@ -1267,13 +1380,16 @@ function SmallMetric({
       <div style={smallMetricValue}>
         {value ?? 0}
       </div>
+
     </div>
   );
 }
 
-/* =====================================================
-   STYLES
-===================================================== */
+/*
+  =========================================================
+  STYLES
+  =========================================================
+*/
 
 const navBar = {
   minHeight: "62px",
@@ -1330,7 +1446,8 @@ const heroExam = {
 
 const heroTitle = {
   margin: "6px 0 2px",
-  fontSize: "clamp(20px,5vw,30px)",
+  fontSize:
+    "clamp(20px,5vw,30px)",
 };
 
 const heroStage = {
@@ -1463,6 +1580,12 @@ const highlightName = {
   fontWeight: "900",
 };
 
+const highlightHindi = {
+  marginTop: "2px",
+  fontSize: "11px",
+  color: "#64748b",
+};
+
 const highlightScore = {
   marginTop: "5px",
   fontSize: "12px",
@@ -1543,14 +1666,16 @@ const comparisonTable = {
 const th = {
   background: "#f8fafc",
   padding: "10px",
-  borderBottom: "1px solid #dde3eb",
+  borderBottom:
+    "1px solid #dde3eb",
   textAlign: "center",
   fontSize: "11px",
 };
 
 const td = {
   padding: "10px",
-  borderBottom: "1px solid #eef1f5",
+  borderBottom:
+    "1px solid #eef1f5",
   textAlign: "center",
   fontSize: "12px",
 };
@@ -1558,6 +1683,12 @@ const td = {
 const tdLeft = {
   ...td,
   textAlign: "left",
+};
+
+const tableHindi = {
+  marginTop: "2px",
+  fontSize: "9px",
+  color: "#64748b",
 };
 
 const lockedBox = {
@@ -1626,7 +1757,14 @@ const solutionQuestionNo = {
 
 const solutionSection = {
   fontSize: "10px",
-  color: "#667085",
+  color: "#475569",
+  marginTop: "2px",
+  fontWeight: "700",
+};
+
+const solutionSectionHi = {
+  fontSize: "9px",
+  color: "#64748b",
   marginTop: "2px",
 };
 
