@@ -51,6 +51,7 @@ export default function TestPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [changingSection, setChangingSection] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -58,6 +59,9 @@ export default function TestPage() {
   const autoSubmitting = useRef(false);
   const refreshingState = useRef(false);
   const questionScrollRef = useRef(null);
+
+  // Ensures autosaves for the same question are sent in order.
+  const saveQueues = useRef({});
 
   const answerKey = `jd_answers_${id}`;
   const reviewKey = `jd_review_${id}`;
@@ -74,6 +78,10 @@ export default function TestPage() {
 
     const client = supabase();
 
+    let localAnswers = {};
+    let localReview = {};
+    let localVisited = {};
+
     try {
       const savedLanguage =
         localStorage.getItem(languageKey);
@@ -84,16 +92,48 @@ export default function TestPage() {
       ) {
         setLanguage(savedLanguage);
       }
+
+      const oldAnswers =
+        localStorage.getItem(answerKey);
+
+      const oldReview =
+        localStorage.getItem(reviewKey);
+
+      const oldVisited =
+        localStorage.getItem(visitedKey);
+
+      if (oldAnswers) {
+        localAnswers =
+          JSON.parse(oldAnswers) || {};
+      }
+
+      if (oldReview) {
+        localReview =
+          JSON.parse(oldReview) || {};
+      }
+
+      if (oldVisited) {
+        localVisited =
+          JSON.parse(oldVisited) || {};
+      }
     } catch {
-      // Ignore localStorage error
+      localAnswers = {};
+      localReview = {};
+      localVisited = {};
     }
 
-    const { data: testData, error: testError } =
-      await client
-        .from("tests")
-        .select("*")
-        .eq("id", id)
-        .single();
+    setAnswers(localAnswers);
+    setReview(localReview);
+    setVisited(localVisited);
+
+    const {
+      data: testData,
+      error: testError,
+    } = await client
+      .from("tests")
+      .select("*")
+      .eq("id", id)
+      .single();
 
     if (testError) {
       setError(testError.message);
@@ -101,30 +141,32 @@ export default function TestPage() {
       return;
     }
 
-    const { data: questionData, error: questionError } =
-      await client
-        .from("test_questions")
-        .select(`
-          question_order,
-          question_id,
-          questions (
-            id,
-            question_text,
-            question_text_hi,
-            option_a,
-            option_a_hi,
-            option_b,
-            option_b_hi,
-            option_c,
-            option_c_hi,
-            option_d,
-            option_d_hi
-          )
-        `)
-        .eq("test_id", id)
-        .order("question_order", {
-          ascending: true,
-        });
+    const {
+      data: questionData,
+      error: questionError,
+    } = await client
+      .from("test_questions")
+      .select(`
+        question_order,
+        question_id,
+        questions (
+          id,
+          question_text,
+          question_text_hi,
+          option_a,
+          option_a_hi,
+          option_b,
+          option_b_hi,
+          option_c,
+          option_c_hi,
+          option_d,
+          option_d_hi
+        )
+      `)
+      .eq("test_id", id)
+      .order("question_order", {
+        ascending: true,
+      });
 
     if (questionError) {
       setError(questionError.message);
@@ -138,38 +180,10 @@ export default function TestPage() {
     setTest(testData);
     setQuestions(loadedQuestions);
 
-    try {
-      const oldAnswers =
-        localStorage.getItem(answerKey);
-
-      const oldReview =
-        localStorage.getItem(reviewKey);
-
-      const oldVisited =
-        localStorage.getItem(visitedKey);
-
-      if (oldAnswers) {
-        setAnswers(
-          JSON.parse(oldAnswers)
-        );
-      }
-
-      if (oldReview) {
-        setReview(
-          JSON.parse(oldReview)
-        );
-      }
-
-      if (oldVisited) {
-        setVisited(
-          JSON.parse(oldVisited)
-        );
-      }
-    } catch {
-      localStorage.removeItem(answerKey);
-      localStorage.removeItem(reviewKey);
-      localStorage.removeItem(visitedKey);
-    }
+    /*
+      get_test_state creates/loads the active attempt
+      and gives authoritative server timer/section state.
+    */
 
     const {
       data: stateData,
@@ -195,6 +209,82 @@ export default function TestPage() {
         `/result/${id}`
       );
       return;
+    }
+
+    /*
+      Restore saved answers from Supabase.
+      Server values override localStorage where available.
+    */
+
+    const {
+      data: savedResponses,
+      error: savedError,
+    } = await client.rpc(
+      "get_saved_test_responses",
+      {
+        p_test_id: Number(id),
+      }
+    );
+
+    if (!savedError && savedResponses) {
+      const mergedAnswers = {
+        ...localAnswers,
+      };
+
+      const mergedReview = {
+        ...localReview,
+      };
+
+      savedResponses.forEach(
+        (row) => {
+          const qid =
+            String(
+              row.question_id
+            );
+
+          if (
+            row.selected_answer
+          ) {
+            mergedAnswers[qid] =
+              row.selected_answer;
+          } else {
+            delete mergedAnswers[
+              qid
+            ];
+          }
+
+          mergedReview[qid] =
+            Boolean(
+              row.marked_for_review
+            );
+        }
+      );
+
+      setAnswers(
+        mergedAnswers
+      );
+
+      setReview(
+        mergedReview
+      );
+
+      try {
+        localStorage.setItem(
+          answerKey,
+          JSON.stringify(
+            mergedAnswers
+          )
+        );
+
+        localStorage.setItem(
+          reviewKey,
+          JSON.stringify(
+            mergedReview
+          )
+        );
+      } catch {
+        // Ignore localStorage error
+      }
     }
 
     const serverSection =
@@ -412,6 +502,121 @@ export default function TestPage() {
     }
   }
 
+  /*
+    SECURE AUTOSAVE
+    -----------------------------------
+    Every save for one question is queued
+    so quick taps cannot overwrite newer
+    answers with an older network response.
+  */
+
+  function queueServerSave(
+    questionId,
+    selectedAnswer,
+    markedForReview
+  ) {
+    const key =
+      String(questionId);
+
+    const previous =
+      saveQueues.current[
+        key
+      ] ||
+      Promise.resolve();
+
+    const next =
+      previous
+        .catch(() => {})
+        .then(async () => {
+          setSaving(true);
+
+          const {
+            error,
+          } = await supabase().rpc(
+            "save_test_response",
+            {
+              p_test_id:
+                Number(id),
+
+              p_question_id:
+                Number(
+                  questionId
+                ),
+
+              p_selected_answer:
+                selectedAnswer ||
+                null,
+
+              p_marked_for_review:
+                Boolean(
+                  markedForReview
+                ),
+            }
+          );
+
+          if (error) {
+            console.error(
+              "Autosave error:",
+              error
+            );
+
+            setError(
+              "Answer locally saved है, लेकिन server autosave में समस्या आई।"
+            );
+          }
+
+          return true;
+        })
+        .finally(() => {
+          if (
+            saveQueues.current[
+              key
+            ] === next
+          ) {
+            delete saveQueues
+              .current[
+                key
+              ];
+          }
+
+          const pending =
+            Object.keys(
+              saveQueues.current
+            ).length;
+
+          if (
+            pending === 0
+          ) {
+            setSaving(
+              false
+            );
+          }
+        });
+
+    saveQueues.current[
+      key
+    ] = next;
+
+    return next;
+  }
+
+  async function waitForPendingSaves() {
+    const pending =
+      Object.values(
+        saveQueues.current
+      );
+
+    if (
+      pending.length === 0
+    ) {
+      return;
+    }
+
+    await Promise.allSettled(
+      pending
+    );
+  }
+
   function changeLanguage(
     value
   ) {
@@ -510,6 +715,13 @@ export default function TestPage() {
     questionId,
     option
   ) {
+    const currentReview =
+      Boolean(
+        review[
+          questionId
+        ]
+      );
+
     setAnswers(
       (old) => {
         const updated = {
@@ -532,11 +744,24 @@ export default function TestPage() {
         return updated;
       }
     );
+
+    queueServerSave(
+      questionId,
+      option,
+      currentReview
+    );
   }
 
   function clearAnswer(
     questionId
   ) {
+    const currentReview =
+      Boolean(
+        review[
+          questionId
+        ]
+      );
+
     setAnswers(
       (old) => {
         const updated = {
@@ -560,6 +785,12 @@ export default function TestPage() {
 
         return updated;
       }
+    );
+
+    queueServerSave(
+      questionId,
+      null,
+      currentReview
     );
   }
 
@@ -589,6 +820,11 @@ export default function TestPage() {
 
     if (!q?.id) return;
 
+    const selectedAnswer =
+      answers[
+        q.id
+      ] || null;
+
     setReview(
       (old) => {
         const updated = {
@@ -609,6 +845,12 @@ export default function TestPage() {
 
         return updated;
       }
+    );
+
+    queueServerSave(
+      q.id,
+      selectedAnswer,
+      true
     );
 
     nextQuestion();
@@ -676,6 +918,13 @@ export default function TestPage() {
     );
 
     setError("");
+
+    /*
+      Wait for any answer saves to finish
+      before locking the section.
+    */
+
+    await waitForPendingSaves();
 
     const {
       data,
@@ -785,6 +1034,13 @@ export default function TestPage() {
 
     setSubmitting(true);
     setError("");
+
+    /*
+      Ensure final click has reached server
+      before final test submission.
+    */
+
+    await waitForPendingSaves();
 
     const {
       data,
@@ -1083,6 +1339,7 @@ export default function TestPage() {
       <header style={topBar}>
 
         <div style={timerBlock}>
+
           <div style={timerIcon}>
             ◷
           </div>
@@ -1098,6 +1355,7 @@ export default function TestPage() {
               Time Left
             </div>
           </div>
+
         </div>
 
         <div style={headerMiddle}>
@@ -1114,7 +1372,7 @@ export default function TestPage() {
               )
             }
             style={headerLanguageSelect}
-            aria-label="Change default language"
+            aria-label="Change language"
           >
             <option value="english">
               English
@@ -1151,6 +1409,7 @@ export default function TestPage() {
         </div>
 
         <div style={statusTextBlock}>
+
           <div style={sectionName}>
             {language === "hindi"
               ? section.hindi
@@ -1162,12 +1421,24 @@ export default function TestPage() {
             <b>
               {sectionAnswered}
             </b>
+
             {" · "}
+
             Review{" "}
             <b>
               {sectionMarked}
             </b>
+
+            {saving && (
+              <>
+                {" · "}
+                <span style={savingText}>
+                  Saving...
+                </span>
+              </>
+            )}
           </div>
+
         </div>
 
         <div style={overallCount}>
@@ -1177,7 +1448,7 @@ export default function TestPage() {
 
       </div>
 
-      {/* SCROLLABLE QUESTION AREA */}
+      {/* QUESTION */}
 
       <main
         ref={questionScrollRef}
@@ -1274,7 +1545,7 @@ export default function TestPage() {
 
       </main>
 
-      {/* BOTTOM ACTION BAR */}
+      {/* BOTTOM ACTIONS */}
 
       <div style={bottomBar}>
 
@@ -1346,6 +1617,7 @@ export default function TestPage() {
 
       {paletteOpen && (
         <>
+
           <div
             style={overlay}
             onClick={() =>
@@ -1449,8 +1721,7 @@ export default function TestPage() {
                             : "1px solid #cbd5e1",
                       }}
                     >
-                      {localIndex +
-                        1}
+                      {localIndex + 1}
                     </button>
                   );
                 }
@@ -1518,12 +1789,22 @@ export default function TestPage() {
                       manualSubmitSection
                     }
                     disabled={
-                      changingSection
+                      changingSection ||
+                      saving
                     }
-                    style={submitButton}
+                    style={{
+                      ...submitButton,
+                      opacity:
+                        changingSection ||
+                        saving
+                          ? 0.65
+                          : 1,
+                    }}
                   >
                     {changingSection
                       ? "Opening Next Section..."
+                      : saving
+                      ? "Saving Responses..."
                       : `Submit ${section.short} Section`}
                   </button>
                 </>
@@ -1581,12 +1862,22 @@ export default function TestPage() {
                       )
                     }
                     disabled={
-                      submitting
+                      submitting ||
+                      saving
                     }
-                    style={submitButton}
+                    style={{
+                      ...submitButton,
+                      opacity:
+                        submitting ||
+                        saving
+                          ? 0.65
+                          : 1,
+                    }}
                   >
                     {submitting
                       ? "Submitting..."
+                      : saving
+                      ? "Saving Responses..."
                       : "Submit Final Test"}
                   </button>
                 </>
@@ -1595,6 +1886,7 @@ export default function TestPage() {
             </div>
 
           </aside>
+
         </>
       )}
 
@@ -1751,6 +2043,11 @@ const statusMini = {
   color: "#64748b",
 };
 
+const savingText = {
+  color: "#2563eb",
+  fontWeight: "700",
+};
+
 const overallCount = {
   flexShrink: 0,
   fontSize: "11px",
@@ -1874,7 +2171,8 @@ const bottomBar = {
   background: "#ffffff",
   borderTop: "1px solid #dfe3e8",
   display: "grid",
-  gridTemplateColumns: "1fr 0.72fr 1fr",
+  gridTemplateColumns:
+    "1fr 0.72fr 1fr",
   gap: "7px",
   padding:
     "7px 9px max(7px, env(safe-area-inset-bottom))",
@@ -1928,7 +2226,8 @@ const buttonSubText = {
 const overlay = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.42)",
+  background:
+    "rgba(0,0,0,0.42)",
   zIndex: 998,
 };
 
@@ -1936,7 +2235,8 @@ const drawer = {
   position: "fixed",
   top: 0,
   right: 0,
-  width: "min(350px, 92vw)",
+  width:
+    "min(350px, 92vw)",
   height: "100dvh",
   background: "#ffffff",
   zIndex: 999,
@@ -1949,7 +2249,8 @@ const drawer = {
 const drawerHeader = {
   display: "flex",
   alignItems: "center",
-  justifyContent: "space-between",
+  justifyContent:
+    "space-between",
   gap: "8px",
 };
 
@@ -1973,7 +2274,8 @@ const closeButton = {
   height: "32px",
   minWidth: "32px",
   borderRadius: "7px",
-  border: "1px solid #d7deea",
+  border:
+    "1px solid #d7deea",
   background: "#ffffff",
   fontSize: "15px",
   cursor: "pointer",
@@ -1981,7 +2283,8 @@ const closeButton = {
 
 const drawerStats = {
   display: "flex",
-  justifyContent: "space-between",
+  justifyContent:
+    "space-between",
   gap: "8px",
   marginTop: "9px",
   padding: "7px 8px",
@@ -2020,7 +2323,8 @@ const legendBox = {
 const submitArea = {
   marginTop: "10px",
   paddingTop: "10px",
-  borderTop: "1px solid #e2e8f0",
+  borderTop:
+    "1px solid #e2e8f0",
 };
 
 const submitTitle = {
