@@ -4,38 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 
-const SECTIONS = [
-  {
-    name: "General Intelligence & Reasoning",
-    hindi: "सामान्य बुद्धिमत्ता एवं तर्कशक्ति",
-    short: "Reasoning",
-    start: 0,
-    end: 49,
-    seconds: 30 * 60,
-  },
-  {
-    name: "General Awareness",
-    hindi: "सामान्य जागरूकता",
-    short: "General Awareness",
-    start: 50,
-    end: 99,
-    seconds: 30 * 60,
-  },
-  {
-    name: "English Language & Comprehension",
-    hindi: "अंग्रेजी भाषा एवं बोधगम्यता",
-    short: "English",
-    start: 100,
-    end: 199,
-    seconds: 60 * 60,
-  },
-];
-
 export default function TestPage() {
   const { id } = useParams();
   const router = useRouter();
 
   const [test, setTest] = useState(null);
+  const [examConfig, setExamConfig] = useState(null);
+  const [sections, setSections] = useState([]);
   const [questions, setQuestions] = useState([]);
 
   const [answers, setAnswers] = useState({});
@@ -43,8 +18,11 @@ export default function TestPage() {
   const [visited, setVisited] = useState({});
 
   const [current, setCurrent] = useState(0);
+
   const [activeSection, setActiveSection] = useState(0);
-  const [sectionTime, setSectionTime] = useState(null);
+  const [paletteSection, setPaletteSection] = useState(0);
+
+  const [timeLeft, setTimeLeft] = useState(null);
 
   const [language, setLanguage] = useState("english");
 
@@ -52,15 +30,13 @@ export default function TestPage() {
   const [submitting, setSubmitting] = useState(false);
   const [changingSection, setChangingSection] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
 
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [error, setError] = useState("");
 
   const autoSubmitting = useRef(false);
   const refreshingState = useRef(false);
   const questionScrollRef = useRef(null);
-
-  // Ensures autosaves for the same question are sent in order.
   const saveQueues = useRef({});
 
   const answerKey = `jd_answers_${id}`;
@@ -126,6 +102,12 @@ export default function TestPage() {
     setReview(localReview);
     setVisited(localVisited);
 
+    /*
+      ---------------------------------------------------
+      TEST BASIC DATA
+      ---------------------------------------------------
+    */
+
     const {
       data: testData,
       error: testError,
@@ -140,6 +122,38 @@ export default function TestPage() {
       setLoading(false);
       return;
     }
+
+    setTest(testData);
+
+    /*
+      ---------------------------------------------------
+      DYNAMIC EXAM CONFIG
+      ---------------------------------------------------
+    */
+
+    const {
+      data: configData,
+      error: configError,
+    } = await client.rpc(
+      "get_test_exam_config",
+      {
+        p_test_id: Number(id),
+      }
+    );
+
+    if (configError) {
+      setError(configError.message);
+      setLoading(false);
+      return;
+    }
+
+    setExamConfig(configData);
+
+    /*
+      ---------------------------------------------------
+      QUESTIONS
+      ---------------------------------------------------
+    */
 
     const {
       data: questionData,
@@ -177,12 +191,29 @@ export default function TestPage() {
     const loadedQuestions =
       questionData || [];
 
-    setTest(testData);
     setQuestions(loadedQuestions);
 
     /*
-      get_test_state creates/loads the active attempt
-      and gives authoritative server timer/section state.
+      Convert DB sections into frontend ranges.
+
+      अगर official configuration में section-wise
+      fixed question count उपलब्ध नहीं है, तो engine
+      automatically Full Paper mode use करेगा.
+    */
+
+    const normalizedSections =
+      normalizeSections(
+        configData?.sections || [],
+        loadedQuestions.length,
+        configData
+      );
+
+    setSections(normalizedSections);
+
+    /*
+      ---------------------------------------------------
+      SERVER TIMER / ATTEMPT STATE
+      ---------------------------------------------------
     */
 
     const {
@@ -211,9 +242,70 @@ export default function TestPage() {
       return;
     }
 
+    const timerType =
+      stateData?.timer_type ||
+      configData?.stage?.timer_type ||
+      "overall";
+
+    const serverSection =
+      Number(
+        stateData?.current_section ?? 0
+      );
+
+    const remaining =
+      Number(
+        stateData?.remaining_seconds ?? 0
+      );
+
+    setTimeLeft(remaining);
+
+    let initialQuestion = 0;
+
+    if (
+      timerType === "sectional" &&
+      normalizedSections.length
+    ) {
+      const safeSection =
+        Math.min(
+          Math.max(serverSection, 0),
+          normalizedSections.length - 1
+        );
+
+      setActiveSection(
+        safeSection
+      );
+
+      setPaletteSection(
+        safeSection
+      );
+
+      initialQuestion =
+        normalizedSections[
+          safeSection
+        ].startIndex;
+    } else {
+      setActiveSection(0);
+      setPaletteSection(0);
+      initialQuestion = 0;
+    }
+
+    setCurrent(
+      initialQuestion
+    );
+
+    const firstQ =
+      loadedQuestions[
+        initialQuestion
+      ]?.questions;
+
+    if (firstQ?.id) {
+      markVisited(firstQ.id);
+    }
+
     /*
-      Restore saved answers from Supabase.
-      Server values override localStorage where available.
+      ---------------------------------------------------
+      RESTORE SERVER ANSWERS
+      ---------------------------------------------------
     */
 
     const {
@@ -226,7 +318,10 @@ export default function TestPage() {
       }
     );
 
-    if (!savedError && savedResponses) {
+    if (
+      !savedError &&
+      savedResponses
+    ) {
       const mergedAnswers = {
         ...localAnswers,
       };
@@ -238,9 +333,7 @@ export default function TestPage() {
       savedResponses.forEach(
         (row) => {
           const qid =
-            String(
-              row.question_id
-            );
+            String(row.question_id);
 
           if (
             row.selected_answer
@@ -283,73 +376,37 @@ export default function TestPage() {
           )
         );
       } catch {
-        // Ignore localStorage error
+        // Ignore
       }
-    }
-
-    const serverSection =
-      Number(
-        stateData?.current_section ??
-          0
-      );
-
-    const remaining =
-      Number(
-        stateData?.remaining_seconds ??
-          0
-      );
-
-    setActiveSection(
-      serverSection
-    );
-
-    setSectionTime(
-      remaining
-    );
-
-    const firstQuestion =
-      SECTIONS[
-        serverSection
-      ].start;
-
-    setCurrent(
-      firstQuestion
-    );
-
-    const firstQ =
-      loadedQuestions[
-        firstQuestion
-      ]?.questions;
-
-    if (firstQ?.id) {
-      markVisited(
-        firstQ.id
-      );
     }
 
     setLoading(false);
   }
 
+  /*
+    =====================================================
+    TIMER
+    =====================================================
+  */
+
   useEffect(() => {
     if (
       loading ||
-      sectionTime === null ||
+      timeLeft === null ||
       submitting ||
       changingSection
     ) {
       return;
     }
 
-    if (
-      sectionTime <= 0
-    ) {
+    if (timeLeft <= 0) {
       refreshServerState();
       return;
     }
 
     const timer =
       setTimeout(() => {
-        setSectionTime(
+        setTimeLeft(
           (old) =>
             Math.max(
               0,
@@ -361,11 +418,15 @@ export default function TestPage() {
     return () =>
       clearTimeout(timer);
   }, [
-    sectionTime,
+    timeLeft,
     loading,
     submitting,
     changingSection,
   ]);
+
+  /*
+    Server sync every 30 seconds
+  */
 
   useEffect(() => {
     if (loading) return;
@@ -429,29 +490,28 @@ export default function TestPage() {
       return;
     }
 
-    const serverSection =
-      Number(
-        data?.current_section ??
-          0
-      );
-
-    const remaining =
-      Number(
-        data?.remaining_seconds ??
-          0
-      );
-
     const expired =
       Boolean(
         data?.expired
       );
 
-    if (
-      expired &&
-      serverSection === 2
-    ) {
-      setSectionTime(0);
+    setTimeLeft(
+      Number(
+        data?.remaining_seconds ??
+          0
+      )
+    );
 
+    /*
+      Overall timer expiry:
+      entire paper auto submits.
+
+      Sectional timer:
+      backend only returns expired=true
+      when final section is over.
+    */
+
+    if (expired) {
       if (
         !autoSubmitting.current
       ) {
@@ -464,50 +524,67 @@ export default function TestPage() {
       return;
     }
 
-    const sectionChanged =
-      serverSection !==
-      activeSection;
-
-    setActiveSection(
-      serverSection
-    );
-
-    setSectionTime(
-      remaining
-    );
+    /*
+      Sectional exam only:
+      server may have automatically
+      advanced the section.
+    */
 
     if (
-      sectionChanged &&
-      moveQuestion
+      data?.timer_type ===
+      "sectional"
     ) {
-      const firstQuestion =
-        SECTIONS[
-          serverSection
-        ].start;
+      const serverSection =
+        Number(
+          data?.current_section ?? 0
+        );
 
-      setCurrent(
-        firstQuestion
+      const sectionChanged =
+        serverSection !==
+        activeSection;
+
+      setActiveSection(
+        serverSection
       );
 
-      const q =
-        questions[
+      setPaletteSection(
+        serverSection
+      );
+
+      if (
+        sectionChanged &&
+        moveQuestion &&
+        sections[
+          serverSection
+        ]
+      ) {
+        const firstQuestion =
+          sections[
+            serverSection
+          ].startIndex;
+
+        setCurrent(
           firstQuestion
-        ]?.questions;
+        );
 
-      if (q?.id) {
-        markVisited(q.id);
+        const q =
+          questions[
+            firstQuestion
+          ]?.questions;
+
+        if (q?.id) {
+          markVisited(q.id);
+        }
+
+        scrollQuestionToTop();
       }
-
-      scrollQuestionToTop();
     }
   }
 
   /*
-    SECURE AUTOSAVE
-    -----------------------------------
-    Every save for one question is queued
-    so quick taps cannot overwrite newer
-    answers with an older network response.
+    =====================================================
+    AUTOSAVE
+    =====================================================
   */
 
   function queueServerSave(
@@ -564,8 +641,6 @@ export default function TestPage() {
               "Answer locally saved है, लेकिन server autosave में समस्या आई।"
             );
           }
-
-          return true;
         })
         .finally(() => {
           if (
@@ -579,17 +654,12 @@ export default function TestPage() {
               ];
           }
 
-          const pending =
+          if (
             Object.keys(
               saveQueues.current
-            ).length;
-
-          if (
-            pending === 0
+            ).length === 0
           ) {
-            setSaving(
-              false
-            );
+            setSaving(false);
           }
         });
 
@@ -617,6 +687,12 @@ export default function TestPage() {
     );
   }
 
+  /*
+    =====================================================
+    LANGUAGE
+    =====================================================
+  */
+
   function changeLanguage(
     value
   ) {
@@ -641,16 +717,11 @@ export default function TestPage() {
     scrollQuestionToTop();
   }
 
-  function scrollQuestionToTop() {
-    setTimeout(() => {
-      questionScrollRef.current?.scrollTo(
-        {
-          top: 0,
-          behavior: "smooth",
-        }
-      );
-    }, 0);
-  }
+  /*
+    =====================================================
+    VISITED
+    =====================================================
+  */
 
   function markVisited(
     questionId
@@ -659,8 +730,7 @@ export default function TestPage() {
       (old) => {
         const updated = {
           ...old,
-          [questionId]:
-            true,
+          [questionId]: true,
         };
 
         try {
@@ -679,19 +749,113 @@ export default function TestPage() {
     );
   }
 
-  function goQuestion(
+  /*
+    =====================================================
+    SECTION HELPERS
+    =====================================================
+  */
+
+  function getTimerType() {
+    return (
+      examConfig?.stage
+        ?.timer_type ||
+      "overall"
+    );
+  }
+
+  function getSectionIndexForQuestion(
+    questionIndex
+  ) {
+    const found =
+      sections.findIndex(
+        (section) =>
+          questionIndex >=
+            section.startIndex &&
+          questionIndex <=
+            section.endIndex
+      );
+
+    return found >= 0
+      ? found
+      : 0;
+  }
+
+  function getCurrentDisplaySection() {
+    if (!sections.length) {
+      return null;
+    }
+
+    if (
+      getTimerType() ===
+      "sectional"
+    ) {
+      return (
+        sections[
+          activeSection
+        ] ||
+        sections[0]
+      );
+    }
+
+    return (
+      sections[
+        getSectionIndexForQuestion(
+          current
+        )
+      ] ||
+      sections[0]
+    );
+  }
+
+  function canOpenQuestion(
     index
   ) {
+    if (
+      index < 0 ||
+      index >=
+        questions.length
+    ) {
+      return false;
+    }
+
+    if (
+      getTimerType() !==
+      "sectional"
+    ) {
+      return true;
+    }
+
     const section =
-      SECTIONS[
+      sections[
         activeSection
       ];
 
+    if (!section) {
+      return false;
+    }
+
+    return (
+      index >=
+        section.startIndex &&
+      index <=
+        section.endIndex
+    );
+  }
+
+  /*
+    =====================================================
+    QUESTION NAVIGATION
+    =====================================================
+  */
+
+  function goQuestion(
+    index,
+    closePalette = true
+  ) {
     if (
-      index <
-        section.start ||
-      index >
-        section.end
+      !canOpenQuestion(
+        index
+      )
     ) {
       return;
     }
@@ -707,9 +871,106 @@ export default function TestPage() {
       markVisited(q.id);
     }
 
-    setPaletteOpen(false);
+    if (
+      getTimerType() ===
+      "overall"
+    ) {
+      const secIndex =
+        getSectionIndexForQuestion(
+          index
+        );
+
+      setPaletteSection(
+        secIndex
+      );
+    }
+
+    if (closePalette) {
+      setPaletteOpen(false);
+    }
+
     scrollQuestionToTop();
   }
+
+  function goToSection(
+    sectionIndex
+  ) {
+    if (
+      !sections[
+        sectionIndex
+      ]
+    ) {
+      return;
+    }
+
+    /*
+      Sectional exams:
+      only current section accessible.
+    */
+
+    if (
+      getTimerType() ===
+        "sectional" &&
+      sectionIndex !==
+        activeSection
+    ) {
+      return;
+    }
+
+    setPaletteSection(
+      sectionIndex
+    );
+
+    goQuestion(
+      sections[
+        sectionIndex
+      ].startIndex,
+      false
+    );
+  }
+
+  function nextQuestion() {
+    if (
+      current >=
+      questions.length - 1
+    ) {
+      return;
+    }
+
+    /*
+      Sectional:
+      cannot automatically enter
+      next section.
+    */
+
+    if (
+      getTimerType() ===
+      "sectional"
+    ) {
+      const section =
+        sections[
+          activeSection
+        ];
+
+      if (
+        !section ||
+        current >=
+          section.endIndex
+      ) {
+        return;
+      }
+    }
+
+    goQuestion(
+      current + 1
+    );
+  }
+
+  /*
+    =====================================================
+    ANSWERS
+    =====================================================
+  */
 
   function selectAnswer(
     questionId,
@@ -794,31 +1055,15 @@ export default function TestPage() {
     );
   }
 
-  function nextQuestion() {
-    const section =
-      SECTIONS[
-        activeSection
-      ];
-
-    if (
-      current >=
-      section.end
-    ) {
-      return;
-    }
-
-    goQuestion(
-      current + 1
-    );
-  }
-
   function markAndNext() {
     const q =
       questions[
         current
       ]?.questions;
 
-    if (!q?.id) return;
+    if (!q?.id) {
+      return;
+    }
 
     const selectedAnswer =
       answers[
@@ -856,7 +1101,20 @@ export default function TestPage() {
     nextQuestion();
   }
 
+  /*
+    =====================================================
+    SECTION SUBMIT
+    =====================================================
+  */
+
   async function manualSubmitSection() {
+    if (
+      getTimerType() !==
+      "sectional"
+    ) {
+      return;
+    }
+
     if (
       changingSection ||
       submitting
@@ -864,22 +1122,31 @@ export default function TestPage() {
       return;
     }
 
+    const section =
+      sections[
+        activeSection
+      ];
+
+    if (!section) {
+      return;
+    }
+
+    /*
+      Final section -> final test submit
+    */
+
     if (
-      activeSection === 2
+      activeSection >=
+      sections.length - 1
     ) {
       submitTest(false);
       return;
     }
 
-    const section =
-      SECTIONS[
-        activeSection
-      ];
-
     const sectionQuestions =
       questions.slice(
-        section.start,
-        section.end + 1
+        section.startIndex,
+        section.endIndex + 1
       );
 
     const answered =
@@ -904,25 +1171,19 @@ export default function TestPage() {
 
     const yes =
       window.confirm(
-        `${section.short} section submit करना चाहते हैं?\n\n` +
+        `${section.sectionName} section submit करना चाहते हैं?\n\n` +
         `Attempted: ${answered}\n` +
         `Unattempted: ${unattempted}\n` +
         `Marked for Review: ${marked}\n\n` +
         `Submit करने के बाद इस section में वापस नहीं जा सकेंगे।`
       );
 
-    if (!yes) return;
+    if (!yes) {
+      return;
+    }
 
-    setChangingSection(
-      true
-    );
-
+    setChangingSection(true);
     setError("");
-
-    /*
-      Wait for any answer saves to finish
-      before locking the section.
-    */
 
     await waitForPendingSaves();
 
@@ -941,9 +1202,7 @@ export default function TestPage() {
     );
 
     if (error) {
-      setChangingSection(
-        false
-      );
+      setChangingSection(false);
 
       setError(
         error.message
@@ -954,40 +1213,57 @@ export default function TestPage() {
       return;
     }
 
+    if (
+      data?.status ===
+      "final_section"
+    ) {
+      setChangingSection(false);
+      return;
+    }
+
     const nextSection =
       Number(
         data?.current_section
-      );
-
-    const remaining =
-      Number(
-        data?.remaining_seconds
       );
 
     setActiveSection(
       nextSection
     );
 
-    setSectionTime(
-      remaining
+    setPaletteSection(
+      nextSection
     );
 
-    const firstQuestion =
-      SECTIONS[
+    setTimeLeft(
+      Number(
+        data?.remaining_seconds ??
+          0
+      )
+    );
+
+    const nextSectionConfig =
+      sections[
         nextSection
-      ].start;
+      ];
 
-    setCurrent(
-      firstQuestion
-    );
+    if (
+      nextSectionConfig
+    ) {
+      const firstQuestion =
+        nextSectionConfig.startIndex;
 
-    const q =
-      questions[
+      setCurrent(
         firstQuestion
-      ]?.questions;
+      );
 
-    if (q?.id) {
-      markVisited(q.id);
+      const q =
+        questions[
+          firstQuestion
+        ]?.questions;
+
+      if (q?.id) {
+        markVisited(q.id);
+      }
     }
 
     setPaletteOpen(false);
@@ -995,6 +1271,12 @@ export default function TestPage() {
 
     scrollQuestionToTop();
   }
+
+  /*
+    =====================================================
+    FINAL SUBMIT
+    =====================================================
+  */
 
   async function submitTest(
     automatic = false
@@ -1029,16 +1311,13 @@ export default function TestPage() {
           `Submit करने के बाद उत्तर बदले नहीं जा सकेंगे।`
         );
 
-      if (!yes) return;
+      if (!yes) {
+        return;
+      }
     }
 
     setSubmitting(true);
     setError("");
-
-    /*
-      Ensure final click has reached server
-      before final test submission.
-    */
 
     await waitForPendingSaves();
 
@@ -1078,9 +1357,7 @@ export default function TestPage() {
         error.message
       );
 
-      setSubmitting(
-        false
-      );
+      setSubmitting(false);
 
       autoSubmitting.current =
         false;
@@ -1110,11 +1387,29 @@ export default function TestPage() {
     );
   }
 
+  /*
+    =====================================================
+    UI HELPERS
+    =====================================================
+  */
+
+  function scrollQuestionToTop() {
+    setTimeout(() => {
+      questionScrollRef
+        .current
+        ?.scrollTo({
+          top: 0,
+          behavior: "smooth",
+        });
+    }, 0);
+  }
+
   function formatTime(
     seconds
   ) {
     if (
-      seconds === null
+      seconds === null ||
+      seconds === undefined
     ) {
       return "--:--";
     }
@@ -1176,7 +1471,8 @@ export default function TestPage() {
       return {
         background:
           "#7c3aed",
-        color: "white",
+        color:
+          "#ffffff",
       };
     }
 
@@ -1188,7 +1484,8 @@ export default function TestPage() {
       return {
         background:
           "#16a34a",
-        color: "white",
+        color:
+          "#ffffff",
       };
     }
 
@@ -1200,7 +1497,8 @@ export default function TestPage() {
       return {
         background:
           "#dc2626",
-        color: "white",
+        color:
+          "#ffffff",
       };
     }
 
@@ -1211,6 +1509,12 @@ export default function TestPage() {
         "#172033",
     };
   }
+
+  /*
+    =====================================================
+    LOADING
+    =====================================================
+  */
 
   if (loading) {
     return (
@@ -1226,26 +1530,30 @@ export default function TestPage() {
   ) {
     return (
       <div style={centerPage}>
-        <b>Error:</b>{" "}
-        {error}
+        <div>
+          <b>Error:</b>{" "}
+          {error}
+        </div>
       </div>
     );
   }
 
   if (
-    !questions.length
+    !questions.length ||
+    !sections.length
   ) {
     return (
       <div style={centerPage}>
-        No questions found.
+        Test configuration not available.
       </div>
     );
   }
 
-  const section =
-    SECTIONS[
-      activeSection
-    ];
+  /*
+    =====================================================
+    CURRENT QUESTION / SECTION
+    =====================================================
+  */
 
   const item =
     questions[
@@ -1263,11 +1571,33 @@ export default function TestPage() {
     );
   }
 
+  const timerType =
+    getTimerType();
+
+  const displaySection =
+    getCurrentDisplaySection();
+
+  const currentSectionIndex =
+    timerType === "sectional"
+      ? activeSection
+      : getSectionIndexForQuestion(
+          current
+        );
+
+  const currentLocalNumber =
+    displaySection
+      ? current -
+          displaySection.startIndex +
+          1
+      : current + 1;
+
   const sectionQuestions =
-    questions.slice(
-      section.start,
-      section.end + 1
-    );
+    displaySection
+      ? questions.slice(
+          displaySection.startIndex,
+          displaySection.endIndex + 1
+        )
+      : questions;
 
   const sectionAnswered =
     sectionQuestions.filter(
@@ -1285,10 +1615,9 @@ export default function TestPage() {
         ]
     ).length;
 
-  const currentLocalNumber =
-    current -
-    section.start +
-    1;
+  /*
+    Language fallback
+  */
 
   const displayQuestion =
     language === "hindi"
@@ -1331,10 +1660,58 @@ export default function TestPage() {
     },
   ];
 
+  /*
+    Palette section
+  */
+
+  const paletteSectionData =
+    sections[
+      paletteSection
+    ] ||
+    displaySection ||
+    sections[0];
+
+  const paletteQuestions =
+    questions.slice(
+      paletteSectionData.startIndex,
+      paletteSectionData.endIndex + 1
+    );
+
+  const paletteAnswered =
+    paletteQuestions.filter(
+      (item) =>
+        answers[
+          item.questions.id
+        ]
+    ).length;
+
+  const paletteMarked =
+    paletteQuestions.filter(
+      (item) =>
+        review[
+          item.questions.id
+        ]
+    ).length;
+
+  const isLastSection =
+    activeSection >=
+    sections.length - 1;
+
+  const canNext =
+    timerType === "sectional"
+      ? current <
+        sections[
+          activeSection
+        ].endIndex
+      : current <
+        questions.length - 1;
+
   return (
     <div style={pageShell}>
 
-      {/* HEADER */}
+      {/* =================================================
+          HEADER
+      ================================================= */}
 
       <header style={topBar}>
 
@@ -1347,12 +1724,15 @@ export default function TestPage() {
           <div>
             <div style={timerText}>
               {formatTime(
-                sectionTime
+                timeLeft
               )}
             </div>
 
             <div style={timerLabel}>
-              Time Left
+              {timerType ===
+              "sectional"
+                ? "Section Time"
+                : "Time Left"}
             </div>
           </div>
 
@@ -1363,6 +1743,17 @@ export default function TestPage() {
           <div style={testTitle}>
             {test?.title}
           </div>
+
+          <div style={examName}>
+            {
+              examConfig?.exam
+                ?.exam_name
+            }
+          </div>
+
+        </div>
+
+        <div style={headerRight}>
 
           <select
             value={language}
@@ -1383,24 +1774,108 @@ export default function TestPage() {
             </option>
           </select>
 
-        </div>
+          <button
+            type="button"
+            onClick={() => {
+              setPaletteSection(
+                currentSectionIndex
+              );
 
-        <button
-          type="button"
-          onClick={() =>
-            setPaletteOpen(
-              true
-            )
-          }
-          style={menuButton}
-          aria-label="Open question palette"
-        >
-          ☰
-        </button>
+              setPaletteOpen(
+                true
+              );
+            }}
+            style={menuButton}
+            aria-label="Open question palette"
+          >
+            ☰
+          </button>
+
+        </div>
 
       </header>
 
-      {/* STATUS BAR */}
+      {/* =================================================
+          SECTION BAR
+      ================================================= */}
+
+      <div style={sectionStrip}>
+
+        <div style={sectionScroller}>
+
+          {sections.map(
+            (
+              section,
+              index
+            ) => {
+              const active =
+                index ===
+                currentSectionIndex;
+
+              const locked =
+                timerType ===
+                  "sectional" &&
+                index <
+                  activeSection;
+
+              const futureLocked =
+                timerType ===
+                  "sectional" &&
+                index >
+                  activeSection;
+
+              return (
+                <button
+                  key={
+                    section.sectionCode
+                  }
+                  type="button"
+                  disabled={
+                    locked ||
+                    futureLocked
+                  }
+                  onClick={() =>
+                    goToSection(
+                      index
+                    )
+                  }
+                  style={{
+                    ...sectionTab,
+
+                    ...(active
+                      ? activeSectionTab
+                      : {}),
+
+                    opacity:
+                      locked ||
+                      futureLocked
+                        ? 0.45
+                        : 1,
+                  }}
+                >
+                  {language ===
+                    "hindi"
+                    ? section.sectionNameHi ||
+                      section.sectionName
+                    : section.sectionName}
+
+                  {locked && (
+                    <span style={lockText}>
+                      🔒
+                    </span>
+                  )}
+                </button>
+              );
+            }
+          )}
+
+        </div>
+
+      </div>
+
+      {/* =================================================
+          STATUS
+      ================================================= */}
 
       <div style={statusStrip}>
 
@@ -1411,9 +1886,14 @@ export default function TestPage() {
         <div style={statusTextBlock}>
 
           <div style={sectionName}>
-            {language === "hindi"
-              ? section.hindi
-              : section.name}
+            {language ===
+            "hindi"
+              ? displaySection
+                  ?.sectionNameHi ||
+                displaySection
+                  ?.sectionName
+              : displaySection
+                  ?.sectionName}
           </div>
 
           <div style={statusMini}>
@@ -1448,7 +1928,9 @@ export default function TestPage() {
 
       </div>
 
-      {/* QUESTION */}
+      {/* =================================================
+          QUESTION AREA
+      ================================================= */}
 
       <main
         ref={questionScrollRef}
@@ -1458,7 +1940,8 @@ export default function TestPage() {
         <div style={questionInner}>
 
           <div style={questionMeta}>
-            {language === "hindi"
+            {language ===
+            "hindi"
               ? `प्रश्न ${currentLocalNumber}`
               : `Question ${currentLocalNumber}`}
           </div>
@@ -1545,7 +2028,9 @@ export default function TestPage() {
 
       </main>
 
-      {/* BOTTOM ACTIONS */}
+      {/* =================================================
+          BOTTOM ACTIONS
+      ================================================= */}
 
       <div style={bottomBar}>
 
@@ -1589,17 +2074,15 @@ export default function TestPage() {
             nextQuestion
           }
           disabled={
-            current >=
-            section.end
+            !canNext
           }
           style={{
             ...saveNextButton,
 
             opacity:
-              current >=
-              section.end
-                ? 0.5
-                : 1,
+              canNext
+                ? 1
+                : 0.45,
           }}
         >
           <span style={buttonMainText}>
@@ -1613,7 +2096,9 @@ export default function TestPage() {
 
       </div>
 
-      {/* QUESTION PALETTE */}
+      {/* =================================================
+          PALETTE
+      ================================================= */}
 
       {paletteOpen && (
         <>
@@ -1637,9 +2122,11 @@ export default function TestPage() {
                 </div>
 
                 <div style={drawerSubtitle}>
-                  {language === "hindi"
-                    ? section.hindi
-                    : section.name}
+                  {
+                    examConfig
+                      ?.exam
+                      ?.exam_name
+                  }
                 </div>
               </div>
 
@@ -1657,19 +2144,79 @@ export default function TestPage() {
 
             </div>
 
+            {/* PALETTE SECTION TABS */}
+
+            <div style={paletteSectionTabs}>
+
+              {sections.map(
+                (
+                  section,
+                  index
+                ) => {
+                  const disabled =
+                    timerType ===
+                      "sectional" &&
+                    index !==
+                      activeSection;
+
+                  return (
+                    <button
+                      type="button"
+                      key={
+                        section.sectionCode
+                      }
+                      disabled={
+                        disabled
+                      }
+                      onClick={() =>
+                        setPaletteSection(
+                          index
+                        )
+                      }
+                      style={{
+                        ...paletteSectionButton,
+
+                        ...(paletteSection ===
+                        index
+                          ? paletteSectionActive
+                          : {}),
+
+                        opacity:
+                          disabled
+                            ? 0.4
+                            : 1,
+                      }}
+                    >
+                      {section.shortName}
+                    </button>
+                  );
+                }
+              )}
+
+            </div>
+
             <div style={drawerStats}>
 
               <span>
                 Answered{" "}
                 <b>
-                  {sectionAnswered}
+                  {paletteAnswered}
                 </b>
               </span>
 
               <span>
                 Review{" "}
                 <b>
-                  {sectionMarked}
+                  {paletteMarked}
+                </b>
+              </span>
+
+              <span>
+                Total{" "}
+                <b>
+                  {
+                    paletteQuestions.length
+                  }
                 </b>
               </span>
 
@@ -1677,13 +2224,14 @@ export default function TestPage() {
 
             <div style={paletteGrid}>
 
-              {sectionQuestions.map(
+              {paletteQuestions.map(
                 (
                   item,
                   localIndex
                 ) => {
                   const absoluteIndex =
-                    section.start +
+                    paletteSectionData
+                      .startIndex +
                     localIndex;
 
                   const questionId =
@@ -1721,7 +2269,8 @@ export default function TestPage() {
                             : "1px solid #cbd5e1",
                       }}
                     >
-                      {localIndex + 1}
+                      {localIndex +
+                        1}
                     </button>
                   );
                 }
@@ -1749,12 +2298,19 @@ export default function TestPage() {
 
             </div>
 
+            {/* ============================================
+                SUBMIT AREA
+            ============================================ */}
+
             <div style={submitArea}>
 
-              {activeSection < 2 ? (
+              {timerType ===
+              "sectional" ? (
                 <>
                   <div style={submitTitle}>
-                    Submit Current Section
+                    {isLastSection
+                      ? "Final Test Submission"
+                      : "Submit Current Section"}
                   </div>
 
                   <div style={submitInfo}>
@@ -1783,30 +2339,61 @@ export default function TestPage() {
 
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={
-                      manualSubmitSection
-                    }
-                    disabled={
-                      changingSection ||
-                      saving
-                    }
-                    style={{
-                      ...submitButton,
-                      opacity:
+                  {isLastSection ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        submitTest(
+                          false
+                        )
+                      }
+                      disabled={
+                        submitting ||
+                        saving
+                      }
+                      style={{
+                        ...submitButton,
+
+                        opacity:
+                          submitting ||
+                          saving
+                            ? 0.6
+                            : 1,
+                      }}
+                    >
+                      {submitting
+                        ? "Submitting..."
+                        : saving
+                        ? "Saving Responses..."
+                        : "Submit Final Test"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={
+                        manualSubmitSection
+                      }
+                      disabled={
                         changingSection ||
                         saving
-                          ? 0.65
-                          : 1,
-                    }}
-                  >
-                    {changingSection
-                      ? "Opening Next Section..."
-                      : saving
-                      ? "Saving Responses..."
-                      : `Submit ${section.short} Section`}
-                  </button>
+                      }
+                      style={{
+                        ...submitButton,
+
+                        opacity:
+                          changingSection ||
+                          saving
+                            ? 0.6
+                            : 1,
+                      }}
+                    >
+                      {changingSection
+                        ? "Opening Next Section..."
+                        : saving
+                        ? "Saving Responses..."
+                        : `Submit ${displaySection?.shortName} Section`}
+                    </button>
+                  )}
                 </>
               ) : (
                 <>
@@ -1867,10 +2454,11 @@ export default function TestPage() {
                     }
                     style={{
                       ...submitButton,
+
                       opacity:
                         submitting ||
                         saving
-                          ? 0.65
+                          ? 0.6
                           : 1,
                     }}
                   >
@@ -1894,472 +2482,1359 @@ export default function TestPage() {
   );
 }
 
-/* ===============================
-   RESPONSIVE EXAM UI STYLES
-================================ */
+/*
+  =========================================================
+  SECTION NORMALIZER
+  =========================================================
+*/
+
+function normalizeSections(
+  dbSections,
+  actualQuestionCount,
+  config
+) {
+  const sorted =
+    [...dbSections].sort(
+      (a, b) =>
+        Number(
+          a.display_order
+        ) -
+        Number(
+          b.display_order
+        )
+    );
+
+  const declaredTotal =
+    sorted.reduce(
+      (sum, section) =>
+        sum +
+        Number(
+          section.question_count ||
+            0
+        ),
+      0
+    );
+
+  /*
+    If official subject-wise fixed
+    question distribution is unavailable,
+    use one Full Paper navigation group.
+
+    Example:
+    UP Police Constable configuration
+    currently has no artificial 37/38 split.
+  */
+
+  if (
+    !sorted.length ||
+    declaredTotal <= 0 ||
+    declaredTotal !==
+      actualQuestionCount
+  ) {
+    return [
+      {
+        sectionId: null,
+
+        sectionCode:
+          "FULL_PAPER",
+
+        sectionName:
+          "Full Paper",
+
+        sectionNameHi:
+          "सम्पूर्ण प्रश्नपत्र",
+
+        shortName:
+          "Full Paper",
+
+        questionCount:
+          actualQuestionCount,
+
+        totalMarks:
+          config?.stage
+            ?.total_marks,
+
+        marksPerQuestion:
+          config?.stage
+            ?.marks_per_question,
+
+        negativeMark:
+          config?.stage
+            ?.negative_mark,
+
+        durationMinutes:
+          config?.stage
+            ?.duration_minutes,
+
+        hasSectionalTimer:
+          false,
+
+        autoLockOnTimeout:
+          false,
+
+        allowPreviousSection:
+          true,
+
+        displayOrder: 1,
+
+        startIndex: 0,
+
+        endIndex:
+          Math.max(
+            actualQuestionCount -
+              1,
+            0
+          ),
+      },
+    ];
+  }
+
+  let runningIndex = 0;
+
+  return sorted.map(
+    (section) => {
+      const count =
+        Number(
+          section.question_count
+        );
+
+      const startIndex =
+        runningIndex;
+
+      const endIndex =
+        startIndex +
+        count -
+        1;
+
+      runningIndex =
+        endIndex + 1;
+
+      return {
+        sectionId:
+          section.section_id,
+
+        sectionCode:
+          section.section_code,
+
+        sectionName:
+          section.section_name,
+
+        sectionNameHi:
+          section.section_name_hi,
+
+        shortName:
+          makeShortName(
+            section.section_name,
+            section.section_code
+          ),
+
+        questionCount:
+          count,
+
+        totalMarks:
+          Number(
+            section.total_marks ||
+              0
+          ),
+
+        marksPerQuestion:
+          Number(
+            section.marks_per_question ||
+              0
+          ),
+
+        negativeMark:
+          Number(
+            section.negative_mark ||
+              0
+          ),
+
+        durationMinutes:
+          section.duration_minutes ===
+          null
+            ? null
+            : Number(
+                section.duration_minutes
+              ),
+
+        hasSectionalTimer:
+          Boolean(
+            section.has_sectional_timer
+          ),
+
+        autoLockOnTimeout:
+          Boolean(
+            section.auto_lock_on_timeout
+          ),
+
+        allowPreviousSection:
+          Boolean(
+            section.allow_previous_section
+          ),
+
+        displayOrder:
+          Number(
+            section.display_order
+          ),
+
+        startIndex,
+
+        endIndex,
+      };
+    }
+  );
+}
+
+function makeShortName(
+  name,
+  code
+) {
+  const map = {
+    REASONING:
+      "Reasoning",
+
+    GENERAL_AWARENESS:
+      "GA",
+
+    GENERAL_KNOWLEDGE:
+      "GK",
+
+    QUANT:
+      "Quant",
+
+    MATHS:
+      "Maths",
+
+    ENGLISH:
+      "English",
+
+    LANGUAGE:
+      "Language",
+
+    GENERAL_HINDI:
+      "Hindi",
+
+    HINDI_COMPUTER:
+      "Hindi/Computer",
+
+    LAW_GK:
+      "Law/GK",
+
+    NUMERICAL_MENTAL:
+      "Numerical",
+
+    MENTAL_APTITUDE_REASONING:
+      "Reasoning",
+  };
+
+  return (
+    map[code] ||
+    name
+      ?.split(" ")
+      .slice(0, 2)
+      .join(" ") ||
+    "Section"
+  );
+}
+
+/*
+  =========================================================
+  STYLES
+  =========================================================
+*/
 
 const pageShell = {
   height: "100dvh",
   minHeight: "100vh",
+
   display: "flex",
   flexDirection: "column",
+
   overflow: "hidden",
-  background: "#f8fafc",
-  color: "#111827",
+
+  background:
+    "#f8fafc",
+
+  color:
+    "#111827",
 };
 
 const topBar = {
   flexShrink: 0,
+
   minHeight: "66px",
-  background: "#17191d",
-  color: "#ffffff",
+
+  background:
+    "#17191d",
+
+  color:
+    "#ffffff",
+
   display: "flex",
-  alignItems: "center",
-  gap: "10px",
+
+  alignItems:
+    "center",
+
+  gap: "8px",
+
   padding:
-    "8px max(10px, env(safe-area-inset-left))",
-  paddingRight:
-    "max(10px, env(safe-area-inset-right))",
+    "7px 9px",
+
   zIndex: 50,
 };
 
 const timerBlock = {
   display: "flex",
-  alignItems: "center",
-  gap: "6px",
+
+  alignItems:
+    "center",
+
+  gap: "5px",
+
   flexShrink: 0,
 };
 
 const timerIcon = {
-  width: "28px",
-  height: "28px",
-  border: "2px solid #ffffff",
-  borderRadius: "50%",
+  width: "27px",
+
+  height: "27px",
+
+  border:
+    "2px solid #ffffff",
+
+  borderRadius:
+    "50%",
+
   display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "13px",
+
+  alignItems:
+    "center",
+
+  justifyContent:
+    "center",
+
+  fontSize: "12px",
 };
 
 const timerText = {
-  fontSize: "16px",
-  fontWeight: "800",
+  fontSize: "15px",
+
+  fontWeight:
+    "800",
+
   lineHeight: 1.1,
-  whiteSpace: "nowrap",
+
+  whiteSpace:
+    "nowrap",
 };
 
 const timerLabel = {
-  fontSize: "9px",
-  opacity: 0.72,
+  fontSize: "8px",
+
+  opacity: 0.7,
+
   marginTop: "2px",
 };
 
 const headerMiddle = {
   flex: 1,
+
   minWidth: 0,
-  display: "flex",
-  flexDirection: "column",
-  gap: "4px",
-  alignItems: "center",
+
+  textAlign:
+    "center",
 };
 
 const testTitle = {
-  width: "100%",
-  textAlign: "center",
   fontSize: "12px",
-  fontWeight: "700",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
+
+  fontWeight:
+    "800",
+
+  overflow:
+    "hidden",
+
+  textOverflow:
+    "ellipsis",
+
+  whiteSpace:
+    "nowrap",
+};
+
+const examName = {
+  fontSize: "9px",
+
+  opacity: 0.68,
+
+  marginTop: "2px",
+
+  overflow:
+    "hidden",
+
+  textOverflow:
+    "ellipsis",
+
+  whiteSpace:
+    "nowrap",
+};
+
+const headerRight = {
+  display: "flex",
+
+  alignItems:
+    "center",
+
+  gap: "4px",
+
+  flexShrink: 0,
 };
 
 const headerLanguageSelect = {
-  width: "118px",
-  maxWidth: "100%",
-  height: "26px",
-  border: "1px solid #71717a",
-  borderRadius: "6px",
-  background: "#27272a",
-  color: "#ffffff",
-  padding: "0 6px",
-  fontSize: "11px",
-  fontWeight: "700",
+  width: "85px",
+
+  height: "28px",
+
+  border:
+    "1px solid #666",
+
+  borderRadius:
+    "5px",
+
+  background:
+    "#27272a",
+
+  color:
+    "#ffffff",
+
+  padding:
+    "0 4px",
+
+  fontSize: "10px",
+
+  fontWeight:
+    "700",
+
   outline: "none",
 };
 
 const menuButton = {
-  width: "40px",
-  height: "40px",
-  flexShrink: 0,
+  width: "34px",
+
+  height: "36px",
+
   border: 0,
-  borderRadius: "8px",
-  background: "transparent",
-  color: "#ffffff",
-  fontSize: "27px",
-  cursor: "pointer",
+
+  borderRadius:
+    "6px",
+
+  background:
+    "transparent",
+
+  color:
+    "#ffffff",
+
+  fontSize: "24px",
+
+  cursor:
+    "pointer",
 };
+
+/*
+  SECTION STRIP
+*/
+
+const sectionStrip = {
+  flexShrink: 0,
+
+  background:
+    "#ffffff",
+
+  borderBottom:
+    "1px solid #e5e7eb",
+};
+
+const sectionScroller = {
+  display: "flex",
+
+  gap: "5px",
+
+  overflowX:
+    "auto",
+
+  padding:
+    "6px 8px",
+
+  scrollbarWidth:
+    "none",
+};
+
+const sectionTab = {
+  flexShrink: 0,
+
+  minHeight:
+    "30px",
+
+  maxWidth:
+    "170px",
+
+  padding:
+    "5px 9px",
+
+  border:
+    "1px solid #d8dee7",
+
+  borderRadius:
+    "7px",
+
+  background:
+    "#ffffff",
+
+  color:
+    "#475569",
+
+  fontSize:
+    "10px",
+
+  fontWeight:
+    "700",
+
+  overflow:
+    "hidden",
+
+  textOverflow:
+    "ellipsis",
+
+  whiteSpace:
+    "nowrap",
+
+  cursor:
+    "pointer",
+};
+
+const activeSectionTab = {
+  background:
+    "#2563eb",
+
+  color:
+    "#ffffff",
+
+  border:
+    "1px solid #2563eb",
+};
+
+const lockText = {
+  marginLeft:
+    "4px",
+
+  fontSize:
+    "9px",
+};
+
+/*
+  STATUS
+*/
 
 const statusStrip = {
   flexShrink: 0,
-  minHeight: "52px",
-  background: "#ffffff",
-  borderBottom: "1px solid #e5e7eb",
+
+  minHeight:
+    "48px",
+
+  background:
+    "#ffffff",
+
+  borderBottom:
+    "1px solid #e5e7eb",
+
   display: "flex",
-  alignItems: "center",
-  gap: "10px",
-  padding: "6px 12px",
+
+  alignItems:
+    "center",
+
+  gap: "9px",
+
+  padding:
+    "5px 10px",
 };
 
 const questionCircle = {
-  width: "38px",
-  height: "38px",
-  minWidth: "38px",
-  borderRadius: "50%",
-  background: "#64748b",
-  color: "#ffffff",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontWeight: "800",
-  fontSize: "15px",
+  width: "36px",
+
+  height: "36px",
+
+  minWidth:
+    "36px",
+
+  borderRadius:
+    "50%",
+
+  background:
+    "#64748b",
+
+  color:
+    "#ffffff",
+
+  display:
+    "flex",
+
+  alignItems:
+    "center",
+
+  justifyContent:
+    "center",
+
+  fontWeight:
+    "800",
+
+  fontSize:
+    "14px",
 };
 
 const statusTextBlock = {
   minWidth: 0,
+
   flex: 1,
 };
 
 const sectionName = {
-  fontSize: "12px",
-  fontWeight: "800",
-  overflow: "hidden",
-  whiteSpace: "nowrap",
-  textOverflow: "ellipsis",
+  fontSize:
+    "11px",
+
+  fontWeight:
+    "800",
+
+  overflow:
+    "hidden",
+
+  whiteSpace:
+    "nowrap",
+
+  textOverflow:
+    "ellipsis",
 };
 
 const statusMini = {
-  fontSize: "10px",
-  marginTop: "3px",
-  color: "#64748b",
+  fontSize:
+    "9px",
+
+  marginTop:
+    "2px",
+
+  color:
+    "#64748b",
 };
 
 const savingText = {
-  color: "#2563eb",
-  fontWeight: "700",
+  color:
+    "#2563eb",
+
+  fontWeight:
+    "700",
 };
 
 const overallCount = {
   flexShrink: 0,
-  fontSize: "11px",
-  fontWeight: "700",
-  color: "#64748b",
+
+  fontSize:
+    "10px",
+
+  fontWeight:
+    "700",
+
+  color:
+    "#64748b",
 };
+
+/*
+  QUESTION
+*/
 
 const questionScrollArea = {
   flex: 1,
+
   minHeight: 0,
-  overflowY: "auto",
-  WebkitOverflowScrolling: "touch",
-  overscrollBehavior: "contain",
+
+  overflowY:
+    "auto",
+
+  WebkitOverflowScrolling:
+    "touch",
+
+  overscrollBehavior:
+    "contain",
 };
 
 const questionInner = {
   width: "100%",
-  maxWidth: "800px",
-  margin: "0 auto",
-  padding: "12px 12px 18px",
+
+  maxWidth:
+    "820px",
+
+  margin:
+    "0 auto",
+
+  padding:
+    "11px 11px 16px",
 };
 
 const questionMeta = {
-  fontSize: "11px",
-  fontWeight: "800",
-  color: "#64748b",
-  marginBottom: "7px",
+  fontSize:
+    "10px",
+
+  fontWeight:
+    "800",
+
+  color:
+    "#64748b",
+
+  marginBottom:
+    "6px",
 };
 
 const questionText = {
-  fontSize: "clamp(16px, 4.3vw, 21px)",
-  lineHeight: "1.42",
-  fontWeight: "700",
-  color: "#111827",
-  marginBottom: "14px",
+  fontSize:
+    "clamp(15px, 4.2vw, 20px)",
+
+  lineHeight:
+    "1.4",
+
+  fontWeight:
+    "700",
+
+  color:
+    "#111827",
+
+  marginBottom:
+    "12px",
 };
 
 const optionsWrap = {
-  display: "grid",
-  gap: "8px",
+  display:
+    "grid",
+
+  gap:
+    "7px",
 };
 
 const optionCard = {
-  width: "100%",
-  minHeight: "52px",
-  border: "1px solid #d7dce3",
-  borderRadius: "9px",
-  background: "#ffffff",
-  padding: "9px 10px",
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-  textAlign: "left",
-  cursor: "pointer",
-  fontFamily: "inherit",
+  width:
+    "100%",
+
+  minHeight:
+    "49px",
+
+  border:
+    "1px solid #d7dce3",
+
+  borderRadius:
+    "8px",
+
+  background:
+    "#ffffff",
+
+  padding:
+    "8px 9px",
+
+  display:
+    "flex",
+
+  alignItems:
+    "center",
+
+  gap:
+    "9px",
+
+  textAlign:
+    "left",
+
+  cursor:
+    "pointer",
+
+  fontFamily:
+    "inherit",
 };
 
 const selectedOption = {
-  border: "2px solid #2563eb",
-  background: "#eff6ff",
+  border:
+    "2px solid #2563eb",
+
+  background:
+    "#eff6ff",
 };
 
 const optionLetter = {
-  width: "30px",
-  height: "30px",
-  minWidth: "30px",
-  borderRadius: "50%",
-  border: "1px solid #cbd5e1",
-  background: "#f8fafc",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontWeight: "800",
-  fontSize: "13px",
-  color: "#475569",
+  width: "29px",
+
+  height: "29px",
+
+  minWidth:
+    "29px",
+
+  borderRadius:
+    "50%",
+
+  border:
+    "1px solid #cbd5e1",
+
+  background:
+    "#f8fafc",
+
+  display:
+    "flex",
+
+  alignItems:
+    "center",
+
+  justifyContent:
+    "center",
+
+  fontWeight:
+    "800",
+
+  fontSize:
+    "12px",
+
+  color:
+    "#475569",
 };
 
 const selectedOptionLetter = {
-  background: "#2563eb",
-  color: "#ffffff",
-  border: "1px solid #2563eb",
+  background:
+    "#2563eb",
+
+  color:
+    "#ffffff",
+
+  border:
+    "1px solid #2563eb",
 };
 
 const optionText = {
   flex: 1,
-  fontSize: "clamp(14px, 3.8vw, 17px)",
-  lineHeight: "1.35",
-  color: "#1f2937",
+
+  fontSize:
+    "clamp(13px, 3.7vw, 16px)",
+
+  lineHeight:
+    "1.35",
+
+  color:
+    "#1f2937",
 };
 
 const radioMark = {
-  width: "22px",
-  height: "22px",
-  minWidth: "22px",
-  borderRadius: "50%",
-  border: "2px solid #cbd5e1",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "11px",
-  color: "#ffffff",
+  width: "21px",
+
+  height: "21px",
+
+  minWidth:
+    "21px",
+
+  borderRadius:
+    "50%",
+
+  border:
+    "2px solid #cbd5e1",
+
+  display:
+    "flex",
+
+  alignItems:
+    "center",
+
+  justifyContent:
+    "center",
+
+  fontSize:
+    "10px",
+
+  color:
+    "#ffffff",
 };
 
 const selectedRadio = {
-  background: "#2563eb",
-  border: "2px solid #2563eb",
+  background:
+    "#2563eb",
+
+  border:
+    "2px solid #2563eb",
 };
 
 const errorBox = {
-  marginTop: "10px",
-  padding: "9px",
-  background: "#fef2f2",
-  borderRadius: "7px",
-  color: "#b91c1c",
-  fontSize: "12px",
+  marginTop:
+    "9px",
+
+  padding:
+    "8px",
+
+  background:
+    "#fef2f2",
+
+  borderRadius:
+    "7px",
+
+  color:
+    "#b91c1c",
+
+  fontSize:
+    "11px",
 };
+
+/*
+  BOTTOM ACTION BAR
+*/
 
 const bottomBar = {
   flexShrink: 0,
-  minHeight: "68px",
-  background: "#ffffff",
-  borderTop: "1px solid #dfe3e8",
-  display: "grid",
+
+  minHeight:
+    "65px",
+
+  background:
+    "#ffffff",
+
+  borderTop:
+    "1px solid #dfe3e8",
+
+  display:
+    "grid",
+
   gridTemplateColumns:
-    "1fr 0.72fr 1fr",
-  gap: "7px",
+    "1fr 0.7fr 1fr",
+
+  gap:
+    "6px",
+
   padding:
-    "7px 9px max(7px, env(safe-area-inset-bottom))",
+    "6px 8px max(6px, env(safe-area-inset-bottom))",
+
   zIndex: 60,
 };
 
 const actionBase = {
-  minHeight: "50px",
-  borderRadius: "8px",
-  fontFamily: "inherit",
-  cursor: "pointer",
-  display: "flex",
-  flexDirection: "column",
-  justifyContent: "center",
-  alignItems: "center",
+  minHeight:
+    "48px",
+
+  borderRadius:
+    "8px",
+
+  fontFamily:
+    "inherit",
+
+  cursor:
+    "pointer",
+
+  display:
+    "flex",
+
+  flexDirection:
+    "column",
+
+  justifyContent:
+    "center",
+
+  alignItems:
+    "center",
+
   lineHeight: 1.1,
 };
 
 const markButton = {
   ...actionBase,
-  border: "1px solid #7c3aed",
-  background: "#ffffff",
-  color: "#6d28d9",
+
+  border:
+    "1px solid #7c3aed",
+
+  background:
+    "#ffffff",
+
+  color:
+    "#6d28d9",
 };
 
 const clearButton = {
   ...actionBase,
-  border: "1px solid #475569",
-  background: "#ffffff",
-  color: "#334155",
+
+  border:
+    "1px solid #475569",
+
+  background:
+    "#ffffff",
+
+  color:
+    "#334155",
 };
 
 const saveNextButton = {
   ...actionBase,
+
   border: 0,
-  background: "#2563eb",
-  color: "#ffffff",
+
+  background:
+    "#2563eb",
+
+  color:
+    "#ffffff",
 };
 
 const buttonMainText = {
-  fontSize: "12px",
-  fontWeight: "800",
+  fontSize:
+    "11px",
+
+  fontWeight:
+    "800",
 };
 
 const buttonSubText = {
-  fontSize: "9px",
-  marginTop: "3px",
-  opacity: 0.75,
+  fontSize:
+    "8px",
+
+  marginTop:
+    "3px",
+
+  opacity:
+    0.75,
 };
 
+/*
+  DRAWER
+*/
+
 const overlay = {
-  position: "fixed",
+  position:
+    "fixed",
+
   inset: 0,
+
   background:
     "rgba(0,0,0,0.42)",
+
   zIndex: 998,
 };
 
 const drawer = {
-  position: "fixed",
+  position:
+    "fixed",
+
   top: 0,
+
   right: 0,
+
   width:
-    "min(350px, 92vw)",
-  height: "100dvh",
-  background: "#ffffff",
+    "min(360px, 94vw)",
+
+  height:
+    "100dvh",
+
+  background:
+    "#ffffff",
+
   zIndex: 999,
-  padding: "12px",
-  overflowY: "auto",
+
+  padding:
+    "11px",
+
+  overflowY:
+    "auto",
+
   boxShadow:
     "-8px 0 25px rgba(0,0,0,0.18)",
 };
 
 const drawerHeader = {
-  display: "flex",
-  alignItems: "center",
+  display:
+    "flex",
+
+  alignItems:
+    "center",
+
   justifyContent:
     "space-between",
-  gap: "8px",
+
+  gap:
+    "8px",
 };
 
 const drawerTitle = {
-  fontSize: "17px",
-  fontWeight: "800",
+  fontSize:
+    "17px",
+
+  fontWeight:
+    "800",
 };
 
 const drawerSubtitle = {
-  maxWidth: "250px",
-  marginTop: "2px",
-  fontSize: "10px",
-  color: "#64748b",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
+  maxWidth:
+    "250px",
+
+  marginTop:
+    "2px",
+
+  fontSize:
+    "9px",
+
+  color:
+    "#64748b",
+
+  overflow:
+    "hidden",
+
+  textOverflow:
+    "ellipsis",
+
+  whiteSpace:
+    "nowrap",
 };
 
 const closeButton = {
   width: "32px",
+
   height: "32px",
-  minWidth: "32px",
-  borderRadius: "7px",
+
+  minWidth:
+    "32px",
+
+  borderRadius:
+    "7px",
+
   border:
     "1px solid #d7deea",
-  background: "#ffffff",
-  fontSize: "15px",
-  cursor: "pointer",
+
+  background:
+    "#ffffff",
+
+  fontSize:
+    "15px",
+
+  cursor:
+    "pointer",
+};
+
+const paletteSectionTabs = {
+  display:
+    "flex",
+
+  gap:
+    "5px",
+
+  overflowX:
+    "auto",
+
+  marginTop:
+    "9px",
+
+  paddingBottom:
+    "2px",
+};
+
+const paletteSectionButton = {
+  flexShrink: 0,
+
+  border:
+    "1px solid #d7deea",
+
+  borderRadius:
+    "6px",
+
+  background:
+    "#ffffff",
+
+  padding:
+    "5px 7px",
+
+  fontSize:
+    "9px",
+
+  fontWeight:
+    "700",
+
+  cursor:
+    "pointer",
+};
+
+const paletteSectionActive = {
+  background:
+    "#2563eb",
+
+  color:
+    "#ffffff",
+
+  border:
+    "1px solid #2563eb",
 };
 
 const drawerStats = {
-  display: "flex",
+  display:
+    "flex",
+
   justifyContent:
     "space-between",
-  gap: "8px",
-  marginTop: "9px",
-  padding: "7px 8px",
-  borderRadius: "7px",
-  background: "#f8fafc",
-  fontSize: "11px",
+
+  gap:
+    "6px",
+
+  marginTop:
+    "8px",
+
+  padding:
+    "6px 7px",
+
+  borderRadius:
+    "7px",
+
+  background:
+    "#f8fafc",
+
+  fontSize:
+    "10px",
 };
 
 const paletteGrid = {
-  display: "grid",
+  display:
+    "grid",
+
   gridTemplateColumns:
     "repeat(7, 1fr)",
-  gap: "5px",
-  marginTop: "10px",
+
+  gap:
+    "5px",
+
+  marginTop:
+    "9px",
 };
 
 const paletteNumber = {
-  minHeight: "30px",
-  padding: "2px",
-  borderRadius: "5px",
-  fontSize: "11px",
-  fontWeight: "800",
-  cursor: "pointer",
+  minHeight:
+    "30px",
+
+  padding:
+    "2px",
+
+  borderRadius:
+    "5px",
+
+  fontSize:
+    "10px",
+
+  fontWeight:
+    "800",
+
+  cursor:
+    "pointer",
 };
 
 const legendBox = {
-  display: "grid",
+  display:
+    "grid",
+
   gridTemplateColumns:
     "1fr 1fr",
-  gap: "3px 6px",
-  marginTop: "10px",
-  fontSize: "10px",
-  lineHeight: "1.45",
+
+  gap:
+    "3px 6px",
+
+  marginTop:
+    "9px",
+
+  fontSize:
+    "9px",
+
+  lineHeight:
+    "1.4",
 };
 
 const submitArea = {
-  marginTop: "10px",
-  paddingTop: "10px",
+  marginTop:
+    "9px",
+
+  paddingTop:
+    "9px",
+
   borderTop:
     "1px solid #e2e8f0",
 };
 
 const submitTitle = {
-  fontSize: "14px",
-  fontWeight: "800",
-  marginBottom: "7px",
+  fontSize:
+    "13px",
+
+  fontWeight:
+    "800",
+
+  marginBottom:
+    "6px",
 };
 
 const submitInfo = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "5px 12px",
-  padding: "7px 8px",
-  marginBottom: "8px",
-  background: "#f8fafc",
-  borderRadius: "7px",
-  fontSize: "10px",
+  display:
+    "flex",
+
+  flexWrap:
+    "wrap",
+
+  gap:
+    "4px 10px",
+
+  padding:
+    "6px 7px",
+
+  marginBottom:
+    "7px",
+
+  background:
+    "#f8fafc",
+
+  borderRadius:
+    "7px",
+
+  fontSize:
+    "9px",
 };
 
 const submitButton = {
-  width: "100%",
-  minHeight: "42px",
+  width:
+    "100%",
+
+  minHeight:
+    "41px",
+
   border: 0,
-  borderRadius: "8px",
-  background: "#1769e0",
-  color: "#ffffff",
-  fontWeight: "800",
-  fontSize: "13px",
-  cursor: "pointer",
+
+  borderRadius:
+    "8px",
+
+  background:
+    "#1769e0",
+
+  color:
+    "#ffffff",
+
+  fontWeight:
+    "800",
+
+  fontSize:
+    "12px",
+
+  cursor:
+    "pointer",
 };
 
 const centerPage = {
-  minHeight: "100vh",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "20px",
+  minHeight:
+    "100vh",
+
+  display:
+    "flex",
+
+  alignItems:
+    "center",
+
+  justifyContent:
+    "center",
+
+  padding:
+    "20px",
+
+  textAlign:
+    "center",
 };
