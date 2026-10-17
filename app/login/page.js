@@ -145,21 +145,6 @@ export default function LoginPage() {
     setLoading(false);
   }
 
-  async function continueAsGuest() {
-    setLoading(true);
-    setMessage("");
-
-    const { error } = await supabase().auth.signInAnonymously();
-
-    if (error) {
-      setMessage(error.message);
-      setLoading(false);
-      return;
-    }
-
-    router.replace("/dashboard");
-  }
-
   const inputStyle = {
     width: "100%",
     boxSizing: "border-box",
@@ -480,58 +465,22 @@ export default function LoginPage() {
           </form>
 
           {mode === "login" && (
-            <>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={resetPassword}
-                style={{
-                  display: "block",
-                  margin: "14px auto",
-                  background: "none",
-                  border: "none",
-                  color: "#2563eb",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                Forgot Password?
-              </button>
-
-              <div
-                style={{
-                  textAlign: "center",
-                  color: "#667085",
-                  margin: "14px 0",
-                }}
-              >
-                OR
-              </div>
-
-              <button
-                className="btn"
-                type="button"
-                disabled={loading}
-                onClick={continueAsGuest}
-                style={{
-                  width: "100%",
-                  background: "#1f7a4d",
-                }}
-              >
-                Continue as Guest
-              </button>
-
-              <p
-                className="muted"
-                style={{
-                  marginTop: "16px",
-                  fontSize: "13px",
-                }}
-              >
-                Guest progress may be lost if the browser
-                data or guest session is removed.
-              </p>
-            </>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={resetPassword}
+              style={{
+                display: "block",
+                margin: "14px auto",
+                background: "none",
+                border: "none",
+                color: "#2563eb",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              Forgot Password?
+            </button>
           )}
         </div>
       </main>
