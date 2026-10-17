@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { supabase } from "../../lib/supabase";
 
 export default function LoginPage() {
@@ -55,11 +56,10 @@ export default function LoginPage() {
     setLoading(true);
     setMessage("");
 
-    const { error } =
-      await supabase().auth.signInWithPassword({
-        email,
-        password,
-      });
+    const { error } = await supabase().auth.signInWithPassword({
+      email,
+      password,
+    });
 
     if (error) {
       setMessage(error.message);
@@ -74,8 +74,7 @@ export default function LoginPage() {
     setLoading(true);
     setMessage("");
 
-    const { error } =
-      await supabase().auth.signInAnonymously();
+    const { error } = await supabase().auth.signInAnonymously();
 
     if (error) {
       setMessage(error.message);
@@ -88,8 +87,33 @@ export default function LoginPage() {
 
   return (
     <>
-      <div className="nav">
-        JD Exambook
+      <div
+        className="nav"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+        }}
+      >
+        <Image
+          src="/jd-exambook-logo.png"
+          alt="JD Exambook Logo"
+          width={44}
+          height={44}
+          priority
+          style={{
+            objectFit: "contain",
+          }}
+        />
+
+        <span
+          style={{
+            fontWeight: 700,
+            fontSize: "20px",
+          }}
+        >
+          JD Exambook
+        </span>
       </div>
 
       <main className="wrap">
@@ -100,52 +124,66 @@ export default function LoginPage() {
             margin: "40px auto",
           }}
         >
-          <h1>Login / Sign Up</h1>
+          <div
+            style={{
+              textAlign: "center",
+              marginBottom: "24px",
+            }}
+          >
+            <Image
+              src="/jd-exambook-logo.png"
+              alt="JD Exambook Logo"
+              width={150}
+              height={150}
+              priority
+              style={{
+                objectFit: "contain",
+                margin: "0 auto",
+              }}
+            />
 
-          <p className="muted">
-            SSC Stenographer Practice Platform
-          </p>
+            <h1
+              style={{
+                marginTop: "10px",
+                marginBottom: "6px",
+              }}
+            >
+              Login / Sign Up
+            </h1>
 
-          <label>
-            Full Name
-          </label>
+            <p className="muted">
+              Competitive Exam Practice Platform
+            </p>
+          </div>
+
+          <label>Full Name</label>
 
           <input
             className="input"
             type="text"
             placeholder="Your name"
             value={fullName}
-            onChange={(e) =>
-              setFullName(e.target.value)
-            }
+            onChange={(e) => setFullName(e.target.value)}
           />
 
-          <label>
-            Email
-          </label>
+          <label>Email</label>
 
           <input
             className="input"
             type="email"
             placeholder="you@example.com"
             value={email}
-            onChange={(e) =>
-              setEmail(e.target.value)
-            }
+            onChange={(e) => setEmail(e.target.value)}
           />
 
-          <label>
-            Password
-          </label>
+          <label>Password</label>
 
           <input
             className="input"
             type="password"
             placeholder="Password"
             value={password}
-            onChange={(e) =>
-              setPassword(e.target.value)
-            }
+            onChange={(e) => setPassword(e.target.value)}
           />
 
           {message && (
@@ -170,9 +208,7 @@ export default function LoginPage() {
               disabled={loading}
               onClick={signIn}
             >
-              {loading
-                ? "Please wait..."
-                : "Login"}
+              {loading ? "Please wait..." : "Login"}
             </button>
 
             <button
@@ -212,10 +248,8 @@ export default function LoginPage() {
               fontSize: "14px",
             }}
           >
-            Guest mode is for quick testing.
-            Guest progress may be lost if browser
-            data is cleared or the guest session
-            is removed.
+            Guest mode is for quick testing. Guest progress may be lost if
+            browser data is cleared or the guest session is removed.
           </p>
         </div>
       </main>
