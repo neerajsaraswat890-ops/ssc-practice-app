@@ -41,21 +41,90 @@ function getDisplayName(code, fallback) {
   );
 }
 
+function ExamSection({ title, subtitle, group, emoji, exams, onOpen }) {
+  const items = exams.filter((exam) => exam.group === group);
+
+  if (!items.length) return null;
+
+  return (
+    <section style={{ marginBottom: "32px" }}>
+      <h2 style={{ marginBottom: "5px" }}>
+        {emoji} {title}
+      </h2>
+
+      <p className="muted" style={{ marginBottom: "16px" }}>
+        {subtitle}
+      </p>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+          gap: "14px",
+        }}
+      >
+        {items.map((exam) => (
+          <button
+            key={exam.code}
+            type="button"
+            disabled={!exam.available}
+            onClick={() => onOpen(exam)}
+            className="card"
+            style={{
+              textAlign: "left",
+              cursor: exam.available ? "pointer" : "default",
+              border: "1px solid #e2e8f0",
+              background: "#ffffff",
+              padding: "20px",
+              width: "100%",
+              minHeight: "140px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              gap: "14px",
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: "17px",
+                color: "#101820",
+              }}
+            >
+              {exam.name}
+            </div>
+
+            <div
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                color: exam.available ? "#0866c2" : "#64748b",
+              }}
+            >
+              {exam.available ? "Explore Exam →" : "Coming Soon"}
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function Dashboard() {
   const router = useRouter();
 
   const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     let active = true;
+    const client = supabase();
 
     async function loadExams() {
       try {
-        const client = supabase();
-
         const { data, error } = await client
           .from("exams")
           .select("*")
@@ -63,20 +132,21 @@ export default function Dashboard() {
 
         if (error) throw error;
 
-        const normalized = (data || []).map((exam) => {
-          const code =
-            exam.exam_code || exam.code || "";
+        const normalized = (data || [])
+          .map((exam) => {
+            const code = exam.exam_code || exam.code || "";
 
-          return {
-            code,
-            name: getDisplayName(
+            return {
               code,
-              exam.exam_name || exam.name
-            ),
-            group: getGroup(code),
-            available: true,
-          };
-        }).filter((exam) => exam.code);
+              name: getDisplayName(
+                code,
+                exam.exam_name || exam.name
+              ),
+              group: getGroup(code),
+              available: true,
+            };
+          })
+          .filter((exam) => exam.code);
 
         const existingCodes = new Set(
           normalized.map((exam) => exam.code)
@@ -115,12 +185,34 @@ export default function Dashboard() {
       }
     }
 
-    loadExams();
+    async function checkLogin() {
+      try {
+        const { data, error } = await client.auth.getUser();
+
+        if (!active) return;
+
+        if (error || !data?.user || data.user.is_anonymous) {
+          setAuthorized(false);
+          router.replace("/login");
+          return;
+        }
+
+        setAuthorized(true);
+        await loadExams();
+      } catch (error) {
+        if (active) {
+          setAuthorized(false);
+          router.replace("/login");
+        }
+      }
+    }
+
+    checkLogin();
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [router]);
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -136,93 +228,25 @@ export default function Dashboard() {
       return;
     }
 
+    setAuthorized(false);
     router.replace("/login");
     router.refresh();
   }
 
   function openExam(exam) {
-    if (!exam.available) return;
+    if (!exam.available || !authorized) return;
 
-    router.push(
-      "/exams/" + encodeURIComponent(exam.code)
-    );
+    router.push("/exams/" + encodeURIComponent(exam.code));
   }
 
-  function ExamSection({ title, subtitle, group, emoji }) {
-    const items = exams.filter(
-      (exam) => exam.group === group
-    );
-
-    if (!items.length) return null;
-
+  if (!authorized) {
     return (
-      <section style={{ marginBottom: "32px" }}>
-        <h2 style={{ marginBottom: "5px" }}>
-          {emoji} {title}
-        </h2>
-
-        <p className="muted" style={{ marginBottom: "16px" }}>
-          {subtitle}
-        </p>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(210px, 1fr))",
-            gap: "14px",
-          }}
-        >
-          {items.map((exam) => (
-            <button
-              key={exam.code}
-              type="button"
-              disabled={!exam.available}
-              onClick={() => openExam(exam)}
-              className="card"
-              style={{
-                textAlign: "left",
-                cursor: exam.available
-                  ? "pointer"
-                  : "default",
-                border: "1px solid #e2e8f0",
-                background: "#ffffff",
-                padding: "20px",
-                width: "100%",
-                minHeight: "140px",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-                gap: "14px",
-              }}
-            >
-              <div
-                style={{
-                  fontWeight: 700,
-                  fontSize: "17px",
-                  color: "#101820",
-                }}
-              >
-                {exam.name}
-              </div>
-
-              <div
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: exam.available
-                    ? "#0866c2"
-                    : "#64748b",
-                }}
-              >
-                {exam.available
-                  ? "Explore Exam →"
-                  : "Coming Soon"}
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
+      <main
+        className="wrap"
+        style={{ padding: "48px 20px", textAlign: "center" }}
+      >
+        <p>Checking login...</p>
+      </main>
     );
   }
 
@@ -324,6 +348,8 @@ export default function Dashboard() {
               subtitle="Staff Selection Commission"
               group="SSC"
               emoji="📘"
+              exams={exams}
+              onOpen={openExam}
             />
 
             <ExamSection
@@ -331,6 +357,8 @@ export default function Dashboard() {
               subtitle="Uttar Pradesh Police Recruitment"
               group="UP Police"
               emoji="🛡️"
+              exams={exams}
+              onOpen={openExam}
             />
 
             <ExamSection
@@ -338,6 +366,8 @@ export default function Dashboard() {
               subtitle="Railway Recruitment Board"
               group="Railway"
               emoji="🚆"
+              exams={exams}
+              onOpen={openExam}
             />
 
             <ExamSection
@@ -345,6 +375,8 @@ export default function Dashboard() {
               subtitle="Additional competitive examinations"
               group="Other"
               emoji="📚"
+              exams={exams}
+              onOpen={openExam}
             />
           </>
         )}
