@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
 
 export default function ResultPage() {
@@ -477,20 +478,45 @@ export default function ResultPage() {
       : 0;
 
   return (
-    <>
+    <div style={{ position: "relative", minHeight: "100vh", background: "#f5f7fb" }}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 0,
+          pointerEvents: "none",
+          backgroundImage: "url('/jd-exambook-logo.png')",
+          backgroundPosition: "center center",
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "min(75vw, 75vh)",
+          opacity: 0.05,
+        }}
+      />
+      <div style={{ position: "relative", zIndex: 1 }}>
       {/* =================================================
           TOP NAV
       ================================================= */}
 
       <div style={navBar}>
 
-        <div>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+          <Image
+            src="/jd-exambook-logo.png"
+            alt="JD Exambook Logo"
+            width={46}
+            height={46}
+            priority
+            style={{ objectFit: "contain", borderRadius: "8px", flexShrink: 0 }}
+          />
+          <div>
           <div style={brand}>
             JD Exambook
           </div>
 
           <div style={navSubtitle}>
             Result & Performance Analysis
+          </div>
           </div>
         </div>
 
@@ -828,6 +854,7 @@ export default function ResultPage() {
                         value={
                           section.correct
                         }
+                        type="success"
                       />
 
                       <SmallMetric
@@ -835,6 +862,7 @@ export default function ResultPage() {
                         value={
                           section.wrong
                         }
+                        type="danger"
                       />
 
                       <SmallMetric
@@ -972,11 +1000,11 @@ export default function ResultPage() {
                         {section.attempted}
                       </td>
 
-                      <td style={td}>
+                      <td style={{ ...td, color: "#15803d", fontWeight: "800" }}>
                         {section.correct}
                       </td>
 
-                      <td style={td}>
+                      <td style={{ ...td, color: "#dc2626", fontWeight: "800" }}>
                         {section.wrong}
                       </td>
 
@@ -1293,7 +1321,8 @@ export default function ResultPage() {
         </button>
 
       </main>
-    </>
+      </div>
+    </div>
   );
 }
 
@@ -1369,6 +1398,7 @@ function Metric({
 function SmallMetric({
   label,
   value,
+  type,
 }) {
   return (
     <div style={smallMetric}>
@@ -1377,7 +1407,13 @@ function SmallMetric({
         {label}
       </div>
 
-      <div style={smallMetricValue}>
+      <div
+        style={{
+          ...smallMetricValue,
+          ...(type === "success" ? { color: "#15803d" } : {}),
+          ...(type === "danger" ? { color: "#dc2626" } : {}),
+        }}
+      >
         {value ?? 0}
       </div>
 
@@ -1502,7 +1538,7 @@ const percentageLabel = {
 };
 
 const card = {
-  background: "#ffffff",
+  background: "rgba(255,255,255,0.93)",
   border: "1px solid #e6eaf0",
   borderRadius: "16px",
   padding: "16px",
