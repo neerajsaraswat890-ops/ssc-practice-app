@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
 
 export default function TestPage() {
@@ -1709,11 +1710,24 @@ export default function TestPage() {
   return (
     <div style={pageShell}>
 
+      {/* Fixed, non-interactive full-screen brand watermark */}
+      <div aria-hidden="true" style={fullScreenWatermark} />
+
+
       {/* =================================================
           HEADER
       ================================================= */}
 
       <header style={topBar}>
+        <Image
+          src="/jd-exambook-logo.png"
+          alt="JD Exambook Logo"
+          width={40}
+          height={40}
+          priority
+          style={{ objectFit: "contain", borderRadius: "6px", flexShrink: 0, background: "#ffffff" }}
+        />
+
 
         <div style={timerBlock}>
 
@@ -2743,7 +2757,21 @@ function makeShortName(
   =========================================================
 */
 
+const fullScreenWatermark = {
+  position: "fixed",
+  inset: 0,
+  backgroundImage: 'url("/jd-exambook-logo.png")',
+  backgroundPosition: "center center",
+  backgroundRepeat: "no-repeat",
+  backgroundSize: "min(75vw, 560px) auto",
+  opacity: 0.05,
+  pointerEvents: "none",
+  zIndex: 1,
+};
+
 const pageShell = {
+  position: "relative",
+  isolation: "isolate",
   height: "100dvh",
   minHeight: "100vh",
 
@@ -2944,6 +2972,7 @@ const menuButton = {
 */
 
 const sectionStrip = {
+  position: "relative",
   flexShrink: 0,
 
   background:
@@ -3035,6 +3064,7 @@ const lockText = {
 */
 
 const statusStrip = {
+  position: "relative",
   flexShrink: 0,
 
   minHeight:
@@ -3150,6 +3180,9 @@ const overallCount = {
 */
 
 const questionScrollArea = {
+  position: "relative",
+  zIndex: 2,
+  background: "transparent",
   flex: 1,
 
   minHeight: 0,
@@ -3385,6 +3418,7 @@ const errorBox = {
 */
 
 const bottomBar = {
+  position: "relative",
   flexShrink: 0,
 
   minHeight:
