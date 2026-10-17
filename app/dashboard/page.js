@@ -3,85 +3,237 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import Image from "next/image";
 import { supabase } from "../../lib/supabase";
+
+const FALLBACK_EXAMS = [
+  { code: "SSC_CGL", name: "SSC CGL" },
+  { code: "SSC_CHSL", name: "SSC CHSL" },
+  { code: "SSC_CPO", name: "SSC CPO" },
+  { code: "SSC_GD", name: "SSC GD" },
+  { code: "SSC_STENO", name: "SSC Stenographer" },
+  { code: "UPP_CONSTABLE", name: "UP Police Constable" },
+  { code: "UPP_SI_CIVIL", name: "UP Police SI" },
+  { code: "UPP_MINISTERIAL", name: "UP Police Ministerial / ASI" },
+];
+
+const EXTRA_EXAMS = [
+  { code: "SSC_MTS", name: "SSC MTS", group: "SSC" },
+  { code: "SSC_SELECTION_POST", name: "SSC Selection Post", group: "SSC" },
+  { code: "RRB_NTPC", name: "RRB NTPC", group: "Railway" },
+  { code: "RRB_GROUP_D", name: "RRB Group D", group: "Railway" },
+  { code: "RRB_ALP", name: "RRB ALP", group: "Railway" },
+  { code: "RRB_TECHNICIAN", name: "RRB Technician", group: "Railway" },
+];
+
+function getGroup(code) {
+  if (code.startsWith("SSC_")) return "SSC";
+  if (code.startsWith("UPP_")) return "UP Police";
+  if (code.startsWith("RRB_")) return "Railway";
+  return "Other";
+}
+
+function getDisplayName(code, fallback) {
+  return (
+    FALLBACK_EXAMS.find((exam) => exam.code === code)?.name ||
+    fallback ||
+    code.replaceAll("_", " ")
+  );
+}
 
 export default function Dashboard() {
   const router = useRouter();
 
-  const [tests, setTests] = useState([]);
-  const [submittedTestIds, setSubmittedTestIds] = useState([]);
+  const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [logoutError, setLogoutError] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    loadDashboard();
+    let active = true;
+
+    async function loadExams() {
+      try {
+        const client = supabase();
+
+        const { data, error } = await client
+          .from("exams")
+          .select("*")
+          .eq("is_active", true);
+
+        if (error) throw error;
+
+        const normalized = (data || []).map((exam) => {
+          const code =
+            exam.exam_code || exam.code || "";
+
+          return {
+            code,
+            name: getDisplayName(
+              code,
+              exam.exam_name || exam.name
+            ),
+            group: getGroup(code),
+            available: true,
+          };
+        }).filter((exam) => exam.code);
+
+        const existingCodes = new Set(
+          normalized.map((exam) => exam.code)
+        );
+
+        const extras = EXTRA_EXAMS
+          .filter((exam) => !existingCodes.has(exam.code))
+          .map((exam) => ({
+            ...exam,
+            available: false,
+          }));
+
+        if (active) {
+          setExams([...normalized, ...extras]);
+        }
+      } catch (error) {
+        if (active) {
+          setExams([
+            ...FALLBACK_EXAMS.map((exam) => ({
+              ...exam,
+              group: getGroup(exam.code),
+              available: false,
+            })),
+            ...EXTRA_EXAMS.map((exam) => ({
+              ...exam,
+              available: false,
+            })),
+          ]);
+
+          setErrorMessage(
+            "Exam list could not be loaded. Please try again later."
+          );
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadExams();
+
+    return () => {
+      active = false;
+    };
   }, []);
-
-  async function loadDashboard() {
-    setLoading(true);
-
-    const client = supabase();
-
-    const { data: testsData } = await client
-      .from("tests")
-      .select("*")
-      .eq("status", "published")
-      .order("publish_at", { ascending: false });
-
-    const { data: attemptsData } = await client
-      .from("attempts")
-      .select("test_id,status")
-      .eq("status", "submitted");
-
-    setTests(testsData || []);
-
-    setSubmittedTestIds(
-      (attemptsData || []).map((a) => a.test_id)
-    );
-
-    setLoading(false);
-  }
 
   async function handleLogout() {
     if (loggingOut) return;
 
     setLoggingOut(true);
-    setLogoutError("");
+    setErrorMessage("");
 
-    try {
-      const { error } = await supabase().auth.signOut();
+    const { error } = await supabase().auth.signOut();
 
-      if (error) {
-        setLogoutError(error.message);
-        setLoggingOut(false);
-        return;
-      }
-
-      router.replace("/login");
-      router.refresh();
-    } catch (error) {
-      setLogoutError(
-        error?.message || "Unable to logout. Please try again."
-      );
+    if (error) {
+      setErrorMessage(error.message);
       setLoggingOut(false);
+      return;
     }
+
+    router.replace("/login");
+    router.refresh();
   }
 
-  function isSubmitted(testId) {
-    return submittedTestIds.includes(testId);
+  function openExam(exam) {
+    if (!exam.available) return;
+
+    router.push(
+      "/exams/" + encodeURIComponent(exam.code)
+    );
   }
 
-  function DashboardHeader() {
+  function ExamSection({ title, subtitle, group, emoji }) {
+    const items = exams.filter(
+      (exam) => exam.group === group
+    );
+
+    if (!items.length) return null;
+
     return (
-      <div
+      <section style={{ marginBottom: "32px" }}>
+        <h2 style={{ marginBottom: "5px" }}>
+          {emoji} {title}
+        </h2>
+
+        <p className="muted" style={{ marginBottom: "16px" }}>
+          {subtitle}
+        </p>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(210px, 1fr))",
+            gap: "14px",
+          }}
+        >
+          {items.map((exam) => (
+            <button
+              key={exam.code}
+              type="button"
+              disabled={!exam.available}
+              onClick={() => openExam(exam)}
+              className="card"
+              style={{
+                textAlign: "left",
+                cursor: exam.available
+                  ? "pointer"
+                  : "default",
+                border: "1px solid #e2e8f0",
+                background: "#ffffff",
+                padding: "20px",
+                width: "100%",
+                minHeight: "140px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                gap: "14px",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: "17px",
+                  color: "#101820",
+                }}
+              >
+                {exam.name}
+              </div>
+
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: exam.available
+                    ? "#0866c2"
+                    : "#64748b",
+                }}
+              >
+                {exam.available
+                  ? "Explore Exam →"
+                  : "Coming Soon"}
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      <header
         className="nav"
         style={{
           display: "flex",
-          alignItems: "center",
           justifyContent: "space-between",
+          alignItems: "center",
           gap: "12px",
           flexWrap: "wrap",
         }}
@@ -95,34 +247,23 @@ export default function Dashboard() {
         >
           <Image
             src="/jd-exambook-logo.png"
-            alt="JD Exambook Logo"
+            alt="JD Exambook"
             width={48}
             height={48}
             priority
-            style={{
-              objectFit: "contain",
-              background: "white",
-              borderRadius: "8px",
-            }}
           />
 
           <div>
             <div
               style={{
                 fontSize: "19px",
-                fontWeight: "700",
-                lineHeight: "1.3",
+                fontWeight: 700,
               }}
             >
               JD Exambook
             </div>
 
-            <div
-              style={{
-                fontSize: "12px",
-                opacity: 0.85,
-              }}
-            >
+            <div style={{ fontSize: "12px" }}>
               Student Dashboard
             </div>
           </div>
@@ -135,132 +276,78 @@ export default function Dashboard() {
           style={{
             padding: "10px 16px",
             borderRadius: "8px",
-            border: "1px solid rgba(255,255,255,0.5)",
-            background: "rgba(255,255,255,0.12)",
-            color: "#ffffff",
-            fontWeight: "700",
-            fontSize: "13px",
-            cursor: loggingOut ? "wait" : "pointer",
-            opacity: loggingOut ? 0.6 : 1,
+            background: "#101820",
+            color: "white",
+            border: "1px solid #64748b",
+            cursor: "pointer",
+            fontWeight: 700,
           }}
         >
-          {loggingOut ? "Logging out..." : "↪ Logout"}
+          {loggingOut ? "Logging out..." : "Logout"}
         </button>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <>
-        <DashboardHeader />
-
-        <main className="wrap">
-          {logoutError && (
-            <div
-              role="alert"
-              style={{ color: "#dc2626", marginBottom: "12px" }}
-            >
-              {logoutError}
-            </div>
-          )}
-
-          <div className="card">
-            Loading dashboard...
-          </div>
-        </main>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <DashboardHeader />
+      </header>
 
       <main className="wrap">
-        {logoutError && (
-          <div
-            role="alert"
-            style={{
-              color: "#dc2626",
-              marginBottom: "12px",
-              fontWeight: "600",
-            }}
-          >
-            {logoutError}
-          </div>
-        )}
+        <div
+          className="card"
+          style={{
+            padding: "24px",
+            marginBottom: "28px",
+            background:
+              "linear-gradient(120deg, #e8f7ef, #eaf2ff)",
+          }}
+        >
+          <h1 style={{ marginBottom: "8px", color: "#101820" }}>
+            Choose Your Examination
+          </h1>
 
-        <div className="card hero">
-          <h2>Today's Test</h2>
-
-          {tests[0] ? (
-            <>
-              <h3>{tests[0].title}</h3>
-
-              <p>
-                {tests[0].total_questions} Questions •{" "}
-                {tests[0].duration_minutes} Minutes
-              </p>
-
-              {isSubmitted(tests[0].id) ? (
-                <Link href={"/result/" + tests[0].id}>
-                  <button className="btn">
-                    View Result
-                  </button>
-                </Link>
-              ) : (
-                <Link href={"/instructions/" + tests[0].id}>
-                  <button className="btn">
-                    Start Test
-                  </button>
-                </Link>
-              )}
-            </>
-          ) : (
-            <p>No published test yet.</p>
-          )}
+          <p style={{ color: "#475569", margin: 0 }}>
+            Select your exam to explore practice,
+            previous year papers and mock tests.
+          </p>
         </div>
 
-        <h2>Previous Tests</h2>
+        {errorMessage && (
+          <p role="alert" style={{ color: "#b91c1c" }}>
+            {errorMessage}
+          </p>
+        )}
 
-        {tests.map((t) => (
-          <div className="card top" key={t.id}>
-            <div>
-              <b>{t.title}</b>
-
-              <div className="muted">
-                {t.total_questions} questions
-              </div>
-
-              {isSubmitted(t.id) && (
-                <div
-                  style={{
-                    marginTop: "6px",
-                    fontWeight: "700",
-                    color: "#15803d",
-                  }}
-                >
-                  ✓ Submitted
-                </div>
-              )}
-            </div>
-
-            {isSubmitted(t.id) ? (
-              <Link href={"/result/" + t.id}>
-                <button className="btn">
-                  View Result
-                </button>
-              </Link>
-            ) : (
-              <Link href={"/instructions/" + t.id}>
-                <button className="btn btn2">
-                  Open
-                </button>
-              </Link>
-            )}
+        {loading ? (
+          <div className="card">
+            Loading examinations...
           </div>
-        ))}
+        ) : (
+          <>
+            <ExamSection
+              title="SSC Examinations"
+              subtitle="Staff Selection Commission"
+              group="SSC"
+              emoji="📘"
+            />
+
+            <ExamSection
+              title="UP Police Examinations"
+              subtitle="Uttar Pradesh Police Recruitment"
+              group="UP Police"
+              emoji="🛡️"
+            />
+
+            <ExamSection
+              title="Railway Examinations"
+              subtitle="Railway Recruitment Board"
+              group="Railway"
+              emoji="🚆"
+            />
+
+            <ExamSection
+              title="Other Examinations"
+              subtitle="Additional competitive examinations"
+              group="Other"
+              emoji="📚"
+            />
+          </>
+        )}
       </main>
     </>
   );
