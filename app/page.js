@@ -67,7 +67,7 @@ export default function HomePage() {
         </nav>
       </header>
 
-      {/* Hero with visible background watermark */}
+      {/* Hero Section */}
       <section className="jd-hero">
         <div className="jd-watermark" aria-hidden="true">
           <Image
@@ -96,7 +96,10 @@ export default function HomePage() {
             developed for JD Exambook.
           </p>
 
-          <Link href="/login" className="jd-btn jd-primary jd-cta">
+          <Link
+            href="/login"
+            className="jd-btn jd-primary jd-cta"
+          >
             Get Started
           </Link>
         </div>
@@ -105,24 +108,28 @@ export default function HomePage() {
       {/* SSC Exams */}
       <section className="jd-section">
         <h2>Explore SSC Exams</h2>
+
         <p className="jd-subtitle">
           Choose your examination to explore available
-          preparation sections.
+          preparation sections. Login or register to continue.
         </p>
 
         <div className="jd-grid">
           {exams.map((exam) => (
             <Link
               key={exam.code}
-              href={`/exams/${exam.code}`}
+              href="/login"
               className="jd-card jd-exam-card"
             >
               <div className="jd-card-icon">📘</div>
+
               <h3>{exam.name}</h3>
+
               <p>
                 Explore exam details and preparation
-                sections.
+                sections after login.
               </p>
+
               <span className="jd-card-link">
                 Explore Exam →
               </span>
@@ -134,6 +141,7 @@ export default function HomePage() {
       {/* Subject-wise Practice */}
       <section className="jd-section jd-soft-section">
         <h2>Subject-wise Practice</h2>
+
         <p className="jd-subtitle">
           Our SSC question banks are under development.
           Practice features will be available soon.
@@ -148,10 +156,13 @@ export default function HomePage() {
               <div className="jd-subject-icon">
                 {subject.symbol}
               </div>
+
               <h3>{subject.name}</h3>
+
               <p>
                 Chapter-wise and topic-wise practice
               </p>
+
               <span className="jd-coming">
                 Coming Soon
               </span>
@@ -163,6 +174,7 @@ export default function HomePage() {
       {/* Upcoming Features */}
       <section className="jd-section">
         <h2>More Preparation Features</h2>
+
         <p className="jd-subtitle">
           More learning and practice options are
           being developed.
@@ -175,10 +187,13 @@ export default function HomePage() {
               className="jd-card"
             >
               <div className="jd-card-icon">📚</div>
+
               <h3>{feature}</h3>
+
               <p>
                 This feature is under development.
               </p>
+
               <span className="jd-coming">
                 Coming Soon
               </span>
@@ -190,11 +205,16 @@ export default function HomePage() {
       {/* Call to Action */}
       <section className="jd-bottom-cta">
         <h2>Start Your Preparation Journey</h2>
+
         <p>
           Create your JD Exambook account to explore
           exam preparation sections.
         </p>
-        <Link href="/login" className="jd-btn jd-primary jd-cta">
+
+        <Link
+          href="/login"
+          className="jd-btn jd-primary jd-cta"
+        >
           Login / Register
         </Link>
       </section>
