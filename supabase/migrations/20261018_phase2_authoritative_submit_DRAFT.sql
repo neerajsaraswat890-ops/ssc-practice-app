@@ -22,6 +22,7 @@ DECLARE
   v_max_marks numeric := 0;
   v_percentage numeric := 0;
   v_expired boolean := false;
+  v_result_status text;
 BEGIN
   IF v_user IS NULL THEN
     RAISE EXCEPTION 'Authentication required';
@@ -103,15 +104,6 @@ BEGIN
       LEFT JOIN ordered_sections sec
         ON tq.question_order BETWEEN sec.start_order AND sec.end_order
      WHERE tq.test_id = p_test_id
-  ), updated AS (
-    UPDATE public.student_answers sa
-       SET is_correct = CASE
-         WHEN g.selected_answer IS NULL THEN NULL
-         ELSE upper(g.selected_answer::text) = upper(g.correct_answer::text)
-       END
-      FROM grading g
-     WHERE sa.attempt_id = v_attempt.id AND sa.question_id = g.question_id
-    RETURNING sa.question_id
   )
   SELECT count(*) FILTER (WHERE g.selected_answer IS NOT NULL
                             AND upper(g.selected_answer::text) = upper(g.correct_answer::text)),
@@ -127,16 +119,25 @@ BEGIN
     INTO v_correct, v_wrong, v_unanswered, v_review, v_score, v_max_marks
     FROM grading g;
 
-  -- NOTE: The preceding CTE's grading is statement-scoped and cannot be
-  -- reused after a separate statement. Keep grading + update + aggregate
-  -- in the same WITH statement, as written above.
+  -- Persist correctness after aggregation. Missing answers stay NULL.
+  UPDATE public.student_answers sa
+     SET is_correct = CASE
+       WHEN sa.selected_answer IS NULL THEN NULL
+       ELSE upper(sa.selected_answer::text) = upper(q.correct_answer::text)
+     END
+    FROM public.questions q
+   WHERE sa.attempt_id = v_attempt.id AND sa.question_id = q.id;
+
   IF v_max_marks > 0 THEN
     v_percentage := (v_score / v_max_marks) * 100;
   END IF;
 
+  -- Preserve the current frontend result-page contract: submitted status.
+  -- Server expiry is recorded by the actual timestamp, not a client flag.
+  v_result_status := 'submitted';
   UPDATE public.attempts SET
     submitted_at = now(),
-    status = CASE WHEN v_expired THEN 'auto_submitted' ELSE 'submitted' END,
+    status = v_result_status,
     correct_count = v_correct,
     wrong_count = v_wrong,
     unanswered_count = v_unanswered,
@@ -151,7 +152,7 @@ BEGIN
     'marked_for_review',v_review,
     'score',v_score,'percentage',round(v_percentage,2),
     'maximum_marks',v_max_marks,
-    'status',CASE WHEN v_expired THEN 'auto_submitted' ELSE 'submitted' END
+    'status',v_result_status
   );
 END;
 $function$;
