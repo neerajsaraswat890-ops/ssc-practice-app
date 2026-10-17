@@ -52,15 +52,41 @@ export default function ExamPage() {
   );
 
   const [checking, setChecking] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
   const [validExam, setValidExam] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     let active = true;
+    const client = supabase();
 
-    async function checkExam() {
+    async function checkAccessAndExam() {
+      setChecking(true);
+      setAuthorized(false);
+      setValidExam(false);
+      setErrorMessage("");
+
       try {
-        const { data, error } = await supabase()
+        // Step 1: Verify the logged-in user.
+        const { data: authData, error: authError } =
+          await client.auth.getUser();
+
+        if (!active) return;
+
+        if (
+          authError ||
+          !authData?.user ||
+          authData.user.is_anonymous
+        ) {
+          router.replace("/login");
+          return;
+        }
+
+        setAuthorized(true);
+
+        // Step 2: Load the selected examination.
+        const { data, error } = await client
           .from("exams")
           .select("*")
           .eq("exam_code", code)
@@ -86,7 +112,7 @@ export default function ExamPage() {
       } catch (error) {
         if (active) {
           setErrorMessage(
-            "Unable to load examination. Please try again."
+            "Unable to verify your account or load examination."
           );
         }
       } finally {
@@ -94,22 +120,50 @@ export default function ExamPage() {
       }
     }
 
-    checkExam();
+    checkAccessAndExam();
 
     return () => {
       active = false;
     };
-  }, [code]);
+  }, [code, router]);
 
   async function handleLogout() {
-    const { error } = await supabase().auth.signOut();
+    if (loggingOut) return;
 
-    if (!error) {
+    setLoggingOut(true);
+    setErrorMessage("");
+
+    try {
+      const { error } = await supabase().auth.signOut();
+
+      if (error) {
+        setErrorMessage(error.message);
+        setLoggingOut(false);
+        return;
+      }
+
+      setAuthorized(false);
       router.replace("/login");
       router.refresh();
-    } else {
-      setErrorMessage(error.message);
+    } catch (error) {
+      setErrorMessage("Unable to log out. Please try again.");
+      setLoggingOut(false);
     }
+  }
+
+  // Do not display examination content without login.
+  if (!authorized) {
+    return (
+      <main
+        className="wrap"
+        style={{
+          padding: "48px 20px",
+          textAlign: "center",
+        }}
+      >
+        <p>Checking login...</p>
+      </main>
+    );
   }
 
   return (
@@ -147,9 +201,10 @@ export default function ExamPage() {
         <button
           type="button"
           onClick={handleLogout}
+          disabled={loggingOut}
           className="btn btn2"
         >
-          Logout
+          {loggingOut ? "Logging out..." : "Logout"}
         </button>
       </header>
 
