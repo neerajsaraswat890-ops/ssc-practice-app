@@ -39,6 +39,7 @@ export default function TestPage() {
   const refreshingState = useRef(false);
   const questionScrollRef = useRef(null);
   const saveQueues = useRef({});
+  const failedSaves = useRef({});
 
   const answerKey = `jd_answers_${id}`;
   const reviewKey = `jd_review_${id}`;
@@ -593,102 +594,69 @@ export default function TestPage() {
     selectedAnswer,
     markedForReview
   ) {
-    const key =
-      String(questionId);
+    const key = String(questionId);
+    const previous = saveQueues.current[key] || Promise.resolve();
 
-    const previous =
-      saveQueues.current[
-        key
-      ] ||
-      Promise.resolve();
+    const next = previous
+      .catch(() => {})
+      .then(async () => {
+        setSaving(true);
+        const payload = {
+          p_test_id: Number(id),
+          p_question_id: Number(questionId),
+          p_selected_answer: selectedAnswer || null,
+          p_marked_for_review: Boolean(markedForReview),
+        };
 
-    const next =
-      previous
-        .catch(() => {})
-        .then(async () => {
-          setSaving(true);
+        // Keep the latest unsaved value so submit can retry it.
+        failedSaves.current[key] = payload;
+        const { error } = await supabase().rpc("save_test_response", payload);
+        if (error) {
+          console.error("Autosave error:", error);
+          setError("Answer locally saved है, लेकिन server autosave में समस्या आई।");
+          throw error;
+        }
+        if (failedSaves.current[key] === payload) {
+          delete failedSaves.current[key];
+        }
+      })
+      .finally(() => {
+        if (saveQueues.current[key] === next) {
+          delete saveQueues.current[key];
+        }
+        if (Object.keys(saveQueues.current).length === 0) {
+          setSaving(false);
+        }
+      });
 
-          const {
-            error,
-          } = await supabase().rpc(
-            "save_test_response",
-            {
-              p_test_id:
-                Number(id),
-
-              p_question_id:
-                Number(
-                  questionId
-                ),
-
-              p_selected_answer:
-                selectedAnswer ||
-                null,
-
-              p_marked_for_review:
-                Boolean(
-                  markedForReview
-                ),
-            }
-          );
-
-          if (error) {
-            console.error(
-              "Autosave error:",
-              error
-            );
-
-            setError(
-              "Answer locally saved है, लेकिन server autosave में समस्या आई।"
-            );
-          }
-        })
-        .finally(() => {
-          if (
-            saveQueues.current[
-              key
-            ] === next
-          ) {
-            delete saveQueues
-              .current[
-                key
-              ];
-          }
-
-          if (
-            Object.keys(
-              saveQueues.current
-            ).length === 0
-          ) {
-            setSaving(false);
-          }
-        });
-
-    saveQueues.current[
-      key
-    ] = next;
-
+    saveQueues.current[key] = next;
     return next;
   }
 
   async function waitForPendingSaves() {
-    const pending =
-      Object.values(
-        saveQueues.current
-      );
-
-    if (
-      pending.length === 0
-    ) {
-      return;
+    // Wait until all queued saves have settled, including saves queued
+    // while earlier requests were in flight.
+    while (Object.keys(saveQueues.current).length > 0) {
+      await Promise.allSettled(Object.values(saveQueues.current));
     }
 
-    await Promise.allSettled(
-      pending
-    );
+    // Retry any failed latest values before accepting a final submission.
+    const failed = Object.values(failedSaves.current);
+    for (const payload of failed) {
+      const { error } = await supabase().rpc("save_test_response", payload);
+      if (error) {
+        console.error("Autosave retry failed:", error);
+        return false;
+      }
+      const key = String(payload.p_question_id);
+      if (failedSaves.current[key] === payload) {
+        delete failedSaves.current[key];
+      }
+    }
+    return Object.keys(failedSaves.current).length === 0;
   }
 
-  /*
+    /*
     =====================================================
     LANGUAGE
     =====================================================
@@ -1186,7 +1154,12 @@ export default function TestPage() {
     setChangingSection(true);
     setError("");
 
-    await waitForPendingSaves();
+    const allSaved = await waitForPendingSaves();
+    if (!allSaved) {
+      setError("Server पर सभी उत्तर Save नहीं हुए हैं। Internet जाँचकर फिर Submit करें।");
+      setChangingSection(false);
+      return;
+    }
 
     const {
       data,
@@ -1320,7 +1293,12 @@ export default function TestPage() {
     setSubmitting(true);
     setError("");
 
-    await waitForPendingSaves();
+    const allSaved = await waitForPendingSaves();
+    if (!allSaved) {
+      setError("Server पर सभी उत्तर Save नहीं हुए हैं। Internet जाँचकर फिर Submit करें।");
+      setChangingSection(false);
+      return;
+    }
 
     const {
       data,
