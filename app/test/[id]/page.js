@@ -1296,7 +1296,8 @@ export default function TestPage() {
     const allSaved = await waitForPendingSaves();
     if (!allSaved) {
       setError("Server पर सभी उत्तर Save नहीं हुए हैं। Internet जाँचकर फिर Submit करें।");
-      setChangingSection(false);
+      setSubmitting(false);
+      autoSubmitting.current = false;
       return;
     }
 
