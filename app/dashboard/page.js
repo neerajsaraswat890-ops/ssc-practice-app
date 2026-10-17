@@ -1,7 +1,9 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { supabase } from "../../lib/supabase";
 
 export default function Dashboard() {
@@ -42,12 +44,57 @@ export default function Dashboard() {
     return submittedTestIds.includes(testId);
   }
 
+  function DashboardHeader() {
+    return (
+      <div
+        className="nav"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+        }}
+      >
+        <Image
+          src="/jd-exambook-logo.png"
+          alt="JD Exambook Logo"
+          width={48}
+          height={48}
+          priority
+          style={{
+            objectFit: "contain",
+            background: "white",
+            borderRadius: "8px",
+          }}
+        />
+
+        <div>
+          <div
+            style={{
+              fontSize: "19px",
+              fontWeight: "700",
+              lineHeight: "1.3",
+            }}
+          >
+            JD Exambook
+          </div>
+
+          <div
+            style={{
+              fontSize: "12px",
+              opacity: 0.85,
+            }}
+          >
+            Student Dashboard
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <>
-        <div className="nav">
-          JD Exambook • Student Dashboard
-        </div>
+        <DashboardHeader />
 
         <main className="wrap">
           <div className="card">
@@ -60,12 +107,9 @@ export default function Dashboard() {
 
   return (
     <>
-      <div className="nav">
-        JD Exambook • Student Dashboard
-      </div>
+      <DashboardHeader />
 
       <main className="wrap">
-
         <div className="card hero">
           <h2>Today's Test</h2>
 
@@ -136,7 +180,6 @@ export default function Dashboard() {
             )}
           </div>
         ))}
-
       </main>
     </>
   );
