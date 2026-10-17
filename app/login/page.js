@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -8,28 +9,68 @@ import { supabase } from "../../lib/supabase";
 export default function LoginPage() {
   const router = useRouter();
 
+  const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [state, setState] = useState("");
+  const [targetExam, setTargetExam] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function signUp() {
-    if (!email || !password) {
-      setMessage("Please enter email and password.");
+  function changeMode(nextMode) {
+    setMode(nextMode);
+    setMessage("");
+    setPassword("");
+    setConfirmPassword("");
+  }
+
+  async function signUp(e) {
+    e.preventDefault();
+
+    if (
+      !fullName.trim() ||
+      !email.trim() ||
+      !mobile.trim() ||
+      !state ||
+      !targetExam ||
+      !password ||
+      !confirmPassword
+    ) {
+      setMessage("Please fill in all required fields.");
+      return;
+    }
+
+    if (!/^[0-9]{10}$/.test(mobile.trim())) {
+      setMessage("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setMessage("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setMessage("Passwords do not match.");
       return;
     }
 
     setLoading(true);
     setMessage("");
 
-    const { error } = await supabase().auth.signUp({
-      email,
+    const { data, error } = await supabase().auth.signUp({
+      email: email.trim().toLowerCase(),
       password,
       options: {
         data: {
-          full_name: fullName,
+          full_name: fullName.trim(),
+          mobile_number: mobile.trim(),
+          state,
+          target_exam: targetExam,
         },
       },
     });
@@ -40,15 +81,24 @@ export default function LoginPage() {
       return;
     }
 
-    setMessage(
-      "Account created. If email confirmation is enabled, please check your email."
-    );
+    if (data?.session) {
+      router.replace("/dashboard");
+      return;
+    }
 
+    setMessage(
+      "Account created! Please check your email and verify your account before logging in."
+    );
+    setMode("login");
+    setPassword("");
+    setConfirmPassword("");
     setLoading(false);
   }
 
-  async function signIn() {
-    if (!email || !password) {
+  async function signIn(e) {
+    e.preventDefault();
+
+    if (!email.trim() || !password) {
       setMessage("Please enter email and password.");
       return;
     }
@@ -57,7 +107,7 @@ export default function LoginPage() {
     setMessage("");
 
     const { error } = await supabase().auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     });
 
@@ -67,7 +117,32 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    router.replace("/dashboard");
+  }
+
+  async function resetPassword() {
+    if (!email.trim()) {
+      setMessage("Please enter your email address first.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+
+    const { error } = await supabase().auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+      {
+        redirectTo: `${window.location.origin}/login`,
+      }
+    );
+
+    setMessage(
+      error
+        ? error.message
+        : "If this email is registered, a password reset link will be sent. Please check your inbox."
+    );
+
+    setLoading(false);
   }
 
   async function continueAsGuest() {
@@ -82,8 +157,21 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    router.replace("/dashboard");
   }
+
+  const inputStyle = {
+    width: "100%",
+    boxSizing: "border-box",
+    marginBottom: "12px",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontWeight: 600,
+    marginBottom: "6px",
+    fontSize: "14px",
+  };
 
   return (
     <>
@@ -101,17 +189,10 @@ export default function LoginPage() {
           width={44}
           height={44}
           priority
-          style={{
-            objectFit: "contain",
-          }}
+          style={{ objectFit: "contain" }}
         />
 
-        <span
-          style={{
-            fontWeight: 700,
-            fontSize: "20px",
-          }}
-        >
+        <span style={{ fontWeight: 700, fontSize: "20px" }}>
           JD Exambook
         </span>
       </div>
@@ -133,8 +214,8 @@ export default function LoginPage() {
             <Image
               src="/jd-exambook-logo.png"
               alt="JD Exambook Logo"
-              width={150}
-              height={150}
+              width={140}
+              height={140}
               priority
               style={{
                 objectFit: "contain",
@@ -142,13 +223,10 @@ export default function LoginPage() {
               }}
             />
 
-            <h1
-              style={{
-                marginTop: "10px",
-                marginBottom: "6px",
-              }}
-            >
-              Login / Sign Up
+            <h1 style={{ margin: "10px 0 6px" }}>
+              {mode === "login"
+                ? "Login to JD Exambook"
+                : "Create Your Account"}
             </h1>
 
             <p className="muted">
@@ -156,101 +234,305 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <label>Full Name</label>
-
-          <input
-            className="input"
-            type="text"
-            placeholder="Your name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-          />
-
-          <label>Email</label>
-
-          <input
-            className="input"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-
-          <label>Password</label>
-
-          <input
-            className="input"
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-
-          {message && (
-            <p
-              style={{
-                marginTop: "10px",
-                marginBottom: "18px",
-              }}
-            >
-              {message}
-            </p>
-          )}
-
           <div
             style={{
               display: "grid",
-              gap: "12px",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "8px",
+              marginBottom: "22px",
             }}
           >
             <button
+              type="button"
               className="btn"
-              disabled={loading}
-              onClick={signIn}
+              onClick={() => changeMode("login")}
+              style={{
+                opacity: mode === "login" ? 1 : 0.6,
+              }}
             >
-              {loading ? "Please wait..." : "Login"}
+              Login
             </button>
 
             <button
-              className="btn btn2"
-              disabled={loading}
-              onClick={signUp}
-            >
-              Create Account
-            </button>
-
-            <div
-              style={{
-                textAlign: "center",
-                color: "#667085",
-                margin: "5px 0",
-              }}
-            >
-              OR
-            </div>
-
-            <button
+              type="button"
               className="btn"
-              disabled={loading}
-              onClick={continueAsGuest}
+              onClick={() => changeMode("signup")}
               style={{
-                background: "#1f7a4d",
+                opacity: mode === "signup" ? 1 : 0.6,
               }}
             >
-              👤 Continue as Guest
+              Sign Up
             </button>
           </div>
 
-          <p
-            className="muted"
-            style={{
-              marginTop: "20px",
-              fontSize: "14px",
-            }}
+          <form
+            onSubmit={mode === "login" ? signIn : signUp}
           >
-            Guest mode is for quick testing. Guest progress may be lost if
-            browser data is cleared or the guest session is removed.
-          </p>
+            {mode === "signup" && (
+              <>
+                <label style={labelStyle}>
+                  Full Name *
+                </label>
+                <input
+                  className="input"
+                  style={inputStyle}
+                  type="text"
+                  autoComplete="name"
+                  placeholder="Enter your full name"
+                  value={fullName}
+                  onChange={(e) =>
+                    setFullName(e.target.value)
+                  }
+                  required
+                />
+
+                <label style={labelStyle}>
+                  Mobile Number *
+                </label>
+                <input
+                  className="input"
+                  style={inputStyle}
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="10-digit mobile number"
+                  value={mobile}
+                  onChange={(e) =>
+                    setMobile(
+                      e.target.value.replace(/\D/g, "")
+                    )
+                  }
+                  required
+                />
+
+                <label style={labelStyle}>
+                  State *
+                </label>
+                <select
+                  className="input"
+                  style={inputStyle}
+                  value={state}
+                  onChange={(e) =>
+                    setState(e.target.value)
+                  }
+                  required
+                >
+                  <option value="">Select State / UT</option>
+                  {[
+                    "Andhra Pradesh",
+                    "Arunachal Pradesh",
+                    "Assam",
+                    "Bihar",
+                    "Chhattisgarh",
+                    "Goa",
+                    "Gujarat",
+                    "Haryana",
+                    "Himachal Pradesh",
+                    "Jharkhand",
+                    "Karnataka",
+                    "Kerala",
+                    "Madhya Pradesh",
+                    "Maharashtra",
+                    "Manipur",
+                    "Meghalaya",
+                    "Mizoram",
+                    "Nagaland",
+                    "Odisha",
+                    "Punjab",
+                    "Rajasthan",
+                    "Sikkim",
+                    "Tamil Nadu",
+                    "Telangana",
+                    "Tripura",
+                    "Uttar Pradesh",
+                    "Uttarakhand",
+                    "West Bengal",
+                    "Andaman and Nicobar Islands",
+                    "Chandigarh",
+                    "Dadra and Nagar Haveli and Daman and Diu",
+                    "Delhi",
+                    "Jammu and Kashmir",
+                    "Ladakh",
+                    "Lakshadweep",
+                    "Puducherry",
+                  ].map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+
+                <label style={labelStyle}>
+                  Preparing For *
+                </label>
+                <select
+                  className="input"
+                  style={inputStyle}
+                  value={targetExam}
+                  onChange={(e) =>
+                    setTargetExam(e.target.value)
+                  }
+                  required
+                >
+                  <option value="">
+                    Select Target Exam
+                  </option>
+                  <option value="SSC CGL">SSC CGL</option>
+                  <option value="SSC CHSL">SSC CHSL</option>
+                  <option value="SSC Stenographer">
+                    SSC Stenographer
+                  </option>
+                  <option value="SSC CPO">SSC CPO</option>
+                  <option value="SSC GD">SSC GD</option>
+                  <option value="SSC MTS">SSC MTS</option>
+                  <option value="SSC Selection Post">
+                    SSC Selection Post
+                  </option>
+                  <option value="Railway">Railway</option>
+                  <option value="Other">Other</option>
+                </select>
+              </>
+            )}
+
+            <label style={labelStyle}>
+              Email Address *
+            </label>
+            <input
+              className="input"
+              style={inputStyle}
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
+              required
+            />
+
+            <label style={labelStyle}>
+              Password *
+            </label>
+            <input
+              className="input"
+              style={inputStyle}
+              type="password"
+              autoComplete={
+                mode === "login"
+                  ? "current-password"
+                  : "new-password"
+              }
+              minLength={6}
+              placeholder="Enter password"
+              value={password}
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
+              required
+            />
+
+            {mode === "signup" && (
+              <>
+                <label style={labelStyle}>
+                  Confirm Password *
+                </label>
+                <input
+                  className="input"
+                  style={inputStyle}
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={6}
+                  placeholder="Confirm password"
+                  value={confirmPassword}
+                  onChange={(e) =>
+                    setConfirmPassword(e.target.value)
+                  }
+                  required
+                />
+              </>
+            )}
+
+            {message && (
+              <p
+                role="status"
+                style={{
+                  margin: "10px 0 18px",
+                  color: "#334155",
+                  lineHeight: 1.5,
+                }}
+              >
+                {message}
+              </p>
+            )}
+
+            <button
+              className="btn"
+              type="submit"
+              disabled={loading}
+              style={{ width: "100%" }}
+            >
+              {loading
+                ? "Please wait..."
+                : mode === "login"
+                ? "Login"
+                : "Create Account"}
+            </button>
+          </form>
+
+          {mode === "login" && (
+            <>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={resetPassword}
+                style={{
+                  display: "block",
+                  margin: "14px auto",
+                  background: "none",
+                  border: "none",
+                  color: "#2563eb",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                Forgot Password?
+              </button>
+
+              <div
+                style={{
+                  textAlign: "center",
+                  color: "#667085",
+                  margin: "14px 0",
+                }}
+              >
+                OR
+              </div>
+
+              <button
+                className="btn"
+                type="button"
+                disabled={loading}
+                onClick={continueAsGuest}
+                style={{
+                  width: "100%",
+                  background: "#1f7a4d",
+                }}
+              >
+                Continue as Guest
+              </button>
+
+              <p
+                className="muted"
+                style={{
+                  marginTop: "16px",
+                  fontSize: "13px",
+                }}
+              >
+                Guest progress may be lost if the browser
+                data or guest session is removed.
+              </p>
+            </>
+          )}
         </div>
       </main>
     </>
