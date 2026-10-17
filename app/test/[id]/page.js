@@ -1294,11 +1294,17 @@ export default function TestPage() {
     setError("");
 
     const allSaved = await waitForPendingSaves();
-    if (!allSaved) {
+    if (!allSaved && !automatic) {
       setError("Server पर सभी उत्तर Save नहीं हुए हैं। Internet जाँचकर फिर Submit करें।");
       setSubmitting(false);
       autoSubmitting.current = false;
       return;
+    }
+    // After the server timer expires, pending client saves may be rejected.
+    // Finalize the server-accepted answers instead of leaving the attempt open.
+    // This requires submit_test to grade server-saved answers only.
+    if (!allSaved && automatic) {
+      setError("समय समाप्त हो गया है। Server पर सुरक्षित उत्तरों से Result तैयार किया जा रहा है।");
     }
 
     const {
