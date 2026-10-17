@@ -1,8 +1,55 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
+
+function PageHeader() {
+  return (
+    <div
+      className="nav"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+      }}
+    >
+      <Image
+        src="/jd-exambook-logo.png"
+        alt="JD Exambook Logo"
+        width={46}
+        height={46}
+        priority
+        style={{
+          objectFit: "contain",
+          borderRadius: "8px",
+        }}
+      />
+
+      <div>
+        <div
+          style={{
+            fontSize: "19px",
+            fontWeight: 700,
+            lineHeight: 1.3,
+          }}
+        >
+          JD Exambook
+        </div>
+        <div
+          style={{
+            fontSize: "12px",
+            opacity: 0.85,
+          }}
+        >
+          Test Instructions
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function InstructionsPage() {
   const { id } = useParams();
@@ -19,8 +66,7 @@ export default function InstructionsPage() {
   useEffect(() => {
     async function loadTest() {
       try {
-        const savedLanguage =
-          localStorage.getItem(languageKey);
+        const savedLanguage = localStorage.getItem(languageKey);
 
         if (
           savedLanguage === "english" ||
@@ -63,10 +109,7 @@ export default function InstructionsPage() {
     setLanguage(value);
 
     try {
-      localStorage.setItem(
-        languageKey,
-        value
-      );
+      localStorage.setItem(languageKey, value);
     } catch {
       // Ignore localStorage error
     }
@@ -76,10 +119,7 @@ export default function InstructionsPage() {
     if (!agree) return;
 
     try {
-      localStorage.setItem(
-        languageKey,
-        language
-      );
+      localStorage.setItem(languageKey, language);
     } catch {
       // Ignore localStorage error
     }
@@ -90,9 +130,7 @@ export default function InstructionsPage() {
   if (loading) {
     return (
       <>
-        <div className="nav">
-          JD Exambook
-        </div>
+        <PageHeader />
 
         <main className="wrap">
           <div className="card">
@@ -106,9 +144,7 @@ export default function InstructionsPage() {
   if (error || !test) {
     return (
       <>
-        <div className="nav">
-          JD Exambook
-        </div>
+        <PageHeader />
 
         <main className="wrap">
           <div className="card">
@@ -122,20 +158,14 @@ export default function InstructionsPage() {
 
   return (
     <>
-      <div className="nav">
-        JD Exambook • Test Instructions
-      </div>
+      <PageHeader />
 
       <main className="wrap">
 
         {/* TEST TITLE */}
 
         <div className="card">
-          <h2
-            style={{
-              marginTop: 0,
-            }}
-          >
+          <h2 style={{ marginTop: 0 }}>
             {test.title}
           </h2>
 
@@ -143,11 +173,7 @@ export default function InstructionsPage() {
             SSC Stenographer Grade C & D Practice Test
           </p>
 
-          <p
-            style={{
-              lineHeight: "1.6",
-            }}
-          >
+          <p style={{ lineHeight: "1.6" }}>
             परीक्षा प्रारम्भ करने से पहले सभी निर्देश ध्यानपूर्वक पढ़ें।
           </p>
         </div>
@@ -155,30 +181,21 @@ export default function InstructionsPage() {
         {/* TEST SUMMARY */}
 
         <div className="card">
-          <h2
-            style={{
-              marginTop: 0,
-            }}
-          >
+          <h2 style={{ marginTop: 0 }}>
             Test Summary / परीक्षा विवरण
           </h2>
 
           <div style={summaryGrid}>
-
             <SummaryBox
               title="Total Questions"
               hindi="कुल प्रश्न"
-              value={
-                test.total_questions || 200
-              }
+              value={test.total_questions || 200}
             />
 
             <SummaryBox
               title="Total Marks"
               hindi="कुल अंक"
-              value={
-                test.total_marks || 200
-              }
+              value={test.total_marks || 200}
             />
 
             <SummaryBox
@@ -190,45 +207,31 @@ export default function InstructionsPage() {
             <SummaryBox
               title="Negative Marking"
               hindi="गलत उत्तर पर कटौती"
-              value={
-                test.negative_mark ?? 0.25
-              }
+              value={test.negative_mark ?? 0.25}
             />
-
           </div>
         </div>
 
         {/* SECTIONAL TIMING */}
 
         <div className="card">
-          <h2
-            style={{
-              marginTop: 0,
-            }}
-          >
+          <h2 style={{ marginTop: 0 }}>
             Sectional Timing / अनुभागीय समय
           </h2>
 
-          <div
-            style={{
-              overflowX: "auto",
-            }}
-          >
+          <div style={{ overflowX: "auto" }}>
             <table style={tableStyle}>
               <thead>
                 <tr>
                   <th style={cellStyle}>
                     Section / अनुभाग
                   </th>
-
                   <th style={cellStyle}>
                     Questions
                   </th>
-
                   <th style={cellStyle}>
                     Marks
                   </th>
-
                   <th style={cellStyle}>
                     Time
                   </th>
@@ -236,73 +239,38 @@ export default function InstructionsPage() {
               </thead>
 
               <tbody>
-
                 <tr>
                   <td style={cellStyle}>
                     General Intelligence & Reasoning
                     <br />
-                    <b>
-                      सामान्य बुद्धिमत्ता एवं तर्कशक्ति
-                    </b>
+                    <b>सामान्य बुद्धिमत्ता एवं तर्कशक्ति</b>
                   </td>
-
-                  <td style={cellStyle}>
-                    50
-                  </td>
-
-                  <td style={cellStyle}>
-                    50
-                  </td>
-
-                  <td style={cellStyle}>
-                    30 Min
-                  </td>
+                  <td style={cellStyle}>50</td>
+                  <td style={cellStyle}>50</td>
+                  <td style={cellStyle}>30 Min</td>
                 </tr>
 
                 <tr>
                   <td style={cellStyle}>
                     General Awareness
                     <br />
-                    <b>
-                      सामान्य जागरूकता
-                    </b>
+                    <b>सामान्य जागरूकता</b>
                   </td>
-
-                  <td style={cellStyle}>
-                    50
-                  </td>
-
-                  <td style={cellStyle}>
-                    50
-                  </td>
-
-                  <td style={cellStyle}>
-                    30 Min
-                  </td>
+                  <td style={cellStyle}>50</td>
+                  <td style={cellStyle}>50</td>
+                  <td style={cellStyle}>30 Min</td>
                 </tr>
 
                 <tr>
                   <td style={cellStyle}>
                     English Language & Comprehension
                     <br />
-                    <b>
-                      अंग्रेजी भाषा एवं बोधगम्यता
-                    </b>
+                    <b>अंग्रेजी भाषा एवं बोधगम्यता</b>
                   </td>
-
-                  <td style={cellStyle}>
-                    100
-                  </td>
-
-                  <td style={cellStyle}>
-                    100
-                  </td>
-
-                  <td style={cellStyle}>
-                    60 Min
-                  </td>
+                  <td style={cellStyle}>100</td>
+                  <td style={cellStyle}>100</td>
+                  <td style={cellStyle}>60 Min</td>
                 </tr>
-
               </tbody>
             </table>
           </div>
@@ -311,11 +279,7 @@ export default function InstructionsPage() {
         {/* ENGLISH INSTRUCTIONS */}
 
         <div className="card">
-          <h2
-            style={{
-              marginTop: 0,
-            }}
-          >
+          <h2 style={{ marginTop: 0 }}>
             General Instructions
           </h2>
 
@@ -323,51 +287,39 @@ export default function InstructionsPage() {
             <li>
               The examination contains 200 objective multiple-choice questions.
             </li>
-
             <li>
               The total examination duration is 120 minutes.
             </li>
-
             <li>
               Reasoning contains 50 questions with a 30-minute sectional timer.
             </li>
-
             <li>
               General Awareness contains 50 questions with a 30-minute sectional timer.
             </li>
-
             <li>
               English Language & Comprehension contains 100 questions with a 60-minute sectional timer.
             </li>
-
             <li>
               Each correct answer carries 1 mark.
             </li>
-
             <li>
               0.25 mark will be deducted for every wrong answer.
             </li>
-
             <li>
               No negative mark will be deducted for an unattempted question.
             </li>
-
             <li>
               A section will automatically lock when its allotted time expires.
             </li>
-
             <li>
               After a section is submitted or locked, you cannot return to it.
             </li>
-
             <li>
               You may navigate only within the currently active section.
             </li>
-
             <li>
               Use Save & Next, Clear Response and Mark & Next as required.
             </li>
-
             <li>
               The final test will automatically submit when the final section time expires.
             </li>
@@ -377,11 +329,7 @@ export default function InstructionsPage() {
         {/* HINDI INSTRUCTIONS */}
 
         <div className="card">
-          <h2
-            style={{
-              marginTop: 0,
-            }}
-          >
+          <h2 style={{ marginTop: 0 }}>
             सामान्य निर्देश
           </h2>
 
@@ -389,51 +337,39 @@ export default function InstructionsPage() {
             <li>
               परीक्षा में कुल 200 वस्तुनिष्ठ बहुविकल्पीय प्रश्न होंगे।
             </li>
-
             <li>
               परीक्षा की कुल अवधि 120 मिनट होगी।
             </li>
-
             <li>
               सामान्य बुद्धिमत्ता एवं तर्कशक्ति में 50 प्रश्न होंगे तथा 30 मिनट का अनुभागीय समय मिलेगा।
             </li>
-
             <li>
               सामान्य जागरूकता में 50 प्रश्न होंगे तथा 30 मिनट का अनुभागीय समय मिलेगा।
             </li>
-
             <li>
               अंग्रेजी भाषा एवं बोधगम्यता में 100 प्रश्न होंगे तथा 60 मिनट का अनुभागीय समय मिलेगा।
             </li>
-
             <li>
               प्रत्येक सही उत्तर के लिए 1 अंक मिलेगा।
             </li>
-
             <li>
               प्रत्येक गलत उत्तर पर 0.25 अंक की कटौती होगी।
             </li>
-
             <li>
               बिना उत्तर दिए गए प्रश्न पर कोई ऋणात्मक अंक नहीं काटा जाएगा।
             </li>
-
             <li>
               अनुभाग का निर्धारित समय समाप्त होते ही वह स्वतः लॉक हो जाएगा।
             </li>
-
             <li>
               अनुभाग submit या lock होने के बाद उसमें वापस नहीं जा सकेंगे।
             </li>
-
             <li>
               केवल वर्तमान सक्रिय अनुभाग के प्रश्नों के बीच जा सकेंगे।
             </li>
-
             <li>
               आवश्यकता के अनुसार Save & Next, Clear Response तथा Mark & Next का प्रयोग करें।
             </li>
-
             <li>
               अंतिम अनुभाग का समय समाप्त होते ही पूरा टेस्ट स्वतः submit हो जाएगा।
             </li>
@@ -443,7 +379,6 @@ export default function InstructionsPage() {
         {/* DEFAULT LANGUAGE DROPDOWN */}
 
         <div className="card">
-
           <h2
             style={{
               marginTop: 0,
@@ -463,9 +398,7 @@ export default function InstructionsPage() {
             <select
               value={language}
               onChange={(e) =>
-                changeLanguage(
-                  e.target.value
-                )
+                changeLanguage(e.target.value)
               }
               style={languageSelect}
             >
@@ -494,30 +427,21 @@ export default function InstructionsPage() {
             <b> Change Language </b>
             विकल्प से English और हिन्दी के बीच बदला जा सकेगा।
           </div>
-
         </div>
 
         {/* DECLARATION */}
 
         <div className="card">
-
-          <h2
-            style={{
-              marginTop: 0,
-            }}
-          >
+          <h2 style={{ marginTop: 0 }}>
             Declaration / घोषणा
           </h2>
 
           <label style={declarationStyle}>
-
             <input
               type="checkbox"
               checked={agree}
               onChange={(e) =>
-                setAgree(
-                  e.target.checked
-                )
+                setAgree(e.target.checked)
               }
               style={{
                 width: "22px",
@@ -535,7 +459,6 @@ export default function InstructionsPage() {
 
               मैंने सभी निर्देश पढ़ एवं समझ लिए हैं तथा परीक्षा की डिफॉल्ट भाषा चुन ली है।
             </span>
-
           </label>
 
           <button
@@ -547,21 +470,14 @@ export default function InstructionsPage() {
               marginTop: "20px",
               padding: "15px",
               fontSize: "17px",
-              opacity:
-                agree
-                  ? 1
-                  : 0.5,
-              cursor:
-                agree
-                  ? "pointer"
-                  : "not-allowed",
+              opacity: agree ? 1 : 0.5,
+              cursor: agree ? "pointer" : "not-allowed",
             }}
           >
             Agree & Start Test
             <br />
             सहमत हूँ एवं परीक्षा प्रारम्भ करें
           </button>
-
         </div>
 
       </main>
@@ -569,16 +485,10 @@ export default function InstructionsPage() {
   );
 }
 
-function SummaryBox({
-  title,
-  hindi,
-  value,
-}) {
+function SummaryBox({ title, hindi, value }) {
   return (
     <div style={summaryBox}>
-      <b>
-        {title}
-      </b>
+      <b>{title}</b>
 
       <div style={summaryValue}>
         {value}
@@ -593,8 +503,7 @@ function SummaryBox({
 
 const summaryGrid = {
   display: "grid",
-  gridTemplateColumns:
-    "repeat(2, minmax(125px, 1fr))",
+  gridTemplateColumns: "repeat(2, minmax(125px, 1fr))",
   gap: "12px",
   marginTop: "16px",
 };
