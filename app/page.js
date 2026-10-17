@@ -1,10 +1,11 @@
 
 import Link from "next/link";
+import Image from "next/image";
 
 export const metadata = {
   title: "JD Exambook | SSC Exam Preparation & Online Practice",
   description:
-    "Explore SSC CGL, CHSL, CPO, GD and Stenographer exam preparation with JD Exambook. Subject-wise practice, mock tests and previous year papers are coming soon.",
+    "Prepare for SSC CGL, CHSL, CPO, GD and Stenographer with JD Exambook. Explore exam preparation resources, subject-wise practice and upcoming mock tests.",
   alternates: {
     canonical: "/",
   },
@@ -33,12 +34,44 @@ export default function HomePage() {
         background: "#f7f9fc",
         color: "#101820",
         fontFamily: "Arial, sans-serif",
+        position: "relative",
+        isolation: "isolate",
       }}
     >
+      {/* Background Logo Watermark - 10% Visibility */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: -1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          pointerEvents: "none",
+          overflow: "hidden",
+        }}
+      >
+        <Image
+          src="/jd-exambook-logo.png"
+          alt=""
+          width={650}
+          height={650}
+          priority
+          style={{
+            width: "min(75vw, 650px)",
+            height: "auto",
+            opacity: 0.1,
+            objectFit: "contain",
+          }}
+        />
+      </div>
+
+      {/* Header */}
       <header
         style={{
           background: "#ffffff",
-          padding: "18px 6%",
+          padding: "14px 6%",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -50,13 +83,27 @@ export default function HomePage() {
         <Link
           href="/"
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
             color: "#0866c2",
-            fontSize: 25,
-            fontWeight: 800,
             textDecoration: "none",
+            fontSize: "clamp(19px, 3vw, 26px)",
+            fontWeight: 800,
           }}
         >
-          JD Exambook
+          <Image
+            src="/jd-exambook-logo.png"
+            alt="JD Exambook Logo"
+            width={54}
+            height={54}
+            priority
+            style={{
+              objectFit: "contain",
+              borderRadius: "50%",
+            }}
+          />
+          <span>JD Exambook</span>
         </Link>
 
         <nav style={{ display: "flex", gap: 12 }}>
@@ -69,12 +116,13 @@ export default function HomePage() {
         </nav>
       </header>
 
+      {/* Hero Section */}
       <section
         style={{
           padding: "80px 6%",
           textAlign: "center",
           background:
-            "linear-gradient(135deg, #eaf5ff 0%, #e9fff3 100%)",
+            "linear-gradient(135deg, rgba(234,245,255,0.88), rgba(233,255,243,0.88))",
         }}
       >
         <p
@@ -107,10 +155,10 @@ export default function HomePage() {
             lineHeight: 1.7,
           }}
         >
-          Your destination for SSC exam preparation.
-          Explore exam-wise learning resources and get
-          ready for upcoming subject-wise practice,
-          chapter-wise questions and mock tests.
+          Explore SSC exam preparation resources.
+          Subject-wise practice, chapter-wise questions,
+          previous year papers and mock tests are being
+          developed for JD Exambook.
         </p>
 
         <Link href="/login" style={primaryButton}>
@@ -118,11 +166,12 @@ export default function HomePage() {
         </Link>
       </section>
 
+      {/* SSC Exams */}
       <section style={sectionStyle}>
         <h2 style={headingStyle}>Explore SSC Exams</h2>
         <p style={subtitleStyle}>
-          Choose your examination to explore available
-          preparation sections.
+          Choose your examination to explore preparation
+          sections.
         </p>
 
         <div style={gridStyle}>
@@ -151,16 +200,16 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Subjects */}
       <section
         style={{
-          ...sectionStyle,
-          background: "#eef5fb",
+          padding: "65px 6%",
+          background: "rgba(238,245,251,0.85)",
         }}
       >
         <h2 style={headingStyle}>Subject-wise Practice</h2>
         <p style={subtitleStyle}>
-          Our SSC question bank is being developed.
-          Practice features will be available soon.
+          SSC question banks are under development.
         </p>
 
         <div style={gridStyle}>
@@ -187,6 +236,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Upcoming Features */}
       <section style={sectionStyle}>
         <h2 style={headingStyle}>
           More Preparation Features
@@ -211,19 +261,26 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Login Section */}
       <section
         style={{
           padding: "55px 6%",
           textAlign: "center",
           background: "#101820",
-          color: "white",
+          color: "#ffffff",
         }}
       >
         <h2>Start Your Preparation Journey</h2>
-        <p style={{ color: "#cbd5e1", marginBottom: 28 }}>
+        <p
+          style={{
+            color: "#cbd5e1",
+            marginBottom: 28,
+          }}
+        >
           Create your JD Exambook account to explore
           exam preparation sections.
         </p>
+
         <Link href="/login" style={primaryButton}>
           Login / Register
         </Link>
@@ -288,7 +345,7 @@ const gridStyle = {
 };
 
 const cardStyle = {
-  background: "#ffffff",
+  background: "rgba(255,255,255,0.94)",
   border: "1px solid #e2e8f0",
   borderRadius: 14,
   padding: 24,
