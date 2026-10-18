@@ -1683,6 +1683,15 @@ export default function TestPage() {
         ]
     ).length;
 
+  // Overall countdown = remaining current section + future section budgets.
+  // When a section is submitted early, its unused time is forfeited.
+  const overallTimeLeft = timerType === "sectional" && timeLeft !== null
+    ? Math.max(0, timeLeft + sections.slice(activeSection + 1).reduce(
+        (total, section) => total + Math.max(0, Number(section.durationMinutes || 0)) * 60,
+        0
+      ))
+    : timeLeft;
+
   const isLastSection =
     activeSection >=
     sections.length - 1;
@@ -1724,19 +1733,17 @@ export default function TestPage() {
             ◷
           </div>
 
-          <div>
-            <div style={timerText}>
-              {formatTime(
-                timeLeft
-              )}
+          <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
+            <div>
+              <div style={timerText}>{formatTime(overallTimeLeft)}</div>
+              <div style={timerLabel}>Overall Time</div>
             </div>
-
-            <div style={timerLabel}>
-              {timerType ===
-              "sectional"
-                ? "Section Time"
-                : "Time Left"}
-            </div>
+            {timerType === "sectional" && (
+              <div>
+                <div style={timerText}>{formatTime(timeLeft)}</div>
+                <div style={timerLabel}>Section Time</div>
+              </div>
+            )}
           </div>
 
         </div>
