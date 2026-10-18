@@ -235,8 +235,7 @@ export default function TestPage() {
     }
 
     if (
-      stateData?.status ===
-      "submitted"
+      ["submitted", "auto_submitted"].includes(stateData?.status)
     ) {
       router.replace(
         `/result/${id}`
@@ -483,8 +482,7 @@ export default function TestPage() {
     }
 
     if (
-      data?.status ===
-      "submitted"
+      ["submitted", "auto_submitted"].includes(data?.status)
     ) {
       router.replace(
         `/result/${id}`
