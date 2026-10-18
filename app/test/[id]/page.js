@@ -338,66 +338,31 @@ export default function TestPage() {
       }
     );
 
-    if (
-      !savedError &&
-      savedResponses
-    ) {
-      const mergedAnswers = {
-        ...localAnswers,
-      };
+    // The server is authoritative. Local storage can contain stale answers
+    // from another attempt or a failed network save.
+    if (savedError || !Array.isArray(savedResponses)) {
+      setError("Saved answers server से नहीं मिल पाए। Refresh करके दोबारा प्रयास करें।");
+      setLoading(false);
+      return;
+    }
 
-      const mergedReview = {
-        ...localReview,
-      };
-
-      savedResponses.forEach(
-        (row) => {
-          const qid =
-            String(row.question_id);
-
-          if (
-            row.selected_answer
-          ) {
-            mergedAnswers[qid] =
-              row.selected_answer;
-          } else {
-            delete mergedAnswers[
-              qid
-            ];
-          }
-
-          mergedReview[qid] =
-            Boolean(
-              row.marked_for_review
-            );
-        }
-      );
-
-      setAnswers(
-        mergedAnswers
-      );
-
-      setReview(
-        mergedReview
-      );
-
-      try {
-        localStorage.setItem(
-          answerKey,
-          JSON.stringify(
-            mergedAnswers
-          )
-        );
-
-        localStorage.setItem(
-          reviewKey,
-          JSON.stringify(
-            mergedReview
-          )
-        );
-      } catch {
-        // Ignore
+    const serverAnswers = {};
+    const serverReview = {};
+    savedResponses.forEach((row) => {
+      const qid = String(row.question_id);
+      if (row.selected_answer) {
+        serverAnswers[qid] = row.selected_answer;
       }
+      serverReview[qid] = Boolean(row.marked_for_review);
+    });
+
+    setAnswers(serverAnswers);
+    setReview(serverReview);
+    try {
+      localStorage.setItem(answerKey, JSON.stringify(serverAnswers));
+      localStorage.setItem(reviewKey, JSON.stringify(serverReview));
+    } catch {
+      // Local storage is only a convenience cache, not proof of a saved answer.
     }
 
     setLoading(false);
