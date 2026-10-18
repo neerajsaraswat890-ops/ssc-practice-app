@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "../../../../lib/supabase";
 
 const CATEGORY = {
+  "weekly": { title: "Weekly Mock Tests", types: ["weekly", "weekly_mock", "weekly-mock"] },
   "full-mock": { title: "Full Mock Tests", types: ["mock", "full_mock", "full", "full_test"] },
   "subject-wise": { title: "Subject-wise Practice", types: ["subject", "subject_wise", "subject-wise"] },
   "chapter-wise": { title: "Chapter-wise Practice", types: ["chapter", "chapter_wise", "chapter-wise"] },
@@ -72,7 +73,7 @@ export default function ExamCategoryPage() {
       else setTests((data || []).filter((t) =>
         config.types.includes(String(t.test_type || "").toLowerCase()) &&
         sameExam(t.exam, examCode, name)
-      ).slice(0, 10));
+      ).slice(0, categoryKey === "weekly" ? undefined : 10));
       setLoading(false);
     }
     load();
@@ -83,11 +84,12 @@ export default function ExamCategoryPage() {
     <main className="wrap" style={{ paddingTop: 28, paddingBottom: 48 }}>
       <p><Link href={`/exams/${encodeURIComponent(examCode)}`}>← Back to {examName}</Link></p>
       <h1>{examName} — {config?.title || "Tests"}</h1>
-      <p className="muted">10 test slots • Published tests become available as they are uploaded.</p>
+      <p className="muted">{categoryKey === "weekly" ? "New tests every Saturday at 8:00 AM • Answer keys released Monday at 8:00 PM • Previous tests remain available." : "10 test slots • Published tests become available as they are uploaded."}</p>
       {error && <p role="alert" style={{ color: "#dc2626" }}>{error}</p>}
       {loading ? <p>Loading tests...</p> : !error && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: 24 }}>
-          {Array.from({ length: 10 }, (_, index) => {
+          {categoryKey === "weekly" && tests.length === 0 && <p className="muted">Weekly tests are coming soon.</p>}
+          {Array.from({ length: categoryKey === "weekly" ? tests.length : 10 }, (_, index) => {
             const test = tests[index];
             return (
               <div className="card" key={index} style={{ padding: 20, border: "1px solid #e2e8f0" }}>
