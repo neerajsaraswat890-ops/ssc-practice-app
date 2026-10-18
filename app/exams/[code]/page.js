@@ -22,21 +22,25 @@ const CATEGORIES = [
   {
     icon: "📝",
     title: "Full Mock Tests",
+    slug: "full-mock",
     description: "Complete exam pattern based tests",
   },
   {
     icon: "📚",
     title: "Subject-wise Practice",
+    slug: "subject-wise",
     description: "Practice each subject separately",
   },
   {
     icon: "📖",
     title: "Chapter-wise Practice",
+    slug: "chapter-wise",
     description: "Topic and chapter based questions",
   },
   {
     icon: "📋",
     title: "Previous Year Papers",
+    slug: "previous-year",
     description: "Exam-wise previous year questions",
   },
 ];
