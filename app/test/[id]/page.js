@@ -24,6 +24,7 @@ export default function TestPage() {
   const [paletteSection, setPaletteSection] = useState(0);
 
   const [timeLeft, setTimeLeft] = useState(null);
+  const [overallTimeLeft, setOverallTimeLeft] = useState(null);
 
   const [language, setLanguage] = useState("english");
 
@@ -269,6 +270,12 @@ export default function TestPage() {
       );
 
     setTimeLeft(remaining);
+    // Overall clock remains independent of manual section transitions.
+    setOverallTimeLeft(timerType === "sectional"
+      ? Math.max(0, remaining + normalizedSections.slice(serverSection + 1).reduce(
+          (sum, section) => sum + Math.max(0, Number(section.durationMinutes || 0)) * 60, 0
+        ))
+      : remaining);
 
     let initialQuestion = 0;
 
@@ -424,6 +431,7 @@ export default function TestPage() {
               old - 1
             )
         );
+        setOverallTimeLeft((old) => old === null ? null : Math.max(0, old - 1));
       }, 1000);
 
     return () =>
@@ -1683,14 +1691,8 @@ export default function TestPage() {
         ]
     ).length;
 
-  // Overall countdown = remaining current section + future section budgets.
-  // When a section is submitted early, its unused time is forfeited.
-  const overallTimeLeft = timerType === "sectional" && timeLeft !== null
-    ? Math.max(0, timeLeft + sections.slice(activeSection + 1).reduce(
-        (total, section) => total + Math.max(0, Number(section.durationMinutes || 0)) * 60,
-        0
-      ))
-    : timeLeft;
+  // Overall clock is initialized from the server state and never resets on section change.
+  // Server-side total deadline enforcement remains a separate release requirement.
 
   const isLastSection =
     activeSection >=
