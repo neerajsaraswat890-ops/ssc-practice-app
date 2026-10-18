@@ -66,8 +66,10 @@ export default function ExamCategoryPage() {
       setExamName(name);
       const { data, error: testsError } = await client
         .from("tests")
-        .select("id,title,test_type,exam,status,total_questions,duration_minutes")
-        .eq("status", "published").order("id", { ascending: true });
+        .select("id,title,test_type,exam,status,total_questions,duration_minutes,publish_at,solution_release_at")
+        .eq("status", "published")
+        .or(`publish_at.is.null,publish_at.lte.${new Date().toISOString()}`)
+        .order("id", { ascending: true });
       if (!active) return;
       if (testsError) setError("Tests could not be loaded. Please try again.");
       else setTests((data || []).filter((t) =>
