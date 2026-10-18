@@ -148,7 +148,7 @@ export default function ResultPage() {
       }
     } else {
       setSolutions(solutionData || []);
-      setSolutionsLocked(false);
+      setSolutionsLocked(Boolean(testData?.solution_release_at && new Date(testData.solution_release_at).getTime() > Date.now()));
     }
 
     setLoading(false);
