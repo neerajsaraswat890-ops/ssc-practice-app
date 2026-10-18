@@ -271,11 +271,7 @@ export default function TestPage() {
 
     setTimeLeft(remaining);
     // Overall clock remains independent of manual section transitions.
-    setOverallTimeLeft(timerType === "sectional"
-      ? Math.max(0, remaining + normalizedSections.slice(serverSection + 1).reduce(
-          (sum, section) => sum + Math.max(0, Number(section.durationMinutes || 0)) * 60, 0
-        ))
-      : remaining);
+    setOverallTimeLeft(Number(stateData?.overall_remaining_seconds ?? remaining));
 
     let initialQuestion = 0;
 
@@ -519,6 +515,7 @@ export default function TestPage() {
           0
       )
     );
+    setOverallTimeLeft(Number(data?.overall_remaining_seconds ?? data?.remaining_seconds ?? 0));
 
     /*
       Overall timer expiry:
