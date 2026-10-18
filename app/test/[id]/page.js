@@ -219,6 +219,18 @@ export default function TestPage() {
     */
 
     const {
+      error: startError,
+    } = await client.rpc("start_test", {
+      p_test_id: Number(id),
+    });
+
+    if (startError) {
+      setError(startError.message);
+      setLoading(false);
+      return;
+    }
+
+    const {
       data: stateData,
       error: stateError,
     } = await client.rpc(
@@ -249,9 +261,7 @@ export default function TestPage() {
       "overall";
 
     const serverSection =
-      Number(
-        stateData?.current_section ?? 0
-      );
+      Math.max(0, Number(stateData?.current_section ?? 1) - 1);
 
     const remaining =
       Number(
@@ -531,13 +541,11 @@ export default function TestPage() {
     */
 
     if (
-      data?.timer_type ===
+      (data?.timer_type || examConfig?.stage?.timer_type) ===
       "sectional"
     ) {
       const serverSection =
-        Number(
-          data?.current_section ?? 0
-        );
+        Math.max(0, Number(data?.current_section ?? 1) - 1);
 
       const sectionChanged =
         serverSection !==
@@ -1169,7 +1177,7 @@ export default function TestPage() {
           Number(id),
 
         p_section:
-          activeSection,
+          activeSection + 1,
       }
     );
 
@@ -1194,9 +1202,7 @@ export default function TestPage() {
     }
 
     const nextSection =
-      Number(
-        data?.current_section
-      );
+      Math.max(0, Number(data?.current_section ?? 1) - 1);
 
     setActiveSection(
       nextSection
