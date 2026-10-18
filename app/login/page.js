@@ -117,7 +117,8 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace("/dashboard");
+    const nextPath = new URLSearchParams(window.location.search).get("next");
+    router.replace(nextPath?.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/dashboard");
   }
 
   async function resetPassword() {
