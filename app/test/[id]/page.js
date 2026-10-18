@@ -24,6 +24,7 @@ export default function TestPage() {
   const [paletteSection, setPaletteSection] = useState(0);
 
   const [timeLeft, setTimeLeft] = useState(null);
+  const [overallTimeLeft, setOverallTimeLeft] = useState(null);
 
   const [language, setLanguage] = useState("english");
 
@@ -39,6 +40,7 @@ export default function TestPage() {
   const refreshingState = useRef(false);
   const questionScrollRef = useRef(null);
   const saveQueues = useRef({});
+  const failedSaves = useRef({});
 
   const answerKey = `jd_answers_${id}`;
   const reviewKey = `jd_review_${id}`;
@@ -54,6 +56,12 @@ export default function TestPage() {
     setError("");
 
     const client = supabase();
+    const { data: { user }, error: authError } = await client.auth.getUser();
+    if (!user) {
+      if (authError) console.warn("Test session unavailable:", authError.message);
+      router.replace(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
 
     let localAnswers = {};
     let localReview = {};
@@ -218,6 +226,18 @@ export default function TestPage() {
     */
 
     const {
+      error: startError,
+    } = await client.rpc("start_test", {
+      p_test_id: Number(id),
+    });
+
+    if (startError) {
+      setError(startError.message);
+      setLoading(false);
+      return;
+    }
+
+    const {
       data: stateData,
       error: stateError,
     } = await client.rpc(
@@ -234,8 +254,7 @@ export default function TestPage() {
     }
 
     if (
-      stateData?.status ===
-      "submitted"
+      ["submitted", "auto_submitted"].includes(stateData?.status)
     ) {
       router.replace(
         `/result/${id}`
@@ -249,9 +268,7 @@ export default function TestPage() {
       "overall";
 
     const serverSection =
-      Number(
-        stateData?.current_section ?? 0
-      );
+      Math.max(0, Number(stateData?.current_section ?? 1) - 1);
 
     const remaining =
       Number(
@@ -259,6 +276,8 @@ export default function TestPage() {
       );
 
     setTimeLeft(remaining);
+    // Overall clock remains independent of manual section transitions.
+    setOverallTimeLeft(Number(stateData?.overall_remaining_seconds ?? remaining));
 
     let initialQuestion = 0;
 
@@ -319,66 +338,31 @@ export default function TestPage() {
       }
     );
 
-    if (
-      !savedError &&
-      savedResponses
-    ) {
-      const mergedAnswers = {
-        ...localAnswers,
-      };
+    // The server is authoritative. Local storage can contain stale answers
+    // from another attempt or a failed network save.
+    if (savedError || !Array.isArray(savedResponses)) {
+      setError("Saved answers server से नहीं मिल पाए। Refresh करके दोबारा प्रयास करें।");
+      setLoading(false);
+      return;
+    }
 
-      const mergedReview = {
-        ...localReview,
-      };
-
-      savedResponses.forEach(
-        (row) => {
-          const qid =
-            String(row.question_id);
-
-          if (
-            row.selected_answer
-          ) {
-            mergedAnswers[qid] =
-              row.selected_answer;
-          } else {
-            delete mergedAnswers[
-              qid
-            ];
-          }
-
-          mergedReview[qid] =
-            Boolean(
-              row.marked_for_review
-            );
-        }
-      );
-
-      setAnswers(
-        mergedAnswers
-      );
-
-      setReview(
-        mergedReview
-      );
-
-      try {
-        localStorage.setItem(
-          answerKey,
-          JSON.stringify(
-            mergedAnswers
-          )
-        );
-
-        localStorage.setItem(
-          reviewKey,
-          JSON.stringify(
-            mergedReview
-          )
-        );
-      } catch {
-        // Ignore
+    const serverAnswers = {};
+    const serverReview = {};
+    savedResponses.forEach((row) => {
+      const qid = String(row.question_id);
+      if (row.selected_answer) {
+        serverAnswers[qid] = row.selected_answer;
       }
+      serverReview[qid] = Boolean(row.marked_for_review);
+    });
+
+    setAnswers(serverAnswers);
+    setReview(serverReview);
+    try {
+      localStorage.setItem(answerKey, JSON.stringify(serverAnswers));
+      localStorage.setItem(reviewKey, JSON.stringify(serverReview));
+    } catch {
+      // Local storage is only a convenience cache, not proof of a saved answer.
     }
 
     setLoading(false);
@@ -414,6 +398,7 @@ export default function TestPage() {
               old - 1
             )
         );
+        setOverallTimeLeft((old) => old === null ? null : Math.max(0, old - 1));
       }, 1000);
 
     return () =>
@@ -482,8 +467,7 @@ export default function TestPage() {
     }
 
     if (
-      data?.status ===
-      "submitted"
+      ["submitted", "auto_submitted"].includes(data?.status)
     ) {
       router.replace(
         `/result/${id}`
@@ -502,6 +486,7 @@ export default function TestPage() {
           0
       )
     );
+    setOverallTimeLeft(Number(data?.overall_remaining_seconds ?? data?.remaining_seconds ?? 0));
 
     /*
       Overall timer expiry:
@@ -532,13 +517,11 @@ export default function TestPage() {
     */
 
     if (
-      data?.timer_type ===
+      (data?.timer_type || examConfig?.stage?.timer_type) ===
       "sectional"
     ) {
       const serverSection =
-        Number(
-          data?.current_section ?? 0
-        );
+        Math.max(0, Number(data?.current_section ?? 1) - 1);
 
       const sectionChanged =
         serverSection !==
@@ -593,102 +576,69 @@ export default function TestPage() {
     selectedAnswer,
     markedForReview
   ) {
-    const key =
-      String(questionId);
+    const key = String(questionId);
+    const previous = saveQueues.current[key] || Promise.resolve();
 
-    const previous =
-      saveQueues.current[
-        key
-      ] ||
-      Promise.resolve();
+    const next = previous
+      .catch(() => {})
+      .then(async () => {
+        setSaving(true);
+        const payload = {
+          p_test_id: Number(id),
+          p_question_id: Number(questionId),
+          p_selected_answer: selectedAnswer || null,
+          p_marked_for_review: Boolean(markedForReview),
+        };
 
-    const next =
-      previous
-        .catch(() => {})
-        .then(async () => {
-          setSaving(true);
+        // Keep the latest unsaved value so submit can retry it.
+        failedSaves.current[key] = payload;
+        const { error } = await supabase().rpc("save_test_response", payload);
+        if (error) {
+          console.error("Autosave error:", error);
+          setError("Answer locally saved है, लेकिन server autosave में समस्या आई।");
+          throw error;
+        }
+        if (failedSaves.current[key] === payload) {
+          delete failedSaves.current[key];
+        }
+      })
+      .finally(() => {
+        if (saveQueues.current[key] === next) {
+          delete saveQueues.current[key];
+        }
+        if (Object.keys(saveQueues.current).length === 0) {
+          setSaving(false);
+        }
+      });
 
-          const {
-            error,
-          } = await supabase().rpc(
-            "save_test_response",
-            {
-              p_test_id:
-                Number(id),
-
-              p_question_id:
-                Number(
-                  questionId
-                ),
-
-              p_selected_answer:
-                selectedAnswer ||
-                null,
-
-              p_marked_for_review:
-                Boolean(
-                  markedForReview
-                ),
-            }
-          );
-
-          if (error) {
-            console.error(
-              "Autosave error:",
-              error
-            );
-
-            setError(
-              "Answer locally saved है, लेकिन server autosave में समस्या आई।"
-            );
-          }
-        })
-        .finally(() => {
-          if (
-            saveQueues.current[
-              key
-            ] === next
-          ) {
-            delete saveQueues
-              .current[
-                key
-              ];
-          }
-
-          if (
-            Object.keys(
-              saveQueues.current
-            ).length === 0
-          ) {
-            setSaving(false);
-          }
-        });
-
-    saveQueues.current[
-      key
-    ] = next;
-
+    saveQueues.current[key] = next;
     return next;
   }
 
   async function waitForPendingSaves() {
-    const pending =
-      Object.values(
-        saveQueues.current
-      );
-
-    if (
-      pending.length === 0
-    ) {
-      return;
+    // Wait until all queued saves have settled, including saves queued
+    // while earlier requests were in flight.
+    while (Object.keys(saveQueues.current).length > 0) {
+      await Promise.allSettled(Object.values(saveQueues.current));
     }
 
-    await Promise.allSettled(
-      pending
-    );
+    // Retry any failed latest values before accepting a final submission.
+    const failed = Object.values(failedSaves.current);
+    for (const payload of failed) {
+      const { error } = await supabase().rpc("save_test_response", payload);
+      if (error) {
+        console.error("Autosave retry failed:", error);
+        return false;
+      }
+      const key = String(payload.p_question_id);
+      if (failedSaves.current[key] === payload) {
+        delete failedSaves.current[key];
+      }
+    }
+    return Object.keys(failedSaves.current).length === 0;
   }
 
-  /*
+    /*
     =====================================================
     LANGUAGE
     =====================================================
@@ -1186,7 +1136,12 @@ export default function TestPage() {
     setChangingSection(true);
     setError("");
 
-    await waitForPendingSaves();
+    const allSaved = await waitForPendingSaves();
+    if (!allSaved) {
+      setError("Server पर सभी उत्तर Save नहीं हुए हैं। Internet जाँचकर फिर Submit करें।");
+      setChangingSection(false);
+      return;
+    }
 
     const {
       data,
@@ -1198,7 +1153,7 @@ export default function TestPage() {
           Number(id),
 
         p_section:
-          activeSection,
+          activeSection + 1,
       }
     );
 
@@ -1223,9 +1178,7 @@ export default function TestPage() {
     }
 
     const nextSection =
-      Number(
-        data?.current_section
-      );
+      Math.max(0, Number(data?.current_section ?? 1) - 1);
 
     setActiveSection(
       nextSection
@@ -1320,7 +1273,19 @@ export default function TestPage() {
     setSubmitting(true);
     setError("");
 
-    await waitForPendingSaves();
+    const allSaved = await waitForPendingSaves();
+    if (!allSaved && !automatic) {
+      setError("Server पर सभी उत्तर Save नहीं हुए हैं। Internet जाँचकर फिर Submit करें।");
+      setSubmitting(false);
+      autoSubmitting.current = false;
+      return;
+    }
+    // After the server timer expires, pending client saves may be rejected.
+    // Finalize the server-accepted answers instead of leaving the attempt open.
+    // This requires submit_test to grade server-saved answers only.
+    if (!allSaved && automatic) {
+      setError("समय समाप्त हो गया है। Server पर सुरक्षित उत्तरों से Result तैयार किया जा रहा है।");
+    }
 
     const {
       data,
@@ -1694,6 +1659,9 @@ export default function TestPage() {
         ]
     ).length;
 
+  // Overall clock is initialized from the server state and never resets on section change.
+  // Server-side total deadline enforcement remains a separate release requirement.
+
   const isLastSection =
     activeSection >=
     sections.length - 1;
@@ -1735,19 +1703,17 @@ export default function TestPage() {
             ◷
           </div>
 
-          <div>
-            <div style={timerText}>
-              {formatTime(
-                timeLeft
-              )}
+          <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
+            <div>
+              <div style={timerText}>{formatTime(overallTimeLeft)}</div>
+              <div style={timerLabel}>Overall Time</div>
             </div>
-
-            <div style={timerLabel}>
-              {timerType ===
-              "sectional"
-                ? "Section Time"
-                : "Time Left"}
-            </div>
+            {timerType === "sectional" && (
+              <div>
+                <div style={timerText}>{formatTime(timeLeft)}</div>
+                <div style={timerLabel}>Section Time</div>
+              </div>
+            )}
           </div>
 
         </div>

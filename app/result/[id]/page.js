@@ -12,6 +12,7 @@ export default function ResultPage() {
   const [test, setTest] = useState(null);
   const [config, setConfig] = useState(null);
   const [analysis, setAnalysis] = useState(null);
+  const [rankInfo, setRankInfo] = useState(null);
 
   const [solutions, setSolutions] = useState([]);
   const [solutionsLocked, setSolutionsLocked] = useState(false);
@@ -30,6 +31,12 @@ export default function ResultPage() {
     setSolutionError("");
 
     const client = supabase();
+    const { data: { user }, error: authError } = await client.auth.getUser();
+    if (!user) {
+      if (authError) console.warn("Test session unavailable:", authError.message);
+      router.replace(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
 
     /*
       =====================================================
@@ -103,6 +110,8 @@ export default function ResultPage() {
     }
 
     setAnalysis(analysisData);
+    const { data: rankData, error: rankError } = await client.rpc("get_test_rank", { p_test_id: Number(id) });
+    if (!rankError && rankData?.rank != null) setRankInfo(rankData);
 
     /*
       =====================================================
@@ -139,7 +148,7 @@ export default function ResultPage() {
       }
     } else {
       setSolutions(solutionData || []);
-      setSolutionsLocked(false);
+      setSolutionsLocked(Boolean(testData?.solution_release_at && new Date(testData.solution_release_at).getTime() > Date.now()));
     }
 
     setLoading(false);
@@ -555,6 +564,7 @@ export default function ResultPage() {
               ""}
           </div>
 
+          {rankInfo && <div className="card" style={{ padding: 14, marginTop: 16, marginBottom: 16, background: "#fff", color: "#101820" }}><strong>Your Rank: #{rankInfo.rank}</strong> <span style={{ marginLeft: 12 }}>Out of {rankInfo.total_candidates} candidates</span><p style={{ fontSize: 12, marginBottom: 0 }}>Live rank may change as more candidates complete this test.</p></div>}
           <div style={scoreRow}>
 
             <div>

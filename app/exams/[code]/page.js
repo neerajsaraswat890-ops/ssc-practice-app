@@ -22,22 +22,32 @@ const CATEGORIES = [
   {
     icon: "📝",
     title: "Full Mock Tests",
+    slug: "full-mock",
     description: "Complete exam pattern based tests",
   },
   {
     icon: "📚",
     title: "Subject-wise Practice",
+    slug: "subject-wise",
     description: "Practice each subject separately",
   },
   {
     icon: "📖",
     title: "Chapter-wise Practice",
+    slug: "chapter-wise",
     description: "Topic and chapter based questions",
   },
   {
     icon: "📋",
     title: "Previous Year Papers",
+    slug: "previous-year",
     description: "Exam-wise previous year questions",
+  },
+  {
+    icon: "📅",
+    title: "Weekly Mock Tests",
+    slug: "weekly",
+    description: "New tests every Saturday at 8:00 AM",
   },
 ];
 
@@ -258,7 +268,8 @@ export default function ExamPage() {
               }}
             >
               {CATEGORIES.map((category) => (
-                <div
+                <Link
+                  href={`/exams/${encodeURIComponent(code)}/${category.slug}`}
                   className="card"
                   key={category.title}
                   style={{
@@ -283,9 +294,9 @@ export default function ExamPage() {
                       fontSize: "13px",
                     }}
                   >
-                    Coming Soon
+                    {category.slug === "weekly" ? "View Weekly Tests →" : "View 10 Tests →"}
                   </span>
-                </div>
+                </Link>
               ))}
             </div>
 

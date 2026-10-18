@@ -152,15 +152,16 @@ export default function Dashboard() {
           normalized.map((exam) => exam.code)
         );
 
-        const extras = EXTRA_EXAMS
+        const missingKnownExams = [...FALLBACK_EXAMS, ...EXTRA_EXAMS]
           .filter((exam) => !existingCodes.has(exam.code))
           .map((exam) => ({
             ...exam,
+            group: exam.group || getGroup(exam.code),
             available: false,
           }));
 
         if (active) {
-          setExams([...normalized, ...extras]);
+          setExams([...normalized, ...missingKnownExams]);
         }
       } catch (error) {
         if (active) {
