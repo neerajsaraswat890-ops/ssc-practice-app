@@ -43,6 +43,12 @@ const CATEGORIES = [
     slug: "previous-year",
     description: "Exam-wise previous year questions",
   },
+  {
+    icon: "📅",
+    title: "Weekly Mock Tests",
+    slug: "weekly",
+    description: "New tests every Saturday at 8:00 AM",
+  },
 ];
 
 export default function ExamPage() {
@@ -288,7 +294,7 @@ export default function ExamPage() {
                       fontSize: "13px",
                     }}
                   >
-                    View 10 Tests →
+                    {category.slug === "weekly" ? "View Weekly Tests →" : "View 10 Tests →"}
                   </span>
                 </Link>
               ))}
