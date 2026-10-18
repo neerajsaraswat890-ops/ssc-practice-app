@@ -30,6 +30,12 @@ export default function ResultPage() {
     setSolutionError("");
 
     const client = supabase();
+    const { data: { user }, error: authError } = await client.auth.getUser();
+    if (!user) {
+      if (authError) console.warn("Test session unavailable:", authError.message);
+      router.replace(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
 
     /*
       =====================================================
