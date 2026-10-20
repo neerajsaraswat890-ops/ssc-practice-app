@@ -1,509 +1,59 @@
-
+"use client";
 import Link from "next/link";
 import Image from "next/image";
+import { useState } from "react";
 
-export const metadata = {
-  title: "JD Exambook | SSC Exam Preparation & Online Practice",
-  description:
-    "JD Exambook is an SSC exam preparation platform for SSC CGL, CHSL, CPO, GD and Stenographer. Explore exam-wise resources and upcoming practice tests.",
-  alternates: {
-    canonical: "/",
-  },
-  openGraph: {
-    title: "JD Exambook | SSC Exam Preparation",
-    description:
-      "Explore SSC exam preparation resources with JD Exambook.",
-    url: "https://www.jdexambook.in/",
-    siteName: "JD Exambook",
-    type: "website",
-  },
-};
-
+const shortcuts = [
+  { label: "Practice Sets", icon: "▣", href: "/dashboard" },
+  { label: "Mock Tests", icon: "▤", href: "/dashboard" },
+  { label: "Previous Year Papers", icon: "▧", href: "/dashboard" },
+  { label: "Current Affairs", icon: "▣", href: "/current-affairs" },
+  { label: "Free Quizzes", icon: "✓", href: "/current-affairs" },
+  { label: "Study Material", icon: "▤", href: "/dashboard" },
+];
 const exams = [
-  { name: "SSC CGL", code: "SSC_CGL" },
-  { name: "SSC CHSL", code: "SSC_CHSL" },
-  { name: "SSC CPO", code: "SSC_CPO" },
-  { name: "SSC GD", code: "SSC_GD" },
-  { name: "SSC Stenographer", code: "SSC_STENO" },
+  { name: "SSC", sub: "CGL, CHSL, MTS", code: "SSC_CGL", icon: "📕" },
+  { name: "Railway", sub: "NTPC, Group D", code: "RRB_NTPC", icon: "🚆" },
+  { name: "Banking", sub: "Coming soon", code: null, icon: "🏦" },
+  { name: "State Exams", sub: "UP Police", code: "UPP_CONSTABLE", icon: "🗺️" },
 ];
-
-const subjects = [
-  { name: "Mathematics", symbol: "∑" },
-  { name: "Reasoning", symbol: "◇" },
-  { name: "GK / GS / GA", symbol: "◎" },
-  { name: "English", symbol: "Aa" },
+const more = [
+  ["Subject-wise Practice", "/dashboard"], ["Chapter-wise Practice", "/dashboard"],
+  ["Topic-wise Practice", "/dashboard"], ["Previous Year Papers", "/dashboard"],
+  ["Study Material", "/dashboard"], ["Daily Current Affairs", "/current-affairs"],
+  ["Daily Current Affairs Quiz", "/current-affairs"], ["Weekly Revision Test", "/current-affairs"],
+  ["Monthly Current Affairs Archive", "/current-affairs"], ["My Profile", "/dashboard"],
+  ["My Test History", "/dashboard"], ["Performance Analysis", "/dashboard"],
+  ["Help & Support", "mailto:support@jdexambook.in"]
 ];
-
-const upcomingFeatures = [
-  "Full Mock Tests",
-  "Previous Year Papers",
-  "Chapter-wise Practice",
-];
-
 export default function HomePage() {
-  return (
-    <main className="jd-home">
-      {/* Header */}
-      <header className="jd-header">
-        <Link href="/" className="jd-brand">
-          <Image
-            src="/jd-exambook-logo.png"
-            alt="JD Exambook Logo"
-            width={56}
-            height={56}
-            priority
-            className="jd-logo"
-          />
-          <span>JD Exambook</span>
-        </Link>
-
-        <nav className="jd-nav">
-          <Link href="/login" className="jd-btn jd-outline">
-            Login
-          </Link>
-          <Link href="/login" className="jd-btn jd-primary">
-            Register
-          </Link>
-        </nav>
-      </header>
-
-      {/* Hero Section */}
-      <section className="jd-hero">
-        <div className="jd-watermark" aria-hidden="true">
-          <Image
-            src="/jd-exambook-logo.png"
-            alt=""
-            width={700}
-            height={700}
-            className="jd-watermark-image"
-            priority
-          />
-        </div>
-
-        <div className="jd-hero-content">
-          <p className="jd-eyebrow">
-            SSC EXAM PREPARATION PLATFORM
-          </p>
-
-          <h1>
-            Prepare for SSC Exams with JD Exambook
-          </h1>
-
-          <p className="jd-hero-description">
-            Explore SSC exam preparation resources.
-            Subject-wise practice, chapter-wise questions,
-            previous year papers and mock tests are being
-            developed for JD Exambook.
-          </p>
-
-          <Link
-            href="/login"
-            className="jd-btn jd-primary jd-cta"
-          >
-            Get Started
-          </Link>
-        </div>
-      </section>
-
-      {/* SSC Exams */}
-      <section className="jd-section">
-        <h2>Explore SSC Exams</h2>
-
-        <p className="jd-subtitle">
-          Choose your examination to explore available
-          preparation sections. Login or register to continue.
-        </p>
-
-        <div className="jd-grid">
-          {exams.map((exam) => (
-            <Link
-              key={exam.code}
-              href="/login"
-              className="jd-card jd-exam-card"
-            >
-              <div className="jd-card-icon">📘</div>
-
-              <h3>{exam.name}</h3>
-
-              <p>
-                Explore exam details and preparation
-                sections after login.
-              </p>
-
-              <span className="jd-card-link">
-                Explore Exam →
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* Subject-wise Practice */}
-      <section className="jd-section jd-soft-section">
-        <h2>Subject-wise Practice</h2>
-
-        <p className="jd-subtitle">
-          Our SSC question banks are under development.
-          Practice features will be available soon.
-        </p>
-
-        <div className="jd-grid">
-          {subjects.map((subject) => (
-            <div
-              key={subject.name}
-              className="jd-card"
-            >
-              <div className="jd-subject-icon">
-                {subject.symbol}
-              </div>
-
-              <h3>{subject.name}</h3>
-
-              <p>
-                Chapter-wise and topic-wise practice
-              </p>
-
-              <span className="jd-coming">
-                Coming Soon
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Upcoming Features */}
-      <section className="jd-section">
-        <h2>More Preparation Features</h2>
-
-        <p className="jd-subtitle">
-          More learning and practice options are
-          being developed.
-        </p>
-
-        <div className="jd-grid">
-          {upcomingFeatures.map((feature) => (
-            <div
-              key={feature}
-              className="jd-card"
-            >
-              <div className="jd-card-icon">📚</div>
-
-              <h3>{feature}</h3>
-
-              <p>
-                This feature is under development.
-              </p>
-
-              <span className="jd-coming">
-                Coming Soon
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Call to Action */}
-      <section className="jd-bottom-cta">
-        <h2>Start Your Preparation Journey</h2>
-
-        <p>
-          Create your JD Exambook account to explore
-          exam preparation sections.
-        </p>
-
-        <Link
-          href="/login"
-          className="jd-btn jd-primary jd-cta"
-        >
-          Login / Register
-        </Link>
-      </section>
-
-      {/* Footer */}
-      <footer className="jd-footer">
-        © 2026 JD Exambook. All rights reserved.
-      </footer>
-
-      <style>{`
-        .jd-home {
-          min-height: 100vh;
-          background: #f7f9fc;
-          color: #101820;
-          font-family: Arial, sans-serif;
-        }
-
-        .jd-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 16px;
-          padding: 14px 6%;
-          background: #ffffff;
-          border-bottom: 1px solid #e5eaf0;
-        }
-
-        .jd-brand {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          color: #0866c2;
-          text-decoration: none;
-          font-size: clamp(20px, 3vw, 27px);
-          font-weight: 800;
-        }
-
-        .jd-logo {
-          width: 56px;
-          height: 56px;
-          object-fit: contain;
-          border-radius: 50%;
-        }
-
-        .jd-nav {
-          display: flex;
-          gap: 12px;
-        }
-
-        .jd-btn {
-          display: inline-block;
-          padding: 12px 22px;
-          border-radius: 9px;
-          font-size: 15px;
-          font-weight: 700;
-          text-decoration: none;
-          text-align: center;
-          transition: transform 0.2s ease;
-        }
-
-        .jd-btn:hover {
-          transform: translateY(-2px);
-        }
-
-        .jd-primary {
-          background: #0866c2;
-          color: #ffffff;
-        }
-
-        .jd-outline {
-          background: #ffffff;
-          color: #0866c2;
-          border: 1px solid #0866c2;
-        }
-
-        .jd-hero {
-          position: relative;
-          isolation: isolate;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 510px;
-          padding: 75px 6%;
-          overflow: hidden;
-          text-align: center;
-          background: linear-gradient(
-            135deg,
-            #eaf5ff 0%,
-            #e9fff3 100%
-          );
-        }
-
-        .jd-watermark {
-          position: absolute;
-          inset: 0;
-          z-index: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          pointer-events: none;
-        }
-
-        .jd-watermark-image {
-          width: min(75vw, 570px);
-          height: auto;
-          max-height: 90%;
-          object-fit: contain;
-          opacity: 0.10;
-        }
-
-        .jd-hero-content {
-          position: relative;
-          z-index: 1;
-          max-width: 950px;
-          margin: auto;
-        }
-
-        .jd-eyebrow {
-          color: #00895a;
-          font-size: 15px;
-          font-weight: 800;
-          letter-spacing: 1.2px;
-        }
-
-        .jd-hero h1 {
-          max-width: 900px;
-          margin: 22px auto;
-          font-size: clamp(32px, 5vw, 54px);
-          line-height: 1.2;
-        }
-
-        .jd-hero-description {
-          max-width: 740px;
-          margin: 0 auto 30px;
-          color: #526173;
-          font-size: 18px;
-          line-height: 1.8;
-        }
-
-        .jd-cta {
-          padding: 14px 28px;
-        }
-
-        .jd-section {
-          padding: 65px 6%;
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-
-        .jd-section h2 {
-          text-align: center;
-          font-size: clamp(26px, 4vw, 36px);
-          margin: 0 0 14px;
-        }
-
-        .jd-subtitle {
-          text-align: center;
-          color: #687586;
-          line-height: 1.7;
-          margin: 0 auto 35px;
-          max-width: 750px;
-        }
-
-        .jd-soft-section {
-          max-width: none;
-          background: #eef5fb;
-        }
-
-        .jd-grid {
-          display: grid;
-          grid-template-columns:
-            repeat(auto-fit, minmax(220px, 1fr));
-          gap: 20px;
-        }
-
-        .jd-card {
-          display: block;
-          padding: 26px;
-          border-radius: 14px;
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 4px 16px rgba(0,0,0,0.04);
-          color: #101820;
-          text-decoration: none;
-        }
-
-        .jd-exam-card:hover {
-          border-color: #0866c2;
-        }
-
-        .jd-card h3 {
-          margin: 14px 0 10px;
-          font-size: 20px;
-        }
-
-        .jd-card p {
-          color: #687586;
-          line-height: 1.6;
-          font-size: 15px;
-        }
-
-        .jd-card-icon {
-          font-size: 30px;
-        }
-
-        .jd-subject-icon {
-          font-size: 32px;
-          font-weight: 800;
-          color: #00a86b;
-        }
-
-        .jd-card-link {
-          color: #0866c2;
-          font-weight: 700;
-        }
-
-        .jd-coming {
-          color: #00895a;
-          font-weight: 700;
-        }
-
-        .jd-bottom-cta {
-          padding: 60px 6%;
-          text-align: center;
-          background: #101820;
-          color: #ffffff;
-        }
-
-        .jd-bottom-cta h2 {
-          font-size: clamp(25px, 4vw, 34px);
-        }
-
-        .jd-bottom-cta p {
-          color: #cbd5e1;
-          margin-bottom: 28px;
-          line-height: 1.7;
-        }
-
-        .jd-footer {
-          padding: 25px;
-          text-align: center;
-          color: #687586;
-          font-size: 14px;
-        }
-
-        @media (max-width: 600px) {
-          .jd-header {
-            padding: 12px 4%;
-          }
-
-          .jd-brand {
-            font-size: 19px;
-            gap: 7px;
-          }
-
-          .jd-logo {
-            width: 43px;
-            height: 43px;
-          }
-
-          .jd-nav {
-            gap: 7px;
-          }
-
-          .jd-nav .jd-btn {
-            padding: 9px 12px;
-            font-size: 13px;
-          }
-
-          .jd-hero {
-            min-height: 480px;
-            padding: 65px 5%;
-          }
-
-          .jd-watermark-image {
-            width: 85vw;
-            opacity: 0.10;
-          }
-
-          .jd-hero-description {
-            font-size: 16px;
-          }
-
-          .jd-section {
-            padding: 48px 5%;
-          }
-        }
-      `}</style>
-    </main>
-  );
+ const [menu,setMenu]=useState(false);
+ const [moreOpen,setMoreOpen]=useState(false);
+ return <div className="new-home">
+  <header className="new-header"><Link className="new-brand" href="/"><Image src="/jd-exambook-logo.png" width={53} height={53} alt="JD Exam Book logo"/><strong>JD <em>Exam</em> Book</strong></Link>
+   <nav className={menu?"new-links open":"new-links"} aria-label="Main navigation">
+    <Link href="/">Home</Link><Link href="/dashboard">Practice</Link><Link href="/dashboard">Mock Tests</Link><Link href="/dashboard">Previous Year</Link><Link href="/current-affairs">Current Affairs</Link><Link href="/dashboard">Study Material</Link>
+    <button onClick={()=>setMoreOpen(!moreOpen)} aria-expanded={moreOpen}>More ▾</button>
+    {moreOpen&&<div className="new-more">{more.map(([name,url])=><Link key={name} href={url}>{name}</Link>)}</div>}
+   </nav>
+   <div className="new-actions"><Link className="new-login" href="/login">Login</Link><Link className="new-signup" href="/login?mode=signup">Sign Up</Link></div>
+   <button className="new-hamb" onClick={()=>setMenu(!menu)} aria-label="Toggle menu" aria-expanded={menu}>☰</button>
+  </header>
+  <div className="new-shell"><div className="new-main">
+   <section className="new-hero"><div><h1>India’s Trusted <span>Exam Preparation</span> Platform</h1><p>Practice with exam-oriented questions, mock tests, previous year papers and daily current affairs. All in one place.</p><Link href="/dashboard" className="new-cta">Start Practicing Free →</Link></div><div className="new-illustration" aria-hidden="true"><div className="new-cap">🎓</div><div className="new-books">📚</div><div className="new-bubble b1">✓ Practice</div><div className="new-bubble b2">▤ Mock Tests</div><div className="new-bubble b3">▣ Current Affairs</div></div></section>
+   <form className="new-search" action="/dashboard"><input name="q" aria-label="Search tests and exams" placeholder="⌕  Search tests, topics, exams…"/><button type="submit">Search</button></form>
+   <div className="new-shortcuts">{shortcuts.map(s=><Link key={s.label} href={s.href}><span>{s.icon}</span><b>{s.label}</b></Link>)}</div>
+   <section className="new-mobile-news"><h2>Current Affairs <small>FREE</small></h2><p>Verified daily exam news will appear here when published.</p><Link href="/current-affairs">View Current Affairs →</Link></section>
+   <section className="new-popular"><h2>Popular Exams</h2><p>Choose your exam and start practicing</p><div className="new-exams">{exams.map(e=><div className="new-exam" key={e.name}><span>{e.icon}</span><div><b>{e.name}</b><small>{e.sub}</small>{e.code?<Link href={`/exams/${e.code}`}>View Tests →</Link>:<small>Not yet available</small>}</div></div>)}</div></section>
+  </div>
+  <aside className="new-aside"><div className="new-aside-title"><strong>▣ Daily Current Affairs <small>FREE</small></strong><p>Verified exam-oriented news</p></div><div className="new-tabs">Latest　 National　 International　 Economy</div><div className="new-empty"><strong>Latest verified news</strong><p>No published news is available yet. Only verified articles will appear here.</p><Link href="/current-affairs">View All Current Affairs →</Link></div><div className="new-aside-cards"><Link href="/current-affairs">Daily Quiz <small>Free</small></Link><Link href="/current-affairs">Weekly Revision <small>Sunday 10 AM</small></Link></div></aside></div>
+  <footer className="new-footer">© 2026 JD Exam Book. Existing paid test access rules remain applicable.</footer>
+  <nav className="new-bottom" aria-label="Mobile bottom navigation"><Link href="/">⌂<small>Home</small></Link><Link href="/dashboard">▣<small>Practice</small></Link><Link href="/dashboard">▤<small>Tests</small></Link><Link href="/current-affairs">▦<small>Current Affairs</small></Link><button onClick={()=>{setMenu(!menu);window.scrollTo({top:0,behavior:"smooth"})}}>•••<small>More</small></button></nav>
+  <style jsx global>{`
+   .new-home{min-height:100vh;background:#f3f8ff;color:#101d3e;font-family:Arial,sans-serif}.new-home *{box-sizing:border-box}.new-home a{text-decoration:none;color:inherit}.new-header{height:72px;position:sticky;top:0;z-index:20;background:#fff;display:flex;align-items:center;gap:18px;padding:8px max(18px,4vw);box-shadow:0 2px 15px #142e5612}.new-brand{display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:24px;color:#073879!important}.new-brand em{font-style:normal;color:#ff6808}.new-links{display:flex;align-items:center;gap:17px;flex:1;justify-content:center;font-size:13px;font-weight:600;position:relative}.new-links>a:hover{color:#0866c2}.new-links button{background:none;border:0;font:inherit;cursor:pointer}.new-more{position:absolute;top:35px;right:0;background:#fff;box-shadow:0 8px 28px #15294b25;border-radius:12px;padding:10px;display:grid;grid-template-columns:repeat(2,minmax(175px,1fr));gap:5px;z-index:25}.new-more a{padding:9px;border-radius:6px}.new-more a:hover{background:#eef5ff}.new-actions{display:flex;gap:8px}.new-actions a{padding:11px 17px;border-radius:8px;font-weight:bold;font-size:13px;white-space:nowrap}.new-login{border:1px solid #0866c2;color:#0866c2!important}.new-signup{background:#ff6808;color:white!important}.new-hamb{display:none;border:0;background:#edf4ff;padding:10px;border-radius:8px;font-size:22px}.new-shell{max-width:1500px;margin:0 auto;padding:14px 20px 28px;display:grid;grid-template-columns:minmax(0,2fr) minmax(310px,1fr);gap:18px}.new-main{min-width:0}.new-hero{min-height:335px;display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:10px;background:linear-gradient(120deg,#fff,#e3f3ff);border-radius:18px;padding:34px 32px;overflow:hidden}.new-hero h1{font-size:clamp(30px,3.1vw,49px);line-height:1.07;letter-spacing:-1px;margin:0 0 14px}.new-hero h1 span{display:block;color:#ff6909}.new-hero p{line-height:1.6;font-size:16px;margin:0 0 20px}.new-cta{display:inline-block;background:#ff6808;color:#fff!important;padding:13px 22px;border-radius:8px;font-weight:700}.new-illustration{position:relative;text-align:center;font-size:100px;min-height:260px}.new-cap{font-size:110px}.new-books{font-size:100px;margin-top:-45px}.new-bubble{position:absolute;background:#fff;box-shadow:0 5px 15px #153c6220;border-radius:8px;padding:10px;font-size:12px;font-weight:700}.b1{top:15px;left:0}.b2{top:5px;right:0}.b3{bottom:25px;right:0}.new-search{display:none}.new-shortcuts{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:18px 0}.new-shortcuts a{background:white;border:1px solid #e0e9f5;border-radius:11px;padding:15px 7px;text-align:center;display:grid;justify-items:center;gap:8px;font-size:12px}.new-shortcuts span{display:grid;place-items:center;background:#e9f4ff;color:#0866c2;width:39px;height:39px;border-radius:10px;font-size:21px}.new-popular{background:#fff;border-radius:14px;padding:18px}.new-popular h2{font-size:22px;margin:0 0 5px}.new-popular p{color:#66758d;margin:0 0 14px;font-size:13px}.new-exams{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.new-exam{border:1px solid #dfe7f2;border-radius:10px;padding:12px;display:flex;gap:10px;min-width:0}.new-exam>span{font-size:28px}.new-exam div{display:grid;gap:4px;font-size:13px;min-width:0}.new-exam small{font-size:11px;color:#6d7890}.new-exam a{font-size:12px;color:#008f64;font-weight:bold}.new-aside{background:#fff;border-radius:15px;box-shadow:0 4px 18px #0e2b4a0d;padding:13px;align-self:start}.new-aside-title{background:#073c82;color:white;border-radius:9px;padding:14px}.new-aside-title strong{font-size:18px}.new-aside-title small,.new-mobile-news small{background:#0ab54c;color:white;border-radius:7px;padding:4px;font-size:11px}.new-aside-title p{margin:5px 0 0;font-size:12px}.new-tabs{font-size:12px;white-space:nowrap;overflow:auto;padding:14px 2px;border-bottom:1px solid #dfe7f2}.new-empty{padding:25px 12px;line-height:1.6}.new-empty p{color:#64748b;font-size:14px}.new-empty a{color:#0866c2;font-weight:bold;font-size:13px}.new-aside-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}.new-aside-cards a{border:1px solid #d8e2f0;border-radius:10px;padding:15px 9px;font-size:13px;font-weight:bold}.new-aside-cards small{display:block;margin-top:5px;color:#64748b;font-size:11px}.new-mobile-news{display:none}.new-footer{text-align:center;padding:25px;font-size:12px;color:#64748b}.new-bottom{display:none}
+   @media(max-width:1150px){.new-links{gap:9px;font-size:11px}.new-brand{font-size:19px}.new-shell{grid-template-columns:minmax(0,1.65fr) minmax(270px,1fr)}.new-exams{grid-template-columns:repeat(2,minmax(0,1fr))}}
+   @media(max-width:850px){.new-header{height:64px;padding:8px 16px}.new-brand{font-size:20px}.new-brand img{width:43px;height:43px}.new-links{display:none;position:absolute;top:64px;left:0;right:0;background:white;box-shadow:0 8px 20px #142e5620;padding:16px;flex-direction:column;align-items:stretch;max-height:70vh;overflow:auto}.new-links.open{display:flex}.new-more{position:static;box-shadow:none;grid-template-columns:1fr}.new-actions{margin-left:auto}.new-hamb{display:block}.new-shell{grid-template-columns:1fr}.new-aside{display:none}.new-mobile-news{display:block;background:#e8f8ee;border-radius:12px;padding:16px;margin:18px 0}.new-mobile-news h2{font-size:18px;margin:0}.new-mobile-news p{font-size:13px}.new-mobile-news a{color:#087a4a;font-weight:bold}.new-bottom{position:fixed;bottom:0;left:0;right:0;background:white;border-top:1px solid #d9e2f0;display:flex;justify-content:space-around;padding:8px 3px max(8px,env(safe-area-inset-bottom));z-index:25}.new-bottom a,.new-bottom button{border:0;background:none;display:grid;justify-items:center;gap:3px;font-size:22px;color:#64748b}.new-bottom small{font-size:10px}.new-home{padding-bottom:75px}}
+   @media(max-width:600px){.new-header{gap:6px}.new-brand{font-size:19px}.new-actions{display:none}.new-shell{padding:12px}.new-hero{display:block;min-height:0;padding:20px 12px;background:#fff}.new-hero h1{font-size:clamp(28px,8vw,38px);letter-spacing:-.5px}.new-hero p{font-size:14px}.new-illustration{display:none}.new-cta{display:none}.new-search{display:flex;gap:6px;margin:14px 0}.new-search input{min-width:0;flex:1;border:1px solid #cbd8e9;border-radius:8px;padding:13px;font-size:14px}.new-search button{border:0;border-radius:8px;background:#0866c2;color:white;padding:0 12px}.new-shortcuts{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.new-shortcuts a{min-height:100px;padding:12px 5px;font-size:12px}.new-popular{padding:12px}.new-exams{grid-template-columns:repeat(2,minmax(0,1fr))}.new-exam{padding:9px;gap:6px}.new-exam>span{font-size:20px}}
+  `}</style>
+ </div>
 }
