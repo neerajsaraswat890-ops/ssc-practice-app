@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [mobile, setMobile] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [state, setState] = useState("");
   const [targetExam, setTargetExam] = useState("");
 
@@ -71,6 +72,7 @@ export default function LoginPage() {
           mobile_number: mobile.trim(),
           state,
           target_exam: targetExam,
+          referral_code: referralCode.trim().toUpperCase(),
         },
       },
     });
@@ -145,6 +147,14 @@ export default function LoginPage() {
 
     setLoading(false);
   }
+
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("ref");
+    if (code && /^[A-Za-z0-9]{8,16}$/.test(code)) {
+      setReferralCode(code.toUpperCase());
+      setMode("signup");
+    }
+  }, []);
 
   const inputStyle = {
     width: "100%",
@@ -378,6 +388,11 @@ export default function LoginPage() {
                   <option value="Other">Other</option>
                 </select>
               </>
+            )}
+
+            {mode === "signup" && (
+              <><label style={labelStyle}>Referral Code (optional)</label>
+              <input className="input" style={inputStyle} value={referralCode} maxLength={16} onChange={(e) => setReferralCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())} placeholder="Enter referral code" /></>
             )}
 
             <label style={labelStyle}>
