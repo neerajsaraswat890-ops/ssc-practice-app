@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
+import QuestionChart from "../../../components/QuestionChart";
 
 export default function ResultPage() {
   const { id } = useParams();
@@ -138,7 +139,26 @@ export default function ResultPage() {
         setSolutionError(message);
       }
     } else {
-      setSolutions(solutionData || []);
+      const releasedSolutions = solutionData || [];
+      const questionIds = releasedSolutions.map(solution => solution.question_id).filter(Boolean);
+      const chartByQuestion = new Map();
+      for (let offset = 0; offset < questionIds.length; offset += 500) {
+        const { data: chartLinks, error: chartError } = await client
+          .from("questions")
+          .select("id,chart_asset_id")
+          .in("id", questionIds.slice(offset, offset + 500));
+        if (chartError) {
+          setSolutionError("Question charts could not be loaded. Please refresh the page.");
+          break;
+        }
+        for (const question of chartLinks || []) {
+          chartByQuestion.set(String(question.id), question.chart_asset_id);
+        }
+      }
+      setSolutions(releasedSolutions.map(solution => ({
+        ...solution,
+        chart_asset_id: chartByQuestion.get(String(solution.question_id)) || null,
+      })));
       setSolutionsLocked(false);
     }
 
@@ -1198,6 +1218,8 @@ export default function ResultPage() {
                           }
                         </div>
                       )}
+
+                      <QuestionChart assetId={solution.chart_asset_id} />
 
                       <div style={answerGrid}>
 
