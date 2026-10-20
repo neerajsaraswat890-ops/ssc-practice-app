@@ -1,6 +1,7 @@
 
 "use client";
 
+import "./jd-auth.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -193,9 +194,9 @@ export default function LoginPage() {
         </span>
       </div>
 
-      <main className="wrap">
+      <main className="wrap jd-auth-shell">
         <div
-          className="card"
+          className="card jd-auth-card"
           style={{
             maxWidth: "520px",
             margin: "40px auto",
