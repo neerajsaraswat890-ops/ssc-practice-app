@@ -37,3 +37,12 @@
 - Runs on UTC cron. Hourly `45 * * * *` ingest corresponds to each hour's **:15 IST**; `55 * * * *` full-article study corresponds to **:25 IST**.
 - `article_analysis_status` and `ca_article_analyses` track source errors, incomplete bilingual corroboration, low priority, and grounded facts separately. A deployed function is not proof that any given item was fully read; inspect its actual run logs and coverage.
 - Source snippets are evidence, not a replacement for fact-checking contested claims or suitable examination questions; quiz drafting and answer QA remain separate gates.
+
+### Measured first-run outcome, 20 October 2026 (Testing)
+- Full articles extracted/read: 26 of 26 active pending or published stories; one rejected duplicate excluded.
+- Original English candidate fact snippets: 112 across 20 stories; NOT yet approved exam facts, and not generated Hindi translations.
+- News automatically approved through the new article gate: **zero** at this checkpoint. Publishing is conservative when official Hindi article evidence is unavailable; earlier manual approvals and 16 bilingual quiz questions remain intact.
+- Exam categories found: Banking & Economy 11, Government Schemes 5, Science & Technology 5, Sports 3, Defence 2.
+- Routine RBI daily money-market tables and auction-result summaries get a lower exam-priority score than policy decisions. The system still retains source evidence without promoting low-value news.
+- Scheduled times corrected for UTC DB cron: ingestion minute 45 UTC = :15 IST each hour; article verification minute 55 UTC = :25 IST. Temporary smoke-test cron jobs are unscheduled after testing.
+- Version 4 of full-article study attempts an alternate official PIB Hindi press-release page when the mobile Hindi rendition is not available. Hindi-language content must still be matched to the same original primary-source release; missing Hindi evidence is a review issue, not assumed evidence.
