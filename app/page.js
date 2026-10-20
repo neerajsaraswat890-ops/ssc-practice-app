@@ -39,7 +39,7 @@ const tabs=["Latest","National","International","Economy","Defence","Sports","Sc
 function Mark({small=false}){
 return <span className={"jd-blue-logo"+(small?" jd-small-logo":"")} aria-hidden="true"><svg viewBox="0 0 62 56" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 43 Q18 38 29 47 Q42 38 58 44 L56 51 Q42 47 31 53 Q17 47 6 51Z" fill="#0069cc"/><path d="M6 45 Q20 42 30 50 Q39 42 55 45" stroke="#f96b04" strokeWidth="3"/><path d="M16 39V21Q16 14 26 14" stroke="#0c438c" strokeWidth="9" strokeLinecap="round"/><path d="M29 13H39Q57 14 55 32Q54 41 40 42H31" stroke="#ff7b13" strokeWidth="9" strokeLinecap="round"/><path d="M17 12L34 3L53 11L35 19Z" fill="#062e76"/><path d="M35 18V27" stroke="#ff9b00" strokeWidth="3"/><circle cx="35" cy="28" r="3" fill="#ff9b00"/></svg></span>;
 }
-function Brand({compact=false}){return <Link href="/" className={"jdv-brand"+(compact?" jdv-brand-mini":"")}><Mark small={compact}/><span><b>JD</b> <strong>Exam</strong> <b>Book</b></span></Link>}
+function Brand({compact=false}){return <Link href="/" className={"jdv-brand"+(compact?" jdv-brand-mini":"")}><Mark small={compact}/><span><b>JD</b> <strong>Exambook</strong></span></Link>}
 function SearchBar({inHero=false}){
  const router=useRouter(); const [q,setQ]=useState("");
  const all=[...featureItems,...examItems.map(x=>({name:x.title+" "+x.subtitle,href:x.href}))];
