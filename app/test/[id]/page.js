@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
+import QuestionChart from "../../../components/QuestionChart";
 
 export default function TestPage() {
   const { id } = useParams();
@@ -174,6 +175,7 @@ export default function TestPage() {
         question_id,
         questions (
           id,
+          chart_asset_id,
           question_text,
           question_text_hi,
           option_a,
@@ -1929,6 +1931,8 @@ export default function TestPage() {
           <div style={questionText}>
             {displayQuestion}
           </div>
+
+          <QuestionChart key={q.chart_asset_id || q.id} assetId={q.chart_asset_id} language={language} />
 
           <div style={optionsWrap}>
 
