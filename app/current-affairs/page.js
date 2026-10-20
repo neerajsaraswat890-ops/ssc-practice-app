@@ -1,21 +1,23 @@
 
+"use client";
+import { useEffect,useState } from "react";
 import Link from "next/link";
-export const metadata={title:"Current Affairs | JD Exambook",description:"Verified daily current affairs, quizzes and weekly revision for competitive exams."};
-export default function CurrentAffairsPage(){
-return <main style={{minHeight:"100vh",background:"#f6f9fc",padding:"28px 16px",fontFamily:"Arial,sans-serif",color:"#101820"}}>
-<div style={{maxWidth:900,margin:"auto"}}>
-<Link href="/" style={{color:"#008f60",textDecoration:"none"}}>← JD Exambook Home</Link>
-<section style={{background:"linear-gradient(120deg,#e7f8ee,#e8f0ff)",borderRadius:16,padding:26,marginTop:22}}>
-<p style={{color:"#008f60",fontWeight:700}}>JD EXAMBOOK • CURRENT AFFAIRS</p>
-<h1 style={{fontSize:"clamp(27px,5vw,40px)",margin:"12px 0"}}>Daily Current Affairs</h1>
-<p style={{color:"#526176",lineHeight:1.6}}>Source-verified updates and exam-oriented practice, with Hindi and English coverage.</p>
+import {supabase} from "../../lib/supabase";
+export default function CurrentAffairs(){
+const [news,setNews]=useState([]),[questions,setQuestions]=useState([]),[loading,setLoading]=useState(true);
+useEffect(()=>{let live=true;const db=supabase();Promise.all([
+ db.from("ca_items").select("id,headline_en,headline_hi,summary_en,summary_hi,canonical_url,published_at").order("published_at",{ascending:false}).limit(30),
+ db.from("ca_questions").select("id,item_id,question_en,question_hi,option_a_en,option_b_en,option_c_en,option_d_en").limit(20)
+]).then(([n,q])=>{if(live){if(!n.error)setNews(n.data||[]);if(!q.error)setQuestions(q.data||[]);setLoading(false)}}).catch(()=>{if(live)setLoading(false)});return()=>{live=false}},[]);
+return <main style={{fontFamily:"Arial,sans-serif",padding:"22px 14px 72px",background:"#f6f9fc",color:"#101820",minHeight:"100vh"}}><div style={{maxWidth:1020,margin:"auto"}}>
+<Link href="/" style={{color:"#008f60"}}>← JD Exambook Home</Link>
+<div style={{background:"linear-gradient(110deg,#e5f8ef,#e7f0ff)",borderRadius:16,padding:26,margin:"20px 0"}}><strong style={{color:"#008a60"}}>JD EXAMBOOK</strong><h1>Current Affairs — Daily Updates</h1><p>SSC, Railway, Banking and State Exams • Verified official sources only</p></div>
+<section style={{background:"#fff",borderRadius:14,padding:24,border:"1px solid #e3e8ef"}}><h2>Latest Verified News</h2>
+{loading?<p>Loading latest updates...</p>:!news.length?<p>Editorially approved news will appear here when available. Unverified headlines are not shown.</p>:
+news.map(n=><article key={n.id} style={{padding:"16px 0",borderBottom:"1px solid #e2e8f0"}}><h3>{n.headline_en}</h3>{n.headline_hi&&<p>{n.headline_hi}</p>}{n.summary_en&&<p>{n.summary_en}</p>}<small>{new Date(n.published_at).toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"})} • <a href={n.canonical_url} target="_blank" rel="noopener noreferrer">Official Source ↗</a></small></article>)}
 </section>
-<section style={{background:"white",border:"1px solid #e4e9ef",padding:24,borderRadius:14,marginTop:22}}>
-<h2>Latest Updates</h2><p>Only verified, approved updates will be published here. No verified entries are published yet in this Testing preview.</p>
-<p style={{fontSize:13,color:"#64748b"}}>Each upcoming item will show its source, event date, publication date and exam relevance.</p>
-</section>
-<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:18,marginTop:20}}>
-<section id="daily-quiz" style={{background:"white",padding:23,borderRadius:14,border:"1px solid #e4e9ef"}}><h2>✍ Daily Quiz</h2><p>Free for All</p><p style={{color:"#64748b"}}>Quizzes will become available after questions are verified and published.</p></section>
-<section id="weekly-test" style={{background:"white",padding:23,borderRadius:14,border:"1px solid #e4e9ef"}}><h2>🗓 Weekly Test</h2><p>Sunday • 10:00 AM (IST)</p><p style={{color:"#64748b"}}>Weekly revision tests will appear here once approved and scheduled.</p></section>
+<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:16,marginTop:20}}>
+<section id="daily-quiz" style={{borderRadius:13,padding:22,background:"#fff",border:"1px solid #e3e8ef"}}><h2>✍ Daily Quiz</h2><strong>Free for All</strong><p>{questions.length?questions.length+" reviewed question(s) currently available.": "Quiz will open after editorial approval of verified questions."}</p>{questions.length>0&&<p>Answer submission will be enabled after secure quiz scoring is deployed.</p>}</section>
+<section id="weekly-test" style={{borderRadius:13,padding:22,background:"#fff",border:"1px solid #e3e8ef"}}><h2>🗓 Weekly Revision</h2><strong>Sunday, 10:00 AM IST</strong><p>Only published and verified questions can be included. Weekly test publishing is not active yet.</p></section>
 </div></div></main>
 }
