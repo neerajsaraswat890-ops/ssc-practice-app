@@ -1,0 +1,9 @@
+
+body:has(.jd-auth-shell){background:#f4f8ff}body:has(.jd-auth-shell)>.nav{background:#0b468d}
+.jd-auth-shell{max-width:1150px!important;min-height:calc(100vh - 96px);display:grid;place-items:center;background:radial-gradient(circle at 5% 72%,#e4f0ff,transparent 38%),radial-gradient(circle at 100% 0%,#ecfbf3,transparent 42%);padding:45px 24px!important}
+.jd-auth-card{width:min(100%,510px);max-width:510px!important;margin:10px auto!important;border:1px solid #e1eaf3;border-radius:17px!important;box-shadow:0 15px 45px #15376713!important;background:#fff;padding:34px!important}
+.jd-auth-card h1{font-size:29px;color:#143e78;letter-spacing:-.6px}.jd-auth-card p.muted{text-align:center}
+.jd-auth-card label{color:#29466b}.jd-auth-card input,.jd-auth-card select{border-radius:8px!important;border:1px solid #dce4ed!important;background:#fff;min-height:45px!important}
+.jd-auth-card form>.btn,.jd-auth-card>div>.btn{background:#0c68c6!important;color:white;border-radius:8px!important;min-height:46px}
+.jd-auth-card form>.btn{background:#fc7d16!important;font-size:15px!important}
+@media(max-width:700px){.jd-auth-shell{padding:12px!important;display:block}.jd-auth-card{padding:22px!important;margin:12px auto!important}.jd-auth-card h1{font-size:23px}}
