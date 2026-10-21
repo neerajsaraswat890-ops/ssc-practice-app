@@ -42,9 +42,14 @@ function ReasoningRichText({ value, language }) {
 // Keep question wording intact while placing statement/conclusion blocks on separate lines.
 function formatQuestionText(value) {
   if (typeof value !== "string") return value;
-  return value
-    .replace(/\s+(?=(?:कथन|निष्कर्ष|Statements?|Conclusions?)\s*[:：])/gi, "\n")
-    .replace(/([।.?])\s+(?=(?:कथन|निष्कर्ष)\s*[:：])/g, "$1\n");
+  const clean = value.replace(/\r\n?/g, "\n");
+  // Preserve ordinary prose, equations and decimals in every section.
+  if (!/(?:कथन|निष्कर्ष|statements?|conclusions?|निम्नांकित|निम्नलिखित|following)/i.test(clean)) {
+    return clean;
+  }
+  return clean
+    .replace(/[ \t]+(?=(?:कथन|निष्कर्ष|Statements?|Conclusions?)(?:\s*[IVX]+|\s*\d+)?\s*[:：])/gi, "\n")
+    .replace(/[ \t]+(?=(?:[1-9]\d{0,2}|[IVX]{1,4})[.)]\s+(?=\S))/g, "\n");
 }
 
 export default function TestPage() {
