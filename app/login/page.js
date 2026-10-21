@@ -9,6 +9,13 @@ import { supabase } from "../../lib/supabase";
 export default function LoginPage() {
   const router = useRouter();
 
+  function destinationAfterLogin() {
+    const candidate = new URLSearchParams(window.location.search).get("next");
+    return candidate && /^\/(?:test|instructions)\/\d+$/.test(candidate)
+      ? candidate
+      : "/dashboard";
+  }
+
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -82,7 +89,7 @@ export default function LoginPage() {
     }
 
     if (data?.session) {
-      router.replace("/dashboard");
+      router.replace(destinationAfterLogin());
       return;
     }
 
@@ -117,7 +124,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace("/dashboard");
+    router.replace(destinationAfterLogin());
   }
 
   async function resetPassword() {

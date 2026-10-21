@@ -121,6 +121,13 @@ export default function TestPage() {
     setError("");
 
     const client = supabase();
+    // Test state RPCs require a signed-in user. Redirect guests to login,
+    // preserving the exact exam they intended to open.
+    const {data:sessionData,error:sessionError} = await client.auth.getUser();
+    if (sessionError || !sessionData?.user) {
+      router.replace("/login?next=" + encodeURIComponent("/test/" + id));
+      return;
+    }
 
     let localAnswers = {};
     let localReview = {};
