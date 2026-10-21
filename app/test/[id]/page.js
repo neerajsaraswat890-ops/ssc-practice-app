@@ -17,6 +17,9 @@ export default function TestPage() {
 
   const [answers, setAnswers] = useState({});
   const [review, setReview] = useState({});
+  const [bookmarks, setBookmarks] = useState({});
+  const [bookmarkBusy, setBookmarkBusy] = useState(false);
+  const [bookmarkError, setBookmarkError] = useState("");
   const [visited, setVisited] = useState({});
 
   const [current, setCurrent] = useState(0);
@@ -203,6 +206,12 @@ export default function TestPage() {
       questionData || [];
 
     setQuestions(loadedQuestions);
+    const { data: savedBookmarks, error: bookmarksLoadError } = await client.rpc("jd_get_test_bookmark_ids", { p_test_id: Number(id) });
+    if (!bookmarksLoadError) {
+      setBookmarks(Object.fromEntries((savedBookmarks || []).map(row => [String(row.question_id), true])));
+    } else {
+      setBookmarkError("Bookmarks load नहीं हुए। Refresh करके प्रयास करें।");
+    }
 
     /*
       Convert DB sections into frontend ranges.
@@ -880,6 +889,22 @@ export default function TestPage() {
       ].startIndex,
       false
     );
+  }
+
+  async function toggleBookmark(questionId) {
+    if (bookmarkBusy || submitting || changingSection) return;
+    const next = !Boolean(bookmarks[String(questionId)]);
+    setBookmarkBusy(true);
+    setBookmarkError("");
+    const { error: bookmarkSaveError } = await supabase().rpc("jd_set_question_bookmark", {
+      p_test_id: Number(id), p_question_id: Number(questionId), p_bookmarked: next,
+    });
+    if (bookmarkSaveError) {
+      setBookmarkError("Bookmark सेव नहीं हुआ: " + bookmarkSaveError.message);
+    } else {
+      setBookmarks(old => { const copy = {...old}; if (next) copy[String(questionId)] = true; else delete copy[String(questionId)]; return copy; });
+    }
+    setBookmarkBusy(false);
   }
 
   function nextQuestion() {
@@ -1921,12 +1946,15 @@ export default function TestPage() {
 
         <div style={questionInner}>
 
-          <div style={questionMeta}>
-            {language ===
-            "hindi"
-              ? `प्रश्न ${currentLocalNumber}`
-              : `Question ${currentLocalNumber}`}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+            <div style={questionMeta}>
+              {language === "hindi" ? `प्रश्न ${currentLocalNumber}` : `Question ${currentLocalNumber}`}
+            </div>
+            <button type="button" aria-pressed={Boolean(bookmarks[String(q.id)])} aria-label={bookmarks[String(q.id)] ? "Remove question bookmark" : "Bookmark question"} disabled={bookmarkBusy || submitting || changingSection} onClick={() => toggleBookmark(q.id)} style={{border:"1px solid #0b72c6",borderRadius:8,padding:"7px 11px",background:bookmarks[String(q.id)]?"#e7f3ff":"#fff",color:"#0866c2",fontWeight:700,cursor:"pointer",fontSize:12}}>
+              {bookmarkBusy ? "Saving..." : bookmarks[String(q.id)] ? "★ Bookmarked / सहेजा गया" : "☆ Bookmark / सहेजें"}
+            </button>
           </div>
+          {bookmarkError && <p role="alert" style={{fontSize:12,color:"#b91c1c"}}>{bookmarkError}</p>}
 
           <div style={questionText}>
             {displayQuestion}
