@@ -56,6 +56,9 @@ export default function ExamPage() {
   const [validExam, setValidExam] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
+  const [fullTests, setFullTests] = useState([]);
+  const [showFullTests, setShowFullTests] = useState(false);
+  const supportsFullTests = ["SSC_CGL", "SSC_CHSL", "SSC_STENO"].includes(code);
 
   useEffect(() => {
     let active = true;
@@ -66,6 +69,8 @@ export default function ExamPage() {
       setAuthorized(false);
       setValidExam(false);
       setErrorMessage("");
+      setFullTests([]);
+      setShowFullTests(false);
 
       try {
         // Step 1: Verify the logged-in user.
@@ -108,6 +113,22 @@ export default function ExamPage() {
               data.name ||
               code.replaceAll("_", " ")
           );
+          if (["SSC_CGL", "SSC_CHSL", "SSC_STENO"].includes(code)) {
+            const { data: stages, error: stageError } = await client
+              .from("exam_stages").select("id").eq("exam_id", data.id).eq("is_active", true);
+            if (stageError) throw stageError;
+            if (stages?.length) {
+              const { data: tests, error: testsError } = await client
+                .from("tests")
+                .select("id,title,total_questions,total_marks,duration_minutes,negative_mark,attempt_until")
+                .in("exam_stage_id", stages.map((stage) => stage.id))
+                .eq("test_type", "mock").eq("status", "published")
+                .order("title", { ascending: true });
+              if (testsError) throw testsError;
+              if (!active) return;
+              setFullTests((tests || []).filter((test) => !test.attempt_until || new Date(test.attempt_until).getTime() > Date.now()));
+            }
+          }
         }
       } catch (error) {
         if (active) {
@@ -276,7 +297,11 @@ export default function ExamPage() {
                     {category.description}
                   </p>
 
-                  <span
+                  {category.title === "Full Mock Tests" && supportsFullTests ? (
+                    <button type="button" className="btn" onClick={() => setShowFullTests(!showFullTests)} aria-expanded={showFullTests} aria-controls="full-tests">
+                      {showFullTests ? "Hide Full Tests" : `View Full Tests (${fullTests.length})`}
+                    </button>
+                  ) : <span
                     style={{
                       color: "#64748b",
                       fontWeight: 600,
@@ -284,22 +309,32 @@ export default function ExamPage() {
                     }}
                   >
                     Coming Soon
-                  </span>
+                  </span>}
                 </div>
               ))}
             </div>
 
-            <p
-              className="muted"
-              style={{ marginTop: "24px" }}
-            >
-              Question banks are being prepared.
-              Tests will become available after
-              content is uploaded and published.
-            </p>
+            {supportsFullTests && showFullTests && (
+              <section id="full-tests" style={{ marginTop: "24px" }} aria-label="Full Tests">
+                <h2>{examName} — Full Tests</h2>
+                {fullTests.length === 0 ? <p className="muted">Full tests will appear here once published.</p> : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "16px" }}>
+                    {fullTests.map((test) => (
+                      <article className="card" key={test.id} style={{ padding: "22px" }}>
+                        <h3>{test.title}</h3>
+                        <p>{test.total_questions} Questions · {test.total_marks} Marks · {test.duration_minutes} Minutes</p>
+                        <p className="muted">Negative marking: {test.negative_mark} per wrong answer</p>
+                        <Link className="btn" href={`/instructions/${test.id}`}>View Instructions</Link>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
           </>
         )}
       </main>
     </>
   );
 }
+
