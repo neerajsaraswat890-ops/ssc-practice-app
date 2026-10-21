@@ -64,7 +64,7 @@ function formatQuestionText(value) {
   // Para-jumble sentence labels are separate numbered-like items, not prose.
   if (/Arrange the following sentences|sentence rearrangement|para jumble/i.test(formatted) &&
       /\bP[.)]\s/.test(formatted) && /\bQ[.)]\s/.test(formatted)) {
-    formatted = formatted.replace(/[ \t]+(?=[PQRS][.)]\s+(?=[A-Z])/g, "\n");
+    formatted = formatted.replace(/[ \t]+(?=[PQRS][.)]\s+(?=[A-Z]))/g, "\n");
   }
 
   // Many English, Maths and GK/GS questions begin with a short instruction
@@ -99,6 +99,9 @@ export default function TestPage() {
 
   const [timeLeft, setTimeLeft] = useState(null);
   const [overallTimeLeft, setOverallTimeLeft] = useState(null);
+  const [paused, setPaused] = useState(false);
+  const [pauseBusy, setPauseBusy] = useState(false);
+  const [fullscreenHint, setFullscreenHint] = useState("");
 
   const [language, setLanguage] = useState("english");
 
@@ -120,6 +123,7 @@ export default function TestPage() {
   const reviewKey = `jd_review_${id}`;
   const visitedKey = `jd_visited_${id}`;
   const languageKey = `jd_language_${id}`;
+  const positionKey = `jd_question_position_${id}`;
 
   useEffect(() => {
     loadTest();
@@ -351,6 +355,7 @@ export default function TestPage() {
       );
 
     setTimeLeft(remaining);
+    setPaused(Boolean(stateData?.paused));
     // Overall clock remains independent of manual section transitions.
     setOverallTimeLeft(Number(stateData?.overall_remaining_seconds ?? remaining));
 
@@ -384,6 +389,12 @@ export default function TestPage() {
       initialQuestion = 0;
     }
 
+    try {
+      const stored = Number(localStorage.getItem(positionKey));
+      const currentSection = normalizedSections[Math.min(Math.max(serverSection, 0), normalizedSections.length - 1)];
+      if (Number.isInteger(stored) && stored >= 0 && stored < loadedQuestions.length &&
+          (timerType !== "sectional" || (currentSection && stored >= currentSection.startIndex && stored <= currentSection.endIndex))) initialQuestion = stored;
+    } catch { /* Keep first question on storage errors. */ }
     setCurrent(
       initialQuestion
     );
@@ -454,7 +465,8 @@ export default function TestPage() {
       loading ||
       timeLeft === null ||
       submitting ||
-      changingSection
+      changingSection ||
+      paused
     ) {
       return;
     }
@@ -483,6 +495,7 @@ export default function TestPage() {
     loading,
     submitting,
     changingSection,
+    paused,
   ]);
 
   /*
@@ -562,6 +575,7 @@ export default function TestPage() {
       )
     );
     setOverallTimeLeft(Number(data?.overall_remaining_seconds ?? data?.remaining_seconds ?? 0));
+    setPaused(Boolean(data?.paused));
 
     /*
       Overall timer expiry:
@@ -638,6 +652,34 @@ export default function TestPage() {
         scrollQuestionToTop();
       }
     }
+  }
+
+  async function togglePause() {
+    if (pauseBusy || !test?.pause_enabled || submitting || changingSection) return;
+    setPauseBusy(true);
+    setError("");
+    try {
+      if (!paused) {
+        const saved = await waitForPendingSaves();
+        if (!saved) { setError("उत्तर सुरक्षित नहीं हुए। कृपया दोबारा प्रयास करें।"); return; }
+      }
+      const { data, error: rpcError } = await supabase().rpc(paused ? "resume_test" : "pause_test", { p_test_id: Number(id) });
+      if (rpcError) throw rpcError;
+      if (["submitted", "auto_submitted"].includes(data?.status)) { router.replace(`/result/${id}`); return; }
+      setTimeLeft(Number(data?.remaining_seconds ?? 0));
+      setOverallTimeLeft(Number(data?.overall_remaining_seconds ?? data?.remaining_seconds ?? 0));
+      setPaused(Boolean(data?.paused));
+      try { localStorage.setItem(positionKey, String(current)); } catch {}
+    } catch (e) { setError(e?.message || "Pause/Resume failed. Please retry."); }
+    finally { setPauseBusy(false); }
+  }
+
+  async function enterFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
+      else setFullscreenHint("इस ब्राउज़र में Full Screen उपलब्ध नहीं है।");
+    } catch { setFullscreenHint("Full Screen की अनुमति नहीं मिली। Chrome में Add to Home Screen आज़माएँ।"); }
   }
 
   /*
@@ -887,6 +929,7 @@ export default function TestPage() {
     }
 
     setCurrent(index);
+    try { localStorage.setItem(positionKey, String(index)); } catch {}
 
     const q =
       questions[
@@ -1762,14 +1805,11 @@ export default function TestPage() {
       ================================================= */}
 
       <header style={topBar}>
-        <Image
-          src="/jd-exambook-logo.png"
-          alt="JD Exambook Logo"
-          width={40}
-          height={40}
-          priority
-          style={{ objectFit: "contain", borderRadius: "6px", flexShrink: 0, background: "#ffffff" }}
-        />
+        {test?.pause_enabled && (
+          <button type="button" onClick={togglePause} disabled={pauseBusy} aria-label={paused ? "Resume test" : "Pause test"} title={paused ? "Resume" : "Pause"} style={{ minWidth: 42, minHeight: 42, borderRadius: 10, border: "1px solid #64748b", background: "#334155", color: "#fff", fontSize: 19, fontWeight: 700, cursor: "pointer" }}>
+            {pauseBusy ? "…" : paused ? "▶" : "⏸"}
+          </button>
+        )}
 
 
         <div style={timerBlock}>
@@ -1809,7 +1849,7 @@ export default function TestPage() {
         </div>
 
         <div style={headerRight}>
-
+          <button type="button" onClick={enterFullscreen} title="Full screen / पूरी स्क्रीन" aria-label="Full screen" style={{ background: "#334155", border: "1px solid #64748b", borderRadius: 8, minHeight: 38, minWidth: 36, color: "#fff", cursor: "pointer" }}>⛶</button>
           <select
             value={language}
             onChange={(e) =>
@@ -1849,6 +1889,20 @@ export default function TestPage() {
         </div>
 
       </header>
+
+      {fullscreenHint && <div role="status" style={{ padding: 8, background: "#fef3c7", fontSize: 12 }}>{fullscreenHint}</div>}
+      {paused && (
+        <div role="dialog" aria-modal="true" aria-label="Test paused" style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(15,23,42,.97)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" }}>
+          <div style={{ maxWidth: 430 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>⏸</div>
+            <h2 style={{ fontSize: 26, marginBottom: 12 }}>Test Paused / परीक्षा विराम</h2>
+            <p>प्रश्न, उत्तर और बचा समय सुरक्षित है। Resume दबाने पर दोनों टाइमर वहीं से चलेंगे।</p>
+            <p style={{ fontSize: 20, fontWeight: 700 }}>{formatTime(overallTimeLeft)} · {formatTime(timeLeft)}</p>
+            <button type="button" onClick={togglePause} disabled={pauseBusy} style={{ marginTop: 16, padding: "14px 28px", borderRadius: 10, border: 0, background: "#00a86b", color: "#fff", fontSize: 18, fontWeight: 800 }}>{pauseBusy ? "Please wait…" : "▶ Resume Test"}</button>
+            {error && <p role="alert" style={{ color: "#fecaca", marginTop: 12 }}>{error}</p>}
+          </div>
+        </div>
+      )}
 
       {/* =================================================
           SECTION BAR
