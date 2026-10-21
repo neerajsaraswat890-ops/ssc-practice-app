@@ -44,14 +44,7 @@ function formatQuestionText(value) {
   if (typeof value !== "string") return value;
   const clean = value.replace(/\r\n?/g, "\n");
 
-  // Older passage imports sometimes include the exact same passage twice:
-  // once after the title and again after a "Passage:" label.
-  // Remove only a byte-for-byte duplicate; leave all other text untouched.
-  const blocks = clean.split("\n\n");
-  if (blocks.length >= 5 && blocks[3] === `Passage: ${blocks[2]}`) {
-    blocks.splice(2, 1);
-  }
-  let formatted = blocks.join("\n\n");
+  let formatted = clean;
   // Assertion–Reason items occur in GK/GS as well as Reasoning.
   formatted = formatted.replace(/[ \t]+(?=(?:Assertion|Reason|कथन|कारण)\s*\([A-R]\)\s*[:：])/gi, "\n");
 
