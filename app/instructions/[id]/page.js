@@ -62,17 +62,22 @@ export default function InstructionsPage() {
     setLanguage(value);
     try {localStorage.setItem(languageKey,value);} catch {}
   }
-  async function startTest() {
-    if (!agree || starting) return;
-    setStarting(true);
-    // This page already confirmed the signed-in user before displaying
-    // exam-specific instructions. Do not repeat a network auth request here:
-    // a slow refresh can strand mobile users on "Opening Test...".
+  function prepareTestNavigation(event) {
+    if (!agree || starting) {
+      event.preventDefault();
+      return;
+    }
+    // Keep the browser's native anchor navigation: this works even if a
+    // client-side route transition stalls or the page is restored from cache.
     try {localStorage.setItem(languageKey,language);} catch {}
-    // A full-page navigation avoids a stalled client-side route transition;
-    // the test route still authenticates and the database checks auth.uid().
-    window.location.assign("/test/" + encodeURIComponent(id));
+    setStarting(true);
   }
+
+  useEffect(() => {
+    const clearStaleNavigation = () => setStarting(false);
+    window.addEventListener("pageshow", clearStaleNavigation);
+    return () => window.removeEventListener("pageshow", clearStaleNavigation);
+  }, []);
   const header = <div className="nav" style={{display:"flex",alignItems:"center",gap:12}}>
     <Image src="/jd-exambook-logo.png" alt="JD Exambook Logo" width={46} height={46} priority style={{objectFit:"contain",borderRadius:8}}/>
     <div><div style={{fontWeight:700,fontSize:19}}>JD Exambook</div><div style={{fontSize:12,opacity:.85}}>Test Instructions / परीक्षा निर्देश</div></div>
@@ -167,10 +172,11 @@ export default function InstructionsPage() {
         <input type="checkbox" checked={agree} onChange={e=>setAgree(e.target.checked)} style={{width:22,height:22,flexShrink:0}}/>
         <span>I have read and understood all exam-specific instructions.<div>मैंने परीक्षा-विशिष्ट सभी निर्देश पढ़ एवं समझ लिए हैं।</div></span>
       </label>
-      <button className="btn" disabled={!agree || starting} onClick={startTest}
-        style={{width:"100%",padding:15,marginTop:20,opacity:agree && !starting ? 1:.5}}>
+      <a className="btn" href={agree ? "/test/" + encodeURIComponent(id) : undefined}
+        aria-disabled={!agree || starting} onClick={prepareTestNavigation}
+        style={{display:"block",textAlign:"center",textDecoration:"none",width:"100%",boxSizing:"border-box",padding:15,marginTop:20,opacity:agree && !starting ? 1:.5,cursor:agree && !starting ? "pointer" : "not-allowed"}}>
         {starting ? "Opening Test... / टेस्ट खुल रहा है..." : "Agree & Start Test / सहमत हूँ एवं परीक्षा प्रारम्भ करें"}
-      </button>
+      </a>
     </div>
   </main></>;
 }
