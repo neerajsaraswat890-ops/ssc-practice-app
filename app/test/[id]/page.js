@@ -43,7 +43,15 @@ function ReasoningRichText({ value, language }) {
 function formatQuestionText(value) {
   if (typeof value !== "string") return value;
   const clean = value.replace(/\r\n?/g, "\n");
-  let formatted = clean;
+
+  // Older passage imports sometimes include the exact same passage twice:
+  // once after the title and again after a "Passage:" label.
+  // Remove only a byte-for-byte duplicate; leave all other text untouched.
+  const blocks = clean.split("\n\n");
+  if (blocks.length >= 5 && blocks[3] === `Passage: ${blocks[2]}`) {
+    blocks.splice(2, 1);
+  }
+  let formatted = blocks.join("\n\n");
   // Assertion–Reason items occur in GK/GS as well as Reasoning.
   formatted = formatted.replace(/[ \t]+(?=(?:Assertion|Reason|कथन|कारण)\s*\([A-R]\)\s*[:：])/gi, "\n");
 
@@ -52,6 +60,12 @@ function formatQuestionText(value) {
   formatted = formatted
       .replace(/[ \t]+(?=(?:कथन|निष्कर्ष|Statements?|Conclusions?)(?:\s*[IVX]+|\s*\d+)?\s*[:：])/gi, "\n")
       .replace(/[ \t]+(?=(?:[1-9]\d{0,2}|[IVX]{1,4})[.)]\s+(?=\S))/g, "\n");
+
+  // Para-jumble sentence labels are separate numbered-like items, not prose.
+  if (/Arrange the following sentences|sentence rearrangement|para jumble/i.test(formatted) &&
+      /\bP[.)]\s/.test(formatted) && /\bQ[.)]\s/.test(formatted)) {
+    formatted = formatted.replace(/[ \t]+(?=[PQRS][.)]\s+(?=[A-Z])/g, "\n");
+  }
 
   // Many English, Maths and GK/GS questions begin with a short instruction
   // and then the actual question. Break only at a sentence boundary,
