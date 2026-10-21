@@ -43,13 +43,26 @@ function ReasoningRichText({ value, language }) {
 function formatQuestionText(value) {
   if (typeof value !== "string") return value;
   const clean = value.replace(/\r\n?/g, "\n");
-  // Preserve ordinary prose, equations and decimals in every section.
-  if (!/(?:कथन|निष्कर्ष|statements?|conclusions?|निम्नांकित|निम्नलिखित|following)/i.test(clean)) {
-    return clean;
+  let formatted = clean;
+  // Assertion–Reason items occur in GK/GS as well as Reasoning.
+  formatted = formatted.replace(/[ \t]+(?=(?:Assertion|Reason|कथन|कारण)\s*\([A-R]\)\s*[:：])/gi, "\n");
+
+  // Numbered statements belong on their own lines. Decimals like 3.14
+  // and ordinary mathematical expressions are not matched.
+  formatted = formatted
+      .replace(/[ \t]+(?=(?:कथन|निष्कर्ष|Statements?|Conclusions?)(?:\s*[IVX]+|\s*\d+)?\s*[:：])/gi, "\n")
+      .replace(/[ \t]+(?=(?:[1-9]\d{0,2}|[IVX]{1,4})[.)]\s+(?=\S))/g, "\n");
+
+  // Many English, Maths and GK/GS questions begin with a short instruction
+  // and then the actual question. Break only at a sentence boundary,
+  // retaining existing paragraph breaks and never splitting on decimals.
+  if (/^(?:(?:Choose|Select|Identify|Pick|Read|Study|Consider|Match|Complete|Fill|Find|Calculate|Determine|Evaluate|Solve)\b|निम्नांकित|निम्नलिखित|दिए|दिये)/i.test(formatted)) {
+    formatted = formatted.replace(
+      /^([^\n]{8,180}?[.!?।])([ \t]+)(?=[A-Zअ-ह])/,
+      (_all, instruction) => instruction + "\n"
+    );
   }
-  return clean
-    .replace(/[ \t]+(?=(?:कथन|निष्कर्ष|Statements?|Conclusions?)(?:\s*[IVX]+|\s*\d+)?\s*[:：])/gi, "\n")
-    .replace(/[ \t]+(?=(?:[1-9]\d{0,2}|[IVX]{1,4})[.)]\s+(?=\S))/g, "\n");
+  return formatted;
 }
 
 export default function TestPage() {
