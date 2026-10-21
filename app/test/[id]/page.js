@@ -57,7 +57,7 @@ function formatQuestionText(value) {
   // Para-jumble sentence labels are separate numbered-like items, not prose.
   if (/Arrange the following sentences|sentence rearrangement|para jumble/i.test(formatted) &&
       /\bP[.)]\s/.test(formatted) && /\bQ[.)]\s/.test(formatted)) {
-    formatted = formatted.replace(/[ \t]+(?=[PQRS][.)]\s+(?=[A-Z])/g, "\n");
+    formatted = formatted.replace(/[ \t]+(?=[PQRS][.)]\s+(?=[A-Z]))/g, "\n");
   }
 
   // Many English, Maths and GK/GS questions begin with a short instruction
