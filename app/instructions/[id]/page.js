@@ -115,16 +115,18 @@ export default function InstructionsPage() {
     }
   }
 
-  function startTest() {
-    if (!agree) return;
+  function startTest(event) {
+    if (!agree) {
+      event.preventDefault();
+      return;
+    }
 
     try {
       localStorage.setItem(languageKey, language);
     } catch {
       // Ignore localStorage error
     }
-
-    router.push(`/test/${id}`);
+    // Let the browser perform normal full-page navigation via the anchor.
   }
 
   if (loading) {
@@ -461,11 +463,16 @@ export default function InstructionsPage() {
             </span>
           </label>
 
-          <button
+          <a
             className="btn"
-            disabled={!agree}
+            href={agree ? `/test/${encodeURIComponent(id)}` : undefined}
+            aria-disabled={!agree}
             onClick={startTest}
             style={{
+              display: "block",
+              boxSizing: "border-box",
+              textAlign: "center",
+              textDecoration: "none",
               width: "100%",
               marginTop: "20px",
               padding: "15px",
@@ -477,7 +484,7 @@ export default function InstructionsPage() {
             Agree & Start Test
             <br />
             सहमत हूँ एवं परीक्षा प्रारम्भ करें
-          </button>
+          </a>
         </div>
 
       </main>
