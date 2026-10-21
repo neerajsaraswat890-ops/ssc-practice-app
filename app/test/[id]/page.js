@@ -6,6 +6,39 @@ import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
 import QuestionChart from "../../../components/QuestionChart";
 
+// SVG paths in the imported bilingual Reasoning bank refer to the matching
+// original assets in public/assets. Render both question and choice figures.
+const reasoningSvgPattern = /(assets\/JD-REAS-[A-Za-z0-9_-]+\.svg)/g;
+const singleReasoningSvgPattern = /^assets\/JD-REAS-[A-Za-z0-9_-]+\.svg$/;
+
+function ReasoningFigure({ path, language }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <span role="alert" style={{ color: "#b91c1c", fontSize: "0.85em" }}>
+      {language === "hindi" ? "चित्र उपलब्ध नहीं" : "Figure unavailable"}
+    </span>;
+  }
+  return <img
+    src={`/${path}`}
+    alt={language === "hindi" ? "प्रश्न की आकृति" : "Question figure"}
+    width={112}
+    height={112}
+    onError={() => setFailed(true)}
+    style={{ display: "inline-block", width: "min(112px, 27vw)", height: "auto", margin: "5px 8px 5px 0", verticalAlign: "middle", objectFit: "contain" }}
+  />;
+}
+
+function ReasoningRichText({ value, language }) {
+  if (typeof value !== "string") return value;
+  const parts = value.split(reasoningSvgPattern);
+  if (parts.length === 1) return formatQuestionText(value);
+  return <>{parts.map((part, index) => singleReasoningSvgPattern.test(part)
+    ? <ReasoningFigure key={`${part}-${index}`} path={part} language={language} />
+    : <span key={index}>{formatQuestionText(part.replace(/\s*\|\s*/g, " "))}</span>
+  )}</>;
+}
+
+
 // Keep question wording intact while placing statement/conclusion blocks on separate lines.
 function formatQuestionText(value) {
   if (typeof value !== "string") return value;
@@ -1937,7 +1970,7 @@ export default function TestPage() {
           </div>
 
           <div style={questionText}>
-            {formatQuestionText(displayQuestion)}
+            <ReasoningRichText value={displayQuestion} language={language} />
           </div>
 
           <QuestionChart key={q.chart_asset_id || q.id} assetId={q.chart_asset_id} language={language} />
@@ -1986,7 +2019,7 @@ export default function TestPage() {
                     </span>
 
                     <span style={optionText}>
-                      {option.text}
+                      <ReasoningRichText value={option.text} language={language} />
                     </span>
 
                     <span
