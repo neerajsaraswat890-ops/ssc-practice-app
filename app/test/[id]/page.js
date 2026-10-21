@@ -312,9 +312,7 @@ export default function TestPage() {
       stateData?.status ===
       "submitted"
     ) {
-      router.replace(
-        `/result/${id}`
-      );
+      window.location.replace("/result/" + encodeURIComponent(id));
       return;
     }
 
@@ -560,9 +558,7 @@ export default function TestPage() {
       data?.status ===
       "submitted"
     ) {
-      router.replace(
-        `/result/${id}`
-      );
+      window.location.replace("/result/" + encodeURIComponent(id));
       return;
     }
 

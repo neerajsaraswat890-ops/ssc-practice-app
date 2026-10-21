@@ -126,7 +126,26 @@ export default function ExamPage() {
                 .order("title", { ascending: true });
               if (testsError) throw testsError;
               if (!active) return;
-              setFullTests((tests || []).filter((test) => !test.attempt_until || new Date(test.attempt_until).getTime() > Date.now()));
+              // Server-owned state follows the student across browsers.
+              const testIds = (tests || []).map((test) => test.id);
+              let attemptMap = new Map();
+              if (testIds.length > 0) {
+                const { data: attempts, error: attemptsError } = await client
+                  .from("attempts")
+                  .select("test_id,status")
+                  .eq("user_id", authData.user.id)
+                  .in("test_id", testIds);
+                if (attemptsError) throw attemptsError;
+                attemptMap = new Map((attempts || []).map((a) => [Number(a.test_id), a.status]));
+              }
+              if (!active) return;
+              setFullTests((tests || [])
+                .map((test) => ({
+                  ...test,
+                  attemptStatus: attemptMap.get(Number(test.id)) || "not_started",
+                }))
+                .filter((test) => test.attemptStatus === "submitted" ||
+                  !test.attempt_until || new Date(test.attempt_until).getTime() > Date.now()));
             }
           }
         }
@@ -324,7 +343,13 @@ export default function ExamPage() {
                         <h3>{test.title}</h3>
                         <p>{test.total_questions} Questions · {test.total_marks} Marks · {test.duration_minutes} Minutes</p>
                         <p className="muted">Negative marking: {test.negative_mark} per wrong answer</p>
-                        <Link className="btn" href={`/instructions/${test.id}`}>View Instructions</Link>
+                        {test.attemptStatus === "submitted" ? (
+                          <Link className="btn" href={`/result/${test.id}`}>View Result / परिणाम देखें</Link>
+                        ) : test.attemptStatus === "in_progress" ? (
+                          <Link className="btn" href={`/test/${test.id}`}>Resume Test / टेस्ट जारी रखें</Link>
+                        ) : (
+                          <Link className="btn" href={`/instructions/${test.id}`}>Start Test / टेस्ट शुरू करें</Link>
+                        )}
                       </article>
                     ))}
                   </div>
