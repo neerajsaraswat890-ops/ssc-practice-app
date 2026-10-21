@@ -116,9 +116,20 @@ export default function TestPage() {
     loadTest();
   }, [id]);
 
+  // Never leave a student on an endless loading screen if a network request stalls.
+  useEffect(() => {
+    if (!loading) return;
+    const watchdog = setTimeout(() => {
+      setError("Test loading took too long. Check your connection and reopen this test.");
+      setLoading(false);
+    }, 25000);
+    return () => clearTimeout(watchdog);
+  }, [loading, id]);
+
   async function loadTest() {
     setLoading(true);
     setError("");
+    try {
 
     const client = supabase();
     // Test state RPCs require a signed-in user. Redirect guests to login,
@@ -455,6 +466,11 @@ export default function TestPage() {
     }
 
     setLoading(false);
+    } catch (loadError) {
+      console.error("Test initialization failed:", loadError);
+      setError(loadError?.message || "Unable to initialize the test. Please retry.");
+      setLoading(false);
+    }
   }
 
   /*
