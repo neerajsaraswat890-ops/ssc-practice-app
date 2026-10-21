@@ -6,6 +6,79 @@ import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
 import QuestionChart from "../../../components/QuestionChart";
 
+// SVG paths in the imported bilingual Reasoning bank refer to the matching
+// original assets in public/assets. Render both question and choice figures.
+const reasoningSvgPattern = /(assets\/JD-REAS-[A-Za-z0-9_-]+\.svg)/g;
+const singleReasoningSvgPattern = /^assets\/JD-REAS-[A-Za-z0-9_-]+\.svg$/;
+
+function ReasoningFigure({ path, language }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <span role="alert" style={{ color: "#b91c1c", fontSize: "0.85em" }}>
+      {language === "hindi" ? "चित्र उपलब्ध नहीं" : "Figure unavailable"}
+    </span>;
+  }
+  return <img
+    src={`/${path}`}
+    alt={language === "hindi" ? "प्रश्न की आकृति" : "Question figure"}
+    width={112}
+    height={112}
+    onError={() => setFailed(true)}
+    style={{ display: "inline-block", width: "min(112px, 27vw)", height: "auto", margin: "5px 8px 5px 0", verticalAlign: "middle", objectFit: "contain" }}
+  />;
+}
+
+function ReasoningRichText({ value, language }) {
+  if (typeof value !== "string") return value;
+  const parts = value.split(reasoningSvgPattern);
+  if (parts.length === 1) return formatQuestionText(value);
+  return <>{parts.map((part, index) => singleReasoningSvgPattern.test(part)
+    ? <ReasoningFigure key={`${part}-${index}`} path={part} language={language} />
+    : <span key={index}>{formatQuestionText(part.replace(/\s*\|\s*/g, " "))}</span>
+  )}</>;
+}
+
+
+// Keep question wording intact while placing statement/conclusion blocks on separate lines.
+function formatQuestionText(value) {
+  if (typeof value !== "string") return value;
+  const clean = value.replace(/\r\n?/g, "\n");
+
+  // Older passage imports sometimes include the exact same passage twice:
+  // once after the title and again after a "Passage:" label.
+  // Remove only a byte-for-byte duplicate; leave all other text untouched.
+  const blocks = clean.split("\n\n");
+  if (blocks.length >= 5 && blocks[3] === `Passage: ${blocks[2]}`) {
+    blocks.splice(2, 1);
+  }
+  let formatted = blocks.join("\n\n");
+  // Assertion–Reason items occur in GK/GS as well as Reasoning.
+  formatted = formatted.replace(/[ \t]+(?=(?:Assertion|Reason|कथन|कारण)\s*\([A-R]\)\s*[:：])/gi, "\n");
+
+  // Numbered statements belong on their own lines. Decimals like 3.14
+  // and ordinary mathematical expressions are not matched.
+  formatted = formatted
+      .replace(/[ \t]+(?=(?:कथन|निष्कर्ष|Statements?|Conclusions?)(?:\s*[IVX]+|\s*\d+)?\s*[:：])/gi, "\n")
+      .replace(/[ \t]+(?=(?:[1-9]\d{0,2}|[IVX]{1,4})[.)]\s+(?=\S))/g, "\n");
+
+  // Para-jumble sentence labels are separate numbered-like items, not prose.
+  if (/Arrange the following sentences|sentence rearrangement|para jumble/i.test(formatted) &&
+      /\bP[.)]\s/.test(formatted) && /\bQ[.)]\s/.test(formatted)) {
+    formatted = formatted.replace(/[ \t]+(?=[PQRS][.)]\s+(?=[A-Z])/g, "\n");
+  }
+
+  // Many English, Maths and GK/GS questions begin with a short instruction
+  // and then the actual question. Break only at a sentence boundary,
+  // retaining existing paragraph breaks and never splitting on decimals.
+  if (/^(?:(?:Choose|Select|Identify|Pick|Read|Study|Consider|Match|Complete|Fill|Find|Calculate|Determine|Evaluate|Solve)\b|निम्नांकित|निम्नलिखित|दिए|दिये)/i.test(formatted)) {
+    formatted = formatted.replace(
+      /^([^\n]{8,180}?[.!?।])([ \t]+)(?=[A-Zअ-ह])/,
+      (_all, instruction) => instruction + "\n"
+    );
+  }
+  return formatted;
+}
+
 export default function TestPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -1963,7 +2036,7 @@ export default function TestPage() {
           </div>
 
           <div style={questionText}>
-            {displayQuestion}
+            <ReasoningRichText value={displayQuestion} language={language} />
           </div>
 
           <QuestionChart key={q.chart_asset_id || q.id} assetId={q.chart_asset_id} language={language} />
@@ -2012,7 +2085,7 @@ export default function TestPage() {
                     </span>
 
                     <span style={optionText}>
-                      {option.text}
+                      <ReasoningRichText value={option.text} language={language} />
                     </span>
 
                     <span
@@ -3092,12 +3165,12 @@ const statusStrip = {
 };
 
 const questionCircle = {
-  width: "36px",
+  width: "42px",
 
-  height: "36px",
+  height: "42px",
 
   minWidth:
-    "36px",
+    "42px",
 
   borderRadius:
     "50%",
@@ -3121,7 +3194,7 @@ const questionCircle = {
     "800",
 
   fontSize:
-    "14px",
+    "19px",
 };
 
 const statusTextBlock = {
@@ -3216,7 +3289,7 @@ const questionInner = {
 
 const questionMeta = {
   fontSize:
-    "10px",
+    "clamp(16px, 4.2vw, 20px)",
 
   fontWeight:
     "800",
@@ -3229,8 +3302,10 @@ const questionMeta = {
 };
 
 const questionText = {
+  whiteSpace: "pre-line",
+  overflowWrap: "anywhere",
   fontSize:
-    "clamp(15px, 4.2vw, 20px)",
+    "clamp(16px, 4.2vw, 20px)",
 
   lineHeight:
     "1.4",
@@ -3349,8 +3424,11 @@ const selectedOptionLetter = {
 const optionText = {
   flex: 1,
 
+  whiteSpace: "pre-line",
+  overflowWrap: "anywhere",
+  fontWeight: "700",
   fontSize:
-    "clamp(13px, 3.7vw, 16px)",
+    "clamp(16px, 4.2vw, 20px)",
 
   lineHeight:
     "1.35",
