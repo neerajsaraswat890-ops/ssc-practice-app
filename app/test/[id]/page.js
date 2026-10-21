@@ -6,6 +6,14 @@ import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
 import QuestionChart from "../../../components/QuestionChart";
 
+// Keep question wording intact while placing statement/conclusion blocks on separate lines.
+function formatQuestionText(value) {
+  if (typeof value !== "string") return value;
+  return value
+    .replace(/\s+(?=(?:कथन|निष्कर्ष|Statements?|Conclusions?)\s*[:：])/gi, "\n")
+    .replace(/([।.?])\s+(?=(?:कथन|निष्कर्ष)\s*[:：])/g, "$1\n");
+}
+
 export default function TestPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -1929,7 +1937,7 @@ export default function TestPage() {
           </div>
 
           <div style={questionText}>
-            {displayQuestion}
+            {formatQuestionText(displayQuestion)}
           </div>
 
           <QuestionChart key={q.chart_asset_id || q.id} assetId={q.chart_asset_id} language={language} />
@@ -3058,12 +3066,12 @@ const statusStrip = {
 };
 
 const questionCircle = {
-  width: "36px",
+  width: "42px",
 
-  height: "36px",
+  height: "42px",
 
   minWidth:
-    "36px",
+    "42px",
 
   borderRadius:
     "50%",
@@ -3087,7 +3095,7 @@ const questionCircle = {
     "800",
 
   fontSize:
-    "14px",
+    "19px",
 };
 
 const statusTextBlock = {
@@ -3182,7 +3190,7 @@ const questionInner = {
 
 const questionMeta = {
   fontSize:
-    "10px",
+    "clamp(16px, 4.2vw, 20px)",
 
   fontWeight:
     "800",
@@ -3195,8 +3203,10 @@ const questionMeta = {
 };
 
 const questionText = {
+  whiteSpace: "pre-line",
+  overflowWrap: "anywhere",
   fontSize:
-    "clamp(15px, 4.2vw, 20px)",
+    "clamp(16px, 4.2vw, 20px)",
 
   lineHeight:
     "1.4",
@@ -3314,9 +3324,11 @@ const selectedOptionLetter = {
 
 const optionText = {
   flex: 1,
-
+  whiteSpace: "pre-line",
+  overflowWrap: "anywhere",
+  fontWeight: "700",
   fontSize:
-    "clamp(13px, 3.7vw, 16px)",
+    "clamp(16px, 4.2vw, 20px)",
 
   lineHeight:
     "1.35",
