@@ -332,6 +332,13 @@ export default function Dashboard() {
           </p>
         </div>
 
+        <section className="card" style={{padding:"20px 22px",marginBottom:26,border:"1px solid #bfdbfe",background:"#f2f8ff"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:15,flexWrap:"wrap"}}>
+            <div><h2 style={{margin:"0 0 6px",fontSize:21}}>★ Bookmarked Questions / बुकमार्क प्रश्न</h2><p style={{margin:0,color:"#475569"}}>Mock Test के दौरान सहेजे गए Maths, Reasoning, English और GK प्रश्न Subject-wise देखें।</p></div>
+            <button type="button" onClick={()=>router.push("/dashboard/bookmarks")} style={{padding:"11px 16px",borderRadius:9,border:0,background:"#0866c2",color:"white",fontWeight:700,cursor:"pointer"}}>My Bookmarks →</button>
+          </div>
+        </section>
+
         {errorMessage && (
           <p role="alert" style={{ color: "#b91c1c" }}>
             {errorMessage}
