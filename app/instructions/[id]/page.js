@@ -65,13 +65,13 @@ export default function InstructionsPage() {
   async function startTest() {
     if (!agree || starting) return;
     setStarting(true);
-    const {data,error:authError} = await supabase().auth.getUser();
-    if (authError || !data?.user) {
-      router.push(loginPath);
-      return;
-    }
+    // This page already confirmed the signed-in user before displaying
+    // exam-specific instructions. Do not repeat a network auth request here:
+    // a slow refresh can strand mobile users on "Opening Test...".
     try {localStorage.setItem(languageKey,language);} catch {}
-    router.push("/test/" + id);
+    // A full-page navigation avoids a stalled client-side route transition;
+    // the test route still authenticates and the database checks auth.uid().
+    window.location.assign("/test/" + encodeURIComponent(id));
   }
   const header = <div className="nav" style={{display:"flex",alignItems:"center",gap:12}}>
     <Image src="/jd-exambook-logo.png" alt="JD Exambook Logo" width={46} height={46} priority style={{objectFit:"contain",borderRadius:8}}/>
