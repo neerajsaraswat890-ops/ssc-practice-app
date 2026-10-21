@@ -116,24 +116,11 @@ export default function TestPage() {
     loadTest();
   }, [id]);
 
-  // Never leave a student on an endless loading screen if a network request stalls.
-  useEffect(() => {
-    if (!loading) return;
-    const watchdog = setTimeout(() => {
-      setError("Test loading took too long. Check your connection and reopen this test.");
-      setLoading(false);
-    }, 25000);
-    return () => clearTimeout(watchdog);
-  }, [loading, id]);
-
   async function loadTest() {
     setLoading(true);
     setError("");
-    try {
 
     const client = supabase();
-    // Authentication is enforced by Supabase RLS and test RPCs.
-    // Avoid a separate client auth gate before fetching the test.
 
     let localAnswers = {};
     let localReview = {};
@@ -318,7 +305,9 @@ export default function TestPage() {
       stateData?.status ===
       "submitted"
     ) {
-      window.location.replace("/result/" + encodeURIComponent(id));
+      router.replace(
+        `/result/${id}`
+      );
       return;
     }
 
@@ -461,11 +450,6 @@ export default function TestPage() {
     }
 
     setLoading(false);
-    } catch (loadError) {
-      console.error("Test initialization failed:", loadError);
-      setError(loadError?.message || "Unable to initialize the test. Please retry.");
-      setLoading(false);
-    }
   }
 
   /*
@@ -569,7 +553,9 @@ export default function TestPage() {
       data?.status ===
       "submitted"
     ) {
-      window.location.replace("/result/" + encodeURIComponent(id));
+      router.replace(
+        `/result/${id}`
+      );
       return;
     }
 
