@@ -132,13 +132,8 @@ export default function TestPage() {
     try {
 
     const client = supabase();
-    // Test state RPCs require a signed-in user. Redirect guests to login,
-    // preserving the exact exam they intended to open.
-    const {data:sessionData,error:sessionError} = await client.auth.getSession();
-    if (sessionError || !sessionData?.session?.user) {
-      router.replace("/login?next=" + encodeURIComponent("/test/" + id));
-      return;
-    }
+    // Authentication is enforced by Supabase RLS and test RPCs.
+    // Avoid a separate client auth gate before fetching the test.
 
     let localAnswers = {};
     let localReview = {};
