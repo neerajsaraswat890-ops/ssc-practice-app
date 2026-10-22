@@ -114,6 +114,11 @@ function formatQuestionText(value) {
     formatted = formatted.replace(/[ \t]+(?=(?:इसी नियम से|then)\s*\(\s*\d+)/gi, "\n\n");
     formatted = formatted.replace(/([→>]\s*\d+)[ \t]+(?=\(\s*\d+)/g, "$1\n\n");
   }
+  // Decision-code legends: one numbered code per line (1=..., 2=..., 3=..., 4=...).
+  if (/(?:^|[\s,;])1\s*[=＝]\s*[^\n]+?2\s*[=＝]/.test(formatted)) {
+    formatted = formatted.replace(/([,，;；]\s*|[ \t]+)(?=([2-9])\s*[=＝]\s*)/g, "\n");
+    formatted = formatted.replace(/([^\n])\s+(?=1\s*[=＝]\s*)/g, "$1\n");
+  }
   // A short instruction ending with ':' must not run into its example.
   formatted = formatted.replace(/(चुनिए|कीजिए|देखिए|चुनें)\s*[:：]\s*(?=\S)/g, "$1:\n\n");
   if (/^(?:(?:Choose|Select|Identify|Pick|Read|Study|Consider|Match|Complete|Fill|Find|Calculate|Determine|Evaluate|Solve)\b|निम्नांकित|निम्नलिखित|दिए|दिये)/i.test(formatted)) {
