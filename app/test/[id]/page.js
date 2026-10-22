@@ -329,6 +329,7 @@ export default function TestPage() {
       );
 
     setTimeLeft(remaining);
+    setPaused(Boolean(stateData?.paused));
 
     let initialQuestion = 0;
 
@@ -459,6 +460,7 @@ export default function TestPage() {
     setPauseBusy(true);
     setError("");
     try {
+      if (!paused) await waitForPendingSaves();
       const { data, error: rpcError } = await supabase().rpc(paused ? "resume_test" : "pause_test", { p_test_id: Number(id) });
       if (rpcError) throw rpcError;
       if (data?.status === "submitted") { router.replace(`/result/${id}`); return; }
@@ -1902,7 +1904,7 @@ export default function TestPage() {
 
       </header>
 
-      {paused && <div role="status" style={{padding:18,textAlign:"center",background:"#fff3cd",color:"#664d03",fontWeight:700}}>Test paused — timer stopped. Press Resume to continue.</div>}
+      {paused && <div role="status" style={{position:"fixed",inset:0,zIndex:9999,background:"#18243b",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:20,color:"white"}}><h2>Test Paused</h2><p>Timer stopped. Resume to continue.</p><button type="button" onClick={togglePause} disabled={pauseBusy}>{pauseBusy ? "Please wait" : "Resume Test"}</button></div>}
 
       {/* =================================================
           SECTION BAR
