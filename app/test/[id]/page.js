@@ -1809,8 +1809,8 @@ export default function TestPage() {
 
       <header style={topBar}>
         {test?.pause_enabled ? (
-          <button type="button" onClick={togglePause} disabled={pauseBusy} style={{...menuButton, minWidth:100}}>
-            {pauseBusy ? "Please wait" : paused ? "▶ Resume" : "Ⅱ Pause"}
+          <button type="button" onClick={togglePause} disabled={pauseBusy} aria-label={paused ? "Resume test" : "Pause test"} title={paused ? "Resume test" : "Pause test"} style={{...menuButton, width:42, height:42, minWidth:42, borderRadius:"50%", display:"inline-flex", alignItems:"center", justifyContent:"center", padding:0, fontSize:21, flexShrink:0}}>
+            {pauseBusy ? "…" : paused ? "▶" : "Ⅱ"}
           </button>
         ) : (
         <Image
