@@ -6,6 +6,18 @@ import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
 import QuestionChart from "../../../components/QuestionChart";
 
+const assetPattern = /(assets\/JD-REAS-[A-Za-z0-9_-]+\.svg)/g;
+const singleAssetPattern = /^assets\/JD-REAS-[A-Za-z0-9_-]+\.svg$/;
+function SolutionText({ value }) {
+  if (typeof value !== "string") return value;
+  const chunks = value.split(assetPattern);
+  return <>{chunks.map((chunk, i) => singleAssetPattern.test(chunk)
+    ? <div key={i} style={{textAlign:"center",margin:"12px 0"}}>
+        <img src={"/"+chunk} alt="Question figure" style={{maxWidth:"min(220px,80vw)",maxHeight:230,width:"auto",height:"auto",objectFit:"contain"}} />
+      </div>
+    : <span key={i} style={{whiteSpace:"pre-line"}}>{chunk}</span>)}</>;
+}
+
 export default function ResultPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -1205,18 +1217,10 @@ export default function ResultPage() {
                         </div>
                       )}
 
-                      <div style={solutionQuestion}>
-                        {
-                          solution.question_text
-                        }
-                      </div>
+                      <div style={solutionQuestion}><SolutionText value={solution.question_text} /></div>
 
                       {solution.question_text_hi && (
-                        <div style={solutionQuestionHi}>
-                          {
-                            solution.question_text_hi
-                          }
-                        </div>
+                        <div style={solutionQuestionHi}><SolutionText value={solution.question_text_hi} /></div>
                       )}
 
                       <QuestionChart assetId={solution.chart_asset_id} />
