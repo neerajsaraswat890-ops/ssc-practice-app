@@ -42,34 +42,61 @@ function ReasoningRichText({ value, language }) {
 // Keep question wording intact while placing statement/conclusion blocks on separate lines.
 function formatQuestionText(value) {
   if (typeof value !== "string") return value;
-  const clean = value.replace(/\r\n?/g, "\n");
-
-  let formatted = clean;
-  // Assertion–Reason items occur in GK/GS as well as Reasoning.
-  formatted = formatted.replace(/[ \t]+(?=(?:Assertion|Reason|कथन|कारण)\s*\([A-R]\)\s*[:：])/gi, "\n");
-
-  // Numbered statements belong on their own lines. Decimals like 3.14
-  // and ordinary mathematical expressions are not matched.
-  formatted = formatted
-      .replace(/[ \t]+(?=(?:कथन|निष्कर्ष|Statements?|Conclusions?)(?:\s*[IVX]+|\s*\d+)?\s*[:：])/gi, "\n")
-      .replace(/[ \t]+(?=(?:[1-9]\d{0,2}|[IVX]{1,4})[.)]\s+(?=\S))/g, "\n");
-
-  // Para-jumble sentence labels are separate numbered-like items, not prose.
-  if (/Arrange the following sentences|sentence rearrangement|para jumble/i.test(formatted) &&
-      /\bP[.)]\s/.test(formatted) && /\bQ[.)]\s/.test(formatted)) {
-    formatted = formatted.replace(/[ \t]+(?=[PQRS][.)]\s+(?=[A-Z]))/g, "\n");
+  let formatted = value.replace(/\r\n?/g, "\n").trim();
+  // Passage imports sometimes contain the same paragraph twice, preceded by its title.
+  const passageMatch = formatted.match(/\bPassage:\s*/i);
+  if (passageMatch && passageMatch.index > 0) {
+    const before = formatted.slice(0, passageMatch.index).trim();
+    const after = formatted.slice(passageMatch.index + passageMatch[0].length).trim();
+    if (after.length > 70 && (before.includes(after.slice(0, 45)) || after.includes(before.slice(-70)))) {
+      formatted = after;
+    }
   }
-
-  // Many English, Maths and GK/GS questions begin with a short instruction
-  // and then the actual question. Break only at a sentence boundary,
-  // retaining existing paragraph breaks and never splitting on decimals.
+  // Remove a standalone short passage title only when followed by a complete paragraph.
+  if (/^[^\n.!?।:]{3,55}\n\s*\n[\s\S]{100,}$/.test(formatted) && !/^(?:Question|प्रश्न|Input|इनपुट)/i.test(formatted)) {
+    formatted = formatted.replace(/^[^\n]+\n\s*\n/, "");
+  }
+  // Keep instructions once, then put the sentence / idiom on its own paragraph.
+  const grammarPatterns = [
+    [/^Select the most appropriate answer\.\s*Select the correct completion:\s*/i, "Select the correct option to complete the sentence.\n\n"],
+    [/^Select the most appropriate figurative meaning\.\s*Choose the meaning conveyed by the idiom\s*/i, "Select the correct meaning of the following idiom.\n\n"],
+    [/^Select the most appropriate option\.\s*Choose the (active|passive) form:\s*/i, (_,voice) => "Select the correct " + voice.toLowerCase() + " voice of the following sentence.\n\n"],
+    [/^Select the correctly spelt word that completes the sentence\.\s*Choose the correctly spelt word:\s*/i, "Select the correctly spelt word that completes the sentence.\n\n"],
+    [/^Select the correct reported-speech form,[^\n]*?\.\s*Report the statement:\s*/i, "Select the correct indirect form of the following sentence.\n\n"],
+    [/^Select the indirect form using conventional backshift[\s\S]*?Retain present tense for universal truths\.\s*/i, "Select the correct indirect form of the following sentence.\n\n"],
+    [/^Identify the segment containing a grammatical error\.\s*Select the option naming D if there is no error\.\s*/i, "Identify the segment containing a grammatical error.\n\n"],
+    [/^Select the best replacement for the bracketed part, or choose No improvement\.\s*/i, "Select the best replacement for the bracketed part.\n\n"]
+  ];
+  for (const [pattern, replacement] of grammarPatterns) formatted = formatted.replace(pattern, replacement);
+  formatted = formatted.replace(/(Select the correct completion|Choose the correctly spelt word|Choose the (?:active|passive) form|Report the statement):\s*(?=\S)/gi, "$1:\n\n");
+  // Put the question instruction above A/R, retaining both statement texts.
+  if (/(?:कथन\s*\(A\)|Assertion\s*\(A\))/.test(formatted) && /सही विकल्प चुनिए[।.]|Choose the correct option[.]/i.test(formatted)) {
+    const directive = formatted.match(/सही विकल्प चुनिए[।.]|Choose the correct option[.]/i)?.[0];
+    if (directive) formatted = directive + "\n\n" + formatted.replace(directive, "").trim();
+  }
+  formatted = formatted.replace(/[ \t]+(?=(?:Assertion|Reason|कथन|कारण)\s*\([A-R]\)\s*[:：])/gi, "\n\n");
+  // Input/output examples and numbered statements.
+  formatted = formatted.replace(/([:：])\s*(?=(?:\([A-Za-z0-9,\s]+\)\s*[→-]|ERODES\s*:))/g, "$1\n\n");
+  formatted = formatted.replace(/;\s*(?=\()/g, ";\n\n");
+  formatted = formatted.replace(/[ \t]+(?=(?:चरण|Step)\s*(?:[IVX]+|\d+)\s*[:：])/gi, "\n\n");
+  formatted = formatted.replace(/[ \t]+(?=(?:इनपुट|Input)\s*[:：])/gi, "\n\n");
+  formatted = formatted.replace(/[ \t]+(?=(?:[1-9]\d{0,2}|[IVX]{1,4})[.)]\s+(?=\S))/g, "\n\n");
+  formatted = formatted.replace(/[ \t]+(?=(?:कथन|निष्कर्ष|Statements?|Conclusions?)\s*[:：])/gi, "\n\n");
+  if (/\bP[.)]\s/.test(formatted) && /\bQ[.)]\s/.test(formatted) && /\bR[.)]\s/.test(formatted)) {
+    formatted = formatted.replace(/[ \t]+(?=[PQRS][.)]\s+(?=[A-Z]))/g, "\n\n");
+  }
+  // Number analogies: isolate each given pair and the asked pair.
+  if (/\(\s*\d+\s*,\s*\d+/.test(formatted) && /(?:→|->)/.test(formatted)) {
+    formatted = formatted.replace(/[ \t]+(?:तथा|और|and)\s+(?=\(\s*\d+)/gi, "\n\n");
+    formatted = formatted.replace(/[ \t]+(?=(?:इसी नियम से|then)\s*\(\s*\d+)/gi, "\n\n");
+    formatted = formatted.replace(/([→>]\s*\d+)[ \t]+(?=\(\s*\d+)/g, "$1\n\n");
+  }
+  // A short instruction ending with ':' must not run into its example.
+  formatted = formatted.replace(/(चुनिए|कीजिए|देखिए|चुनें)\s*[:：]\s*(?=\S)/g, "$1:\n\n");
   if (/^(?:(?:Choose|Select|Identify|Pick|Read|Study|Consider|Match|Complete|Fill|Find|Calculate|Determine|Evaluate|Solve)\b|निम्नांकित|निम्नलिखित|दिए|दिये)/i.test(formatted)) {
-    formatted = formatted.replace(
-      /^([^\n]{8,180}?[.!?।])([ \t]+)(?=[A-Zअ-ह])/,
-      (_all, instruction) => instruction + "\n"
-    );
+    formatted = formatted.replace(/^([^\n]{8,180}?[.!?।])([ \t]+)(?=[A-Zअ-ह])/, (_all, instruction) => instruction + "\n\n");
   }
-  return formatted;
+  return formatted.replace(/\n{3,}/g, "\n\n");
 }
 
 export default function TestPage() {
