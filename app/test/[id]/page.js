@@ -28,6 +28,29 @@ function ReasoningFigure({ path, language }) {
   />;
 }
 
+function ReasoningFigureRow({ value, language }) {
+  const regex = /assets\/JD-REAS-[A-Za-z0-9_-]+\.svg/g;
+  const matches = [...value.matchAll(regex)];
+  const before = value.slice(0, matches[0].index);
+  const opening = before.replace(/(?:आकृति|Figure)\s*(?:A\s*=\s*)?\s*$/i, "").trim();
+  const items = matches.map((match, index) => {
+    const segment = value.slice(index === 0 ? 0 : matches[index - 1].index + matches[index - 1][0].length, match.index);
+    const label = segment.match(/(?:^|[\s,|])([A-Z])\s*=\s*(?:(?:आकृति|Figure)\s*)?$/i);
+    return { path: match[0], label: label ? label[1].toUpperCase() : String.fromCharCode(65 + index) };
+  });
+  const tail = value.slice(matches[matches.length - 1].index + matches[matches.length - 1][0].length).replace(/^\s*[|,]\s*/, "").trim();
+  return <>
+    {opening && <div>{formatQuestionText(opening)}</div>}
+    <div style={{ display:"flex", flexDirection:"row", flexWrap:"nowrap", gap:"clamp(3px,1.5vw,10px)", width:"100%", alignItems:"flex-start", justifyContent:"center", margin:"12px 0" }}>
+      {items.map((item,index) => <div key={index} style={{ flex:"1 1 0", minWidth:0, maxWidth:170, textAlign:"center" }}>
+        <div style={{fontSize:"0.75em", marginBottom:4}}>{item.label}</div>
+        <img src={`/${item.path}`} alt={`Figure ${item.label}`} style={{display:"block", width:"100%", height:"auto", aspectRatio:"1 / 1", objectFit:"contain"}} />
+      </div>)}
+    </div>
+    {tail && <div>{formatQuestionText(tail)}</div>}
+  </>;
+}
+
 function ReasoningRichText({ value, language }) {
   if (typeof value !== "string") return value;
   const parts = value.split(reasoningSvgPattern);
@@ -90,6 +113,11 @@ function formatQuestionText(value) {
     formatted = formatted.replace(/[ \t]+(?:तथा|और|and)\s+(?=\(\s*\d+)/gi, "\n\n");
     formatted = formatted.replace(/[ \t]+(?=(?:इसी नियम से|then)\s*\(\s*\d+)/gi, "\n\n");
     formatted = formatted.replace(/([→>]\s*\d+)[ \t]+(?=\(\s*\d+)/g, "$1\n\n");
+  }
+  // Decision-code legends: one numbered code per line (1=..., 2=..., 3=..., 4=...).
+  if (/(?:^|[\s,;])1\s*[=＝]\s*[^\n]+?2\s*[=＝]/.test(formatted)) {
+    formatted = formatted.replace(/([,，;；]\s*|[ \t]+)(?=([2-9])\s*[=＝]\s*)/g, "\n");
+    formatted = formatted.replace(/([^\n])\s+(?=1\s*[=＝]\s*)/g, "$1\n");
   }
   // A short instruction ending with ':' must not run into its example.
   formatted = formatted.replace(/(चुनिए|कीजिए|देखिए|चुनें)\s*[:：]\s*(?=\S)/g, "$1:\n\n");
@@ -2099,30 +2127,9 @@ export default function TestPage() {
 
           <div style={questionText}>
             {typeof displayQuestion === "string" && displayQuestion.includes("assets/JD-REAS-") ? (
-              /(?:assets\/JD-REAS-[A-Za-z0-9_-]+\.svg\s*\|\s*){1,}assets\/JD-REAS-[A-Za-z0-9_-]+\.svg/.test(displayQuestion) ? (
-                <>
-                  <div>{formatQuestionText(displayQuestion.split(/assets\/JD-REAS-[A-Za-z0-9_-]+\.svg/)[0])}</div>
-                  <div style={{display:"flex",flexDirection:"row",flexWrap:"nowrap",alignItems:"flex-start",justifyContent:"center",gap:"clamp(4px,2vw,12px)",width:"100%",margin:"14px 0"}}>
-                    {(displayQuestion.match(/assets\/JD-REAS-[A-Za-z0-9_-]+\.svg/g) || []).map((path,index) => (
-                      <div key={index} style={{flex:"1 1 0",minWidth:0,maxWidth:160,textAlign:"center"}}>
-                        <div style={{marginBottom:6,fontSize:"0.85em"}}>{language === "hindi" ? "आकृति" : "Figure"} {index+1}</div>
-                        <img src={`/${path}`} alt={`Figure ${index+1}`} style={{display:"block",width:"100%",height:"auto",aspectRatio:"1 / 1",objectFit:"contain"}} />
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <>
-                  {displayQuestion.split(reasoningSvgPattern).map((part, index) =>
-                    singleReasoningSvgPattern.test(part) ? (
-                      <div key={index} style={{margin:"12px 0",textAlign:"center"}}>
-                        <div style={{marginBottom:8}}>{language === "hindi" ? "आकृति" : "Figure"}</div>
-                        <ReasoningFigure path={part} language={language} />
-                      </div>
-                    ) : <div key={index}>{formatQuestionText(part)}</div>
-                  )}
-                </>
-              )
+              (displayQuestion.match(/assets\/JD-REAS-[A-Za-z0-9_-]+\.svg/g) || []).length >= 2
+                ? <ReasoningFigureRow value={displayQuestion} language={language} />
+                : <ReasoningRichText value={displayQuestion} language={language} />
             ) : <ReasoningRichText value={displayQuestion} language={language} />}
           </div>
 
