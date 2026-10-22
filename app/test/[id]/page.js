@@ -98,6 +98,14 @@ function formatQuestionText(value) {
     if (directive) formatted = directive + "\n\n" + formatted.replace(directive, "").trim();
   }
   formatted = formatted.replace(/[ \t]+(?=(?:Assertion|Reason|कथन|कारण)\s*\([A-R]\)\s*[:：])/gi, "\n\n");
+  // Input-output sequences are data, not sentences: strip stray danda or pipe separators.
+  if (/(?:चरण|Step)\s*(?:[IVX]+|\d+)/i.test(formatted) && /(?:इनपुट|Input)\s*[:：]/i.test(formatted)) {
+    formatted = formatted.replace(/\s*[।|]\s*(?=(?:चरण|Step)\s*(?:[IVX]+|\d+))/gi, "\n\n");
+    formatted = formatted.replace(/\s*[।|]\s*(?=(?:चरण|Step)\s*(?:[IVX]+|\d+)\s*(?:क्या|what|will))/gi, "\n\n");
+    formatted = formatted.replace(/\s*[।|]\s*(?=$)/g, "");
+  }
+  // Keep inequality expression and the following question as separate lines.
+  formatted = formatted.replace(/([A-Z])\s*[।|]\s*(?=कौन|क्या|Which|What)/gi, "$1\n\n");
   // Input/output examples and numbered statements.
   formatted = formatted.replace(/([:：])\s*(?=(?:\([A-Za-z0-9,\s]+\)\s*[→-]|ERODES\s*:))/g, "$1\n\n");
   formatted = formatted.replace(/;\s*(?=\()/g, ";\n\n");
@@ -2133,6 +2141,13 @@ export default function TestPage() {
             ) : <ReasoningRichText value={displayQuestion} language={language} />}
           </div>
 
+          {["JD-REAS-B08-00191", "JD-REAS-B08-00189"].includes(q.question_code) && !q.chart_asset_id && (
+            <div role="img" aria-label={language === "hindi" ? "पश्चिम दिशा की ओर तीर" : "West-pointing arrow"} style={{display:"flex",justifyContent:"center",margin:"12px auto"}}>
+              <svg width="120" height="80" viewBox="0 0 120 80" aria-hidden="true">
+                <path d="M10 40 L48 8 L48 27 L108 27 L108 53 L48 53 L48 72 Z" fill="#2563eb" stroke="#1e3a8a" strokeWidth="2"/>
+              </svg>
+            </div>
+          )}
           <QuestionChart key={q.chart_asset_id || q.id} assetId={q.chart_asset_id} language={language} />
 
           <div style={optionsWrap}>
