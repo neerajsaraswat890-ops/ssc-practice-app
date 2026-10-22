@@ -91,6 +91,8 @@ export default function TestPage() {
   const [paletteSection, setPaletteSection] = useState(0);
 
   const [timeLeft, setTimeLeft] = useState(null);
+  const [paused, setPaused] = useState(false);
+  const [pauseBusy, setPauseBusy] = useState(false);
 
   const [language, setLanguage] = useState("english");
 
@@ -327,6 +329,7 @@ export default function TestPage() {
       );
 
     setTimeLeft(remaining);
+    setPaused(Boolean(stateData?.paused));
 
     let initialQuestion = 0;
 
@@ -452,6 +455,21 @@ export default function TestPage() {
     setLoading(false);
   }
 
+  async function togglePause() {
+    if (pauseBusy || !test?.pause_enabled || submitting || changingSection) return;
+    setPauseBusy(true);
+    setError("");
+    try {
+      if (!paused) await waitForPendingSaves();
+      const { data, error: rpcError } = await supabase().rpc(paused ? "resume_test" : "pause_test", { p_test_id: Number(id) });
+      if (rpcError) throw rpcError;
+      if (data?.status === "submitted") { router.replace(`/result/${id}`); return; }
+      setPaused(Boolean(data?.paused));
+      setTimeLeft(Number(data?.remaining_seconds ?? 0));
+    } catch (e) { setError(e?.message || "Pause/Resume failed"); }
+    finally { setPauseBusy(false); }
+  }
+
   /*
     =====================================================
     TIMER
@@ -463,7 +481,8 @@ export default function TestPage() {
       loading ||
       timeLeft === null ||
       submitting ||
-      changingSection
+      changingSection ||
+      paused
     ) {
       return;
     }
@@ -491,6 +510,7 @@ export default function TestPage() {
     loading,
     submitting,
     changingSection,
+    paused,
   ]);
 
   /*
@@ -564,6 +584,7 @@ export default function TestPage() {
         data?.expired
       );
 
+    setPaused(Boolean(data?.paused));
     setTimeLeft(
       Number(
         data?.remaining_seconds ??
@@ -1787,6 +1808,11 @@ export default function TestPage() {
       ================================================= */}
 
       <header style={topBar}>
+        {test?.pause_enabled ? (
+          <button type="button" onClick={togglePause} disabled={pauseBusy} style={{...menuButton, minWidth:100}}>
+            {pauseBusy ? "Please wait" : paused ? "▶ Resume" : "Ⅱ Pause"}
+          </button>
+        ) : (
         <Image
           src="/jd-exambook-logo.png"
           alt="JD Exambook Logo"
@@ -1795,6 +1821,7 @@ export default function TestPage() {
           priority
           style={{ objectFit: "contain", borderRadius: "6px", flexShrink: 0, background: "#ffffff" }}
         />
+        )}
 
 
         <div style={timerBlock}>
@@ -1876,6 +1903,8 @@ export default function TestPage() {
         </div>
 
       </header>
+
+      {paused && <div role="status" style={{position:"fixed",inset:0,zIndex:9999,background:"#18243b",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:20,color:"white"}}><h2>Test Paused</h2><p>Timer stopped. Resume to continue.</p><button type="button" onClick={togglePause} disabled={pauseBusy}>{pauseBusy ? "Please wait" : "Resume Test"}</button></div>}
 
       {/* =================================================
           SECTION BAR
