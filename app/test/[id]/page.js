@@ -3333,7 +3333,7 @@ const questionText = {
     "1.4",
 
   fontWeight:
-    "700",
+    "400",
 
   color:
     "#111827",
@@ -3448,7 +3448,7 @@ const optionText = {
 
   whiteSpace: "pre-line",
   overflowWrap: "anywhere",
-  fontWeight: "700",
+  fontWeight: "400",
   fontSize:
     "clamp(16px, 4.2vw, 20px)",
 
