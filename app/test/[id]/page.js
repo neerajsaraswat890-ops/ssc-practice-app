@@ -2099,16 +2099,30 @@ export default function TestPage() {
 
           <div style={questionText}>
             {typeof displayQuestion === "string" && displayQuestion.includes("assets/JD-REAS-") ? (
-              <>
-                {displayQuestion.split(reasoningSvgPattern).map((part, index) =>
-                  singleReasoningSvgPattern.test(part) ? (
-                    <div key={index} style={{margin:"12px 0",textAlign:"center"}}>
-                      <div style={{marginBottom:8}}>{language === "hindi" ? "आकृति" : "Figure"}</div>
-                      <ReasoningFigure path={part} language={language} />
-                    </div>
-                  ) : <div key={index}>{formatQuestionText(part)}</div>
-                )}
-              </>
+              /(?:assets\/JD-REAS-[A-Za-z0-9_-]+\.svg\s*\|\s*){1,}assets\/JD-REAS-[A-Za-z0-9_-]+\.svg/.test(displayQuestion) ? (
+                <>
+                  <div>{formatQuestionText(displayQuestion.split(/assets\/JD-REAS-[A-Za-z0-9_-]+\.svg/)[0])}</div>
+                  <div style={{display:"flex",flexDirection:"row",flexWrap:"nowrap",alignItems:"flex-start",justifyContent:"center",gap:"clamp(4px,2vw,12px)",width:"100%",margin:"14px 0"}}>
+                    {(displayQuestion.match(/assets\/JD-REAS-[A-Za-z0-9_-]+\.svg/g) || []).map((path,index) => (
+                      <div key={index} style={{flex:"1 1 0",minWidth:0,maxWidth:160,textAlign:"center"}}>
+                        <div style={{marginBottom:6,fontSize:"0.85em"}}>{language === "hindi" ? "आकृति" : "Figure"} {index+1}</div>
+                        <img src={`/${path}`} alt={`Figure ${index+1}`} style={{display:"block",width:"100%",height:"auto",aspectRatio:"1 / 1",objectFit:"contain"}} />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {displayQuestion.split(reasoningSvgPattern).map((part, index) =>
+                    singleReasoningSvgPattern.test(part) ? (
+                      <div key={index} style={{margin:"12px 0",textAlign:"center"}}>
+                        <div style={{marginBottom:8}}>{language === "hindi" ? "आकृति" : "Figure"}</div>
+                        <ReasoningFigure path={part} language={language} />
+                      </div>
+                    ) : <div key={index}>{formatQuestionText(part)}</div>
+                  )}
+                </>
+              )
             ) : <ReasoningRichText value={displayQuestion} language={language} />}
           </div>
 
