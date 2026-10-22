@@ -313,23 +313,34 @@ export default function TestPage() {
       return;
     }
 
+    let activeState = stateData;
+    if (testData?.pause_enabled && activeState?.paused) {
+      const { data: resumedState, error: resumeError } = await client.rpc("resume_test", { p_test_id: Number(id) });
+      if (resumeError) {
+        setError(resumeError.message);
+        setLoading(false);
+        return;
+      }
+      activeState = resumedState;
+    }
+
     const timerType =
-      stateData?.timer_type ||
+      activeState?.timer_type ||
       configData?.stage?.timer_type ||
       "overall";
 
     const serverSection =
       Number(
-        stateData?.current_section ?? 0
+        activeState?.current_section ?? 0
       );
 
     const remaining =
       Number(
-        stateData?.remaining_seconds ?? 0
+        activeState?.remaining_seconds ?? 0
       );
 
     setTimeLeft(remaining);
-    setPaused(Boolean(stateData?.paused));
+    setPaused(Boolean(activeState?.paused));
 
     let initialQuestion = 0;
 
