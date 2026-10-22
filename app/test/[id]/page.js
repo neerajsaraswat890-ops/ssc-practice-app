@@ -29,11 +29,11 @@ function ReasoningFigure({ path, language }) {
 }
 
 function ReasoningFigureRow({ value, language }) {
-  const regex = /assets\\/JD-REAS-[A-Za-z0-9_-]+\\.svg/g;
+  const regex = /assets\/JD-REAS-[A-Za-z0-9_-]+\.svg/g;
   const matches = [...value.matchAll(regex)];
   if (matches.length < 2) return <ReasoningRichText value={value} language={language} />;
-  const intro = value.slice(0, matches[0].index).replace(/(?:आकृति|Figure)\\s*$/i, "").trim();
-  const after = value.slice(matches[matches.length - 1].index + matches[matches.length - 1][0].length).replace(/^[\\s|,;]+/, "").trim();
+  const intro = value.slice(0, matches[0].index).replace(/(?:आकृति|Figure)\s*$/i, "").trim();
+  const after = value.slice(matches[matches.length - 1].index + matches[matches.length - 1][0].length).replace(/^[\s|,;]+/, "").trim();
   return <>
     {intro && <div>{formatQuestionText(intro)}</div>}
     <div style={{display:"grid",gridTemplateColumns:`repeat(${matches.length}, minmax(0, 1fr))`,gap:6,width:"100%",margin:"14px 0",alignItems:"start"}}>
