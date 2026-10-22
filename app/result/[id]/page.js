@@ -10,6 +10,21 @@ const assetPattern = /(assets\/JD-REAS-[A-Za-z0-9_-]+\.svg)/g;
 const singleAssetPattern = /^assets\/JD-REAS-[A-Za-z0-9_-]+\.svg$/;
 function SolutionText({ value }) {
   if (typeof value !== "string") return value;
+  const matches = [...value.matchAll(/assets\/JD-REAS-[A-Za-z0-9_-]+\.svg/g)];
+  if (matches.length >= 2) {
+    const intro = value.slice(0, matches[0].index).replace(/(?:आकृति|Figure)\s*$/i, "").trim();
+    const after = value.slice(matches[matches.length - 1].index + matches[matches.length - 1][0].length).replace(/^[\s|,;]+/, "").trim();
+    return <>
+      {intro && <div style={{whiteSpace:"pre-line"}}>{intro}</div>}
+      <div style={{display:"grid",gridTemplateColumns:`repeat(${matches.length}, minmax(0, 1fr))`,gap:6,width:"100%",margin:"14px 0"}}>
+        {matches.map((match,i) => <div key={match[0]+i} style={{minWidth:0,textAlign:"center"}}>
+          <div style={{fontWeight:600,marginBottom:6}}>{String.fromCharCode(65+i)}</div>
+          <img src={"/"+match[0]} alt={`Figure ${String.fromCharCode(65+i)}`} style={{display:"block",width:"100%",maxWidth:180,aspectRatio:"1 / 1",height:"auto",objectFit:"contain",margin:"0 auto"}} />
+        </div>)}
+      </div>
+      {after && <div style={{whiteSpace:"pre-line"}}>{after}</div>}
+    </>;
+  }
   const chunks = value.split(assetPattern);
   return <>{chunks.map((chunk, i) => singleAssetPattern.test(chunk)
     ? <div key={i} style={{textAlign:"center",margin:"12px 0"}}>
