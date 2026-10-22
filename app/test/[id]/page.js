@@ -2071,14 +2071,16 @@ export default function TestPage() {
           </div>
 
           <div style={questionText}>
-            {typeof displayQuestion === "string" && reasoningSvgPattern.test(displayQuestion) ? (
+            {typeof displayQuestion === "string" && displayQuestion.includes("assets/JD-REAS-") ? (
               <>
-                <div>{formatQuestionText(displayQuestion.replace(reasoningSvgPattern, language === "hindi" ? "आकृति" : "Figure"))}</div>
-                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,margin:"12px 0"}}>
-                  {Array.from(displayQuestion.matchAll(reasoningSvgPattern), match => match[1]).map((path, index) => (
-                    <ReasoningFigure key={path + index} path={path} language={language} />
-                  ))}
-                </div>
+                {displayQuestion.split(reasoningSvgPattern).map((part, index) =>
+                  singleReasoningSvgPattern.test(part) ? (
+                    <div key={index} style={{margin:"12px 0",textAlign:"center"}}>
+                      <div style={{marginBottom:8}}>{language === "hindi" ? "आकृति" : "Figure"}</div>
+                      <ReasoningFigure path={part} language={language} />
+                    </div>
+                  ) : <div key={index}>{formatQuestionText(part)}</div>
+                )}
               </>
             ) : <ReasoningRichText value={displayQuestion} language={language} />}
           </div>
