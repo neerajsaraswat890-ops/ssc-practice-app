@@ -29,25 +29,22 @@ function ReasoningFigure({ path, language }) {
 }
 
 function ReasoningFigureRow({ value, language }) {
-  const regex = /assets\/JD-REAS-[A-Za-z0-9_-]+\.svg/g;
+  const regex = /assets\\/JD-REAS-[A-Za-z0-9_-]+\\.svg/g;
   const matches = [...value.matchAll(regex)];
-  const before = value.slice(0, matches[0].index);
-  const opening = before.replace(/(?:आकृति|Figure)\s*(?:A\s*=\s*)?\s*$/i, "").trim();
-  const items = matches.map((match, index) => {
-    const segment = value.slice(index === 0 ? 0 : matches[index - 1].index + matches[index - 1][0].length, match.index);
-    const label = segment.match(/(?:^|[\s,|])([A-Z])\s*=\s*(?:(?:आकृति|Figure)\s*)?$/i);
-    return { path: match[0], label: label ? label[1].toUpperCase() : String.fromCharCode(65 + index) };
-  });
-  const tail = value.slice(matches[matches.length - 1].index + matches[matches.length - 1][0].length).replace(/^\s*[|,]\s*/, "").trim();
+  if (matches.length < 2) return <ReasoningRichText value={value} language={language} />;
+  const intro = value.slice(0, matches[0].index).replace(/(?:आकृति|Figure)\\s*$/i, "").trim();
+  const after = value.slice(matches[matches.length - 1].index + matches[matches.length - 1][0].length).replace(/^[\\s|,;]+/, "").trim();
   return <>
-    {opening && <div>{formatQuestionText(opening)}</div>}
-    <div style={{ display:"flex", flexDirection:"row", flexWrap:"nowrap", gap:"clamp(3px,1.5vw,10px)", width:"100%", alignItems:"flex-start", justifyContent:"center", margin:"12px 0" }}>
-      {items.map((item,index) => <div key={index} style={{ flex:"1 1 0", minWidth:0, maxWidth:170, textAlign:"center" }}>
-        <div style={{fontSize:"0.75em", marginBottom:4}}>{item.label}</div>
-        <img src={`/${item.path}`} alt={`Figure ${item.label}`} style={{display:"block", width:"100%", height:"auto", aspectRatio:"1 / 1", objectFit:"contain"}} />
-      </div>)}
+    {intro && <div>{formatQuestionText(intro)}</div>}
+    <div style={{display:"grid",gridTemplateColumns:`repeat(${matches.length}, minmax(0, 1fr))`,gap:6,width:"100%",margin:"14px 0",alignItems:"start"}}>
+      {matches.map((match,index) => (
+        <div key={match[0]+index} style={{minWidth:0,textAlign:"center"}}>
+          <div style={{fontSize:"0.85em",fontWeight:600,marginBottom:6}}>{String.fromCharCode(65+index)}</div>
+          <img src={`/${match[0]}`} alt={`Figure ${String.fromCharCode(65+index)}`} style={{display:"block",width:"100%",maxWidth:180,aspectRatio:"1 / 1",height:"auto",objectFit:"contain",margin:"0 auto"}} />
+        </div>
+      ))}
     </div>
-    {tail && <div>{formatQuestionText(tail)}</div>}
+    {after && <div>{formatQuestionText(after)}</div>}
   </>;
 }
 
