@@ -466,6 +466,11 @@ export default function TestPage() {
       if (data?.status === "submitted") { router.replace(`/result/${id}`); return; }
       setPaused(Boolean(data?.paused));
       setTimeLeft(Number(data?.remaining_seconds ?? 0));
+      if (!paused && data?.paused) {
+        const { data: examRow } = await supabase().from("exams").select("exam_code").eq("exam_name", test.exam).maybeSingle();
+        router.replace(examRow?.exam_code ? `/exams/${encodeURIComponent(examRow.exam_code)}` : "/dashboard");
+        return;
+      }
     } catch (e) { setError(e?.message || "Pause/Resume failed"); }
     finally { setPauseBusy(false); }
   }
@@ -1826,9 +1831,6 @@ export default function TestPage() {
 
         <div style={timerBlock}>
 
-          <div style={timerIcon}>
-            ◷
-          </div>
 
           <div>
             <div style={timerText}>
@@ -1904,7 +1906,7 @@ export default function TestPage() {
 
       </header>
 
-      {paused && <div role="status" style={{position:"fixed",inset:0,zIndex:9999,background:"#18243b",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:20,color:"white"}}><h2>Test Paused</h2><p>Timer stopped. Resume to continue.</p><button type="button" onClick={togglePause} disabled={pauseBusy}>{pauseBusy ? "Please wait" : "Resume Test"}</button></div>}
+
 
       {/* =================================================
           SECTION BAR
