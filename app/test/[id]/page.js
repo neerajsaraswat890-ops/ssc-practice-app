@@ -42,7 +42,19 @@ function ReasoningRichText({ value, language }) {
 // Keep question wording intact while placing statement/conclusion blocks on separate lines.
 function formatQuestionText(value) {
   if (typeof value !== "string") return value;
-  let formatted = value.replace(/\r\n?/g, "\n").trim();
+  let formatted = value.replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n").replace(/\r\n?/g, "\n").trim();
+  // Imported reading passages repeat after a literal "Passage:" label.
+  if (/^Read (?:the|a) (?:complete )?passage/i.test(formatted)) {
+    const blocks = formatted.split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
+    const passageBlock = blocks.find(x => /^Passage:\s*/i.test(x));
+    if (passageBlock) {
+      const fullPassage = passageBlock.replace(/^Passage:\s*/i, "").trim();
+      const instruction = blocks[0];
+      const tail = blocks.filter(x => x !== instruction && x !== passageBlock &&
+        !x.includes(fullPassage.slice(0, 45)) && !/^[A-Za-z ]{3,55}$/.test(x));
+      formatted = [fullPassage, ...tail].join("\n\n");
+    }
+  }
   // Passage imports sometimes contain the same paragraph twice, preceded by its title.
   const passageMatch = formatted.match(/\bPassage:\s*/i);
   if (passageMatch && passageMatch.index > 0) {
@@ -81,6 +93,7 @@ function formatQuestionText(value) {
   formatted = formatted.replace(/[ \t]+(?=(?:चरण|Step)\s*(?:[IVX]+|\d+)\s*[:：])/gi, "\n\n");
   formatted = formatted.replace(/[ \t]+(?=(?:इनपुट|Input)\s*[:：])/gi, "\n\n");
   formatted = formatted.replace(/[ \t]+(?=(?:[1-9]\d{0,2}|[IVX]{1,4})[.)]\s+(?=\S))/g, "\n\n");
+  formatted = formatted.replace(/[ \t]+(?=\([1-9]\d?\)\s)/g, "\n\n");
   formatted = formatted.replace(/[ \t]+(?=(?:कथन|निष्कर्ष|Statements?|Conclusions?)\s*[:：])/gi, "\n\n");
   if (/\bP[.)]\s/.test(formatted) && /\bQ[.)]\s/.test(formatted) && /\bR[.)]\s/.test(formatted)) {
     formatted = formatted.replace(/[ \t]+(?=[PQRS][.)]\s+(?=[A-Z]))/g, "\n\n");
