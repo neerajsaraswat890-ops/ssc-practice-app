@@ -316,46 +316,16 @@ export default function ExamPage() {
                     {category.description}
                   </p>
 
-                  {category.title === "Full Mock Tests" && supportsFullTests ? (
-                    <button type="button" className="btn" onClick={() => window.open(`/exams/${encodeURIComponent(code)}/full-tests`, "_blank", "noopener,noreferrer")}>
-                      {showFullTests ? "Hide Full Tests" : `View Full Tests (${fullTests.length})`}
-                    </button>
-                  ) : <span
-                    style={{
-                      color: "#64748b",
-                      fontWeight: 600,
-                      fontSize: "13px",
-                    }}
-                  >
-                    Coming Soon
-                  </span>}
+                  <a className="btn"
+                    href={`/exams/${encodeURIComponent(code)}/${category.title === "Full Mock Tests" ? "full-tests" : category.title === "Subject-wise Practice" ? "subject-wise" : category.title === "Chapter-wise Practice" ? "chapter-wise" : "previous-year"}`}
+                    target="_blank" rel="noopener noreferrer">
+                    {category.title === "Full Mock Tests" ? "View Full Tests" : "View Tests"}
+                  </a>
                 </div>
               ))}
             </div>
 
-            {supportsFullTests && showFullTests && (
-              <section id="full-tests" style={{ marginTop: "24px" }} aria-label="Full Tests">
-                <h2>{examName} — Full Tests</h2>
-                {fullTests.length === 0 ? <p className="muted">Full tests will appear here once published.</p> : (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "16px" }}>
-                    {fullTests.map((test) => (
-                      <article className="card" key={test.id} style={{ padding: "22px" }}>
-                        <h3>{test.title}</h3>
-                        <p>{test.total_questions} Questions · {test.total_marks} Marks · {test.duration_minutes} Minutes</p>
-                        <p className="muted">Negative marking: {test.negative_mark} per wrong answer</p>
-                        {test.attemptStatus === "submitted" ? (
-                          <Link className="btn" href={`/result/${test.id}`}>View Result / परिणाम देखें</Link>
-                        ) : test.attemptStatus === "in_progress" ? (
-                          <Link className="btn" href={`/test/${test.id}`}>Resume Test / टेस्ट जारी रखें</Link>
-                        ) : (
-                          <Link className="btn" href={`/instructions/${test.id}`}>Start Test / टेस्ट शुरू करें</Link>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
+
           </>
         )}
       </main>
