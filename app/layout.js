@@ -27,10 +27,6 @@ export const metadata = {
     "SSC Previous Year Questions",
   ],
 
-  alternates: {
-    canonical: "/",
-  },
-
   robots: {
     index: true,
     follow: true,

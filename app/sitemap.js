@@ -1,28 +1,13 @@
+const baseUrl = "https://www.jdexambook.in";
 
 export default function sitemap() {
-  const baseUrl = "https://www.jdexambook.in";
-
-  const examCodes = [
-    "SSC_CGL",
-    "SSC_CHSL",
-    "SSC_CPO",
-    "SSC_GD",
-    "SSC_STENO",
+  // Only publicly accessible, indexable URLs belong in the sitemap.
+  // Exam and test pages require authentication, so they are excluded.
+  return [
+    {
+      url: `${baseUrl}/`,
+      changeFrequency: "weekly",
+      priority: 1,
+    },
   ];
-
-  const homePage = {
-    url: baseUrl,
-    lastModified: new Date(),
-    changeFrequency: "weekly",
-    priority: 1,
-  };
-
-  const examPages = examCodes.map((code) => ({
-    url: `${baseUrl}/exams/${code}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly",
-    priority: 0.8,
-  }));
-
-  return [homePage, ...examPages];
 }
