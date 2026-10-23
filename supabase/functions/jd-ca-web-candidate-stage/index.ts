@@ -64,7 +64,7 @@ async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:bo
     const reason=headline.length<15?"short_headline":description.length<30?"short_description":!Number.isFinite(date)?"missing_or_invalid_date":date>now+3600000?"future_date":date<now-8*86400000?"older_than_8_days":null;
     if(reason){reject(reason);continue;}
     out.eligible++;
-    if(!dryRun){const {error}=await db.from("ca_web_adapter_candidates").upsert({source_key:source.source_key,article_url:d.url,headline,published_at:new Date(date).toISOString(),description,status:"needs_review"},{onConflict:"article_url",ignoreDuplicates:true});if(error){reject("database_error");continue;}out.staged++;}
+    if(!dryRun){const {data:stagedRows,error}=await db.from("ca_web_adapter_candidates").upsert({source_key:source.source_key,article_url:d.url,headline,published_at:new Date(date).toISOString(),description,status:"needs_review"},{onConflict:"article_url",ignoreDuplicates:true}).select("id");if(error){reject("database_error");continue;}out.staged+=(stagedRows||[]).length;}
    }catch(e){const message=e instanceof Error?e.message:"unknown";const reason=/^http_\d+$/.test(message)?message:/abort|timeout/i.test(message)?"fetch_timeout":message==="unsafe_host_or_redirect"||message==="non_html"||message==="too_many_redirects"?message:"article_fetch_error";reject(reason);}
   }
  }catch(e){out.error=String(e instanceof Error?e.message:e).slice(0,120);}
