@@ -5,16 +5,18 @@ export const metadata = {
   metadataBase: new URL("https://www.jdexambook.in"),
 
   title: {
-    default: "JD Exambook | SSC Exam Preparation & Online Practice",
+    default: "JD Exambook | Government Exam Preparation & Online Practice",
     template: "%s | JD Exambook",
   },
 
   description:
-    "JD Exambook is an online exam preparation platform for SSC CGL, CHSL, CPO, GD, MTS and Stenographer aspirants. Explore exam-wise preparation and practice resources.",
+    "JD Exambook offers government exam preparation resources for SSC CGL, CHSL, CPO, GD, MTS and Stenographer aspirants. Explore exam-wise learning and online practice.",
 
   keywords: [
     "JD Exambook",
     "JDExambook",
+    "Government Exam Preparation",
+    "Govt Exam Online Practice",
     "SSC Exam Preparation",
     "SSC CGL",
     "SSC CHSL",
@@ -27,10 +29,6 @@ export const metadata = {
     "SSC Previous Year Questions",
   ],
 
-  alternates: {
-    canonical: "/",
-  },
-
   robots: {
     index: true,
     follow: true,
@@ -41,9 +39,9 @@ export const metadata = {
   },
 
   openGraph: {
-    title: "JD Exambook | SSC Exam Preparation",
+    title: "JD Exambook | Government Exam Preparation",
     description:
-      "Explore SSC exam preparation and online practice resources with JD Exambook.",
+      "Explore government exam preparation resources, including SSC exams, and online practice with JD Exambook.",
     url: "https://www.jdexambook.in",
     siteName: "JD Exambook",
     type: "website",
