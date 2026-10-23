@@ -318,7 +318,7 @@ export default function ExamPage() {
 
                   <a className="btn"
                     href={`/exams/${encodeURIComponent(code)}/${category.title === "Full Mock Tests" ? "full-tests" : category.title === "Subject-wise Practice" ? "subject-wise" : category.title === "Chapter-wise Practice" ? "chapter-wise" : "previous-year"}`}
-                    target="_blank" rel="noopener noreferrer">
+                    >
                     {category.title === "Full Mock Tests" ? "View Full Tests" : "View Tests"}
                   </a>
                 </div>
