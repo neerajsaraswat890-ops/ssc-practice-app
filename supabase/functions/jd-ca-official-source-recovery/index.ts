@@ -35,7 +35,7 @@ Deno.serve(async(req:Request)=>{
     const name=(item.title||headline(h)).slice(0,500),description=summary(h),when=s.source_key==="WHO"?whoDate(h,article.url):pibDate(h);
     const reason=name.length<15?"short_headline":description.length<30?"short_description":validDate(when);
     if(reason){reject(reason);continue;}out.eligible++;
-    if(!dryRun){const {error:upsertError}=await db.from("ca_web_adapter_candidates").upsert({source_key:s.source_key,article_url:article.url,headline:name,published_at:new Date(when).toISOString(),description,status:"needs_review"},{onConflict:"article_url",ignoreDuplicates:true});if(upsertError){reject("db_error");continue;}out.staged++;}
+    if(!dryRun){const {data:stagedRows,error:upsertError}=await db.from("ca_web_adapter_candidates").upsert({source_key:s.source_key,article_url:article.url,headline:name,published_at:new Date(when).toISOString(),description,status:"needs_review"},{onConflict:"article_url",ignoreDuplicates:true}).select("id");if(upsertError){reject("db_error");continue;}out.staged+=(stagedRows||[]).length;}
    }catch(e){const message=String(e instanceof Error?e.message:e);reject(/^http_\d+$/.test(message)?message:/abort|timeout/i.test(message)?"fetch_timeout":"article_fetch_error");}}
   }catch(e){out.error=String(e instanceof Error?e.message:e).slice(0,100);}
   result.push(out);
