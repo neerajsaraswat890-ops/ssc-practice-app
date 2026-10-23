@@ -25,7 +25,7 @@ Deno.serve(async(req:Request)=>{
  for(const s of sources||[]){const out:Found={source:s.source_key,examined:0,eligible:0,staged:0,rejected:{}};const reject=(name:string)=>out.rejected[name]=(out.rejected[name]||0)+1;
   try{let candidates:{title:string;url:string}[]=[];
    if(s.source_key==="WHO"){const list=await fetchText("https://www.who.int/news-room/releases/1",s.allowed_host);const seen=new Set<string>();
-    for(const m of list.content.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+\/news\/item\/[^"']+)["'][^>]*>/gi)){try{const u=new URL(entities(m[1]),list.url);if(safe(u.href,s.allowed_host)&&!seen.has(u.href)){seen.add(u.href);candidates.push({title:"",url:u.href});}}catch{}if(candidates.length>=20)break;}
+    for(const m of list.content.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']*\/news\/item\/[^"']+)["'][^>]*>/gi)){try{const u=new URL(entities(m[1]),list.url);if(safe(u.href,s.allowed_host)&&!seen.has(u.href)){seen.add(u.href);candidates.push({title:"",url:u.href});}}catch{}if(candidates.length>=20)break;}
    }else{const feed=await fetchText(s.feed_url,s.allowed_host,"application/rss+xml,application/xml,text/xml");
     for(const m of feed.content.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi)){const title=plain(m[1].match(/<title>([\s\S]*?)<\/title>/i)?.[1]||""),href=plain(m[1].match(/<link>([\s\S]*?)<\/link>/i)?.[1]||"");
      try{const u=new URL(href);if(!safe(u.href,s.allowed_host)||!u.searchParams.get("PRID"))continue;u.pathname="/PressReleasePage.aspx";candidates.push({title,url:u.href});}catch{}if(candidates.length>=20)break;}
