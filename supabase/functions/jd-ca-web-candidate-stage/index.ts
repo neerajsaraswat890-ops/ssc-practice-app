@@ -34,6 +34,11 @@ function ld(h:string){const found:{headline?:string;description?:string;datePubl
  }
  return found;
 }
+function articleExcerpt(h:string){
+ const region=h.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1]||h.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1]||"";
+ const parts=[...region.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)].map(m=>clean(m[1])).filter(s=>s.length>=45);
+ return parts.slice(0,3).join(" ").slice(0,1200);
+}
 function dateFrom(h:string,data:ReturnType<typeof ld>){if(data.datePublished)return data.datePublished;
  for(const n of ["article:published_time","datePublished","pubdate","date","dc.date.issued"]){const s=meta(h,n);if(s)return s;}
  for(const t of h.matchAll(/<time\b[^>]*>/gi)){const a=attrs(t[0]);if(a.datetime)return a.datetime;}
@@ -46,7 +51,7 @@ async function htmlAt(raw:string,host:string){let u=new URL(raw);for(let i=0;i<4
  throw Error("too_many_redirects");
 }
 function discover(h:string,root:URL,host:string,key:string){const found=new Map<string,number>(),pat=routes[key]||/news|press/i;
- for(const m of h.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)){const a=attrs(m[1]);if(!a.href||a.href.startsWith("#"))continue;try{const u=new URL(a.href,root);if(!valid(u,host)||u.href===root.href||!pat.test(u.pathname))continue;const anchor=clean(m[2]);let score=0;if(/20\d\d\/\d\d|\/20\d\d\//.test(u.pathname))score+=3;if(/news|press|release/i.test(u.pathname))score+=2;if(anchor.length>25)score+=1;if(/2026/.test(u.href))score+=2;found.set(u.href,Math.max(score,found.get(u.href)||0));}catch{}}
+ for(const m of h.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)){const a=attrs(m[1]);if(!a.href||a.href.startsWith("#"))continue;try{const u=new URL(a.href,root);if(!valid(u,host)||u.href===root.href||!pat.test(u.pathname)||/\.(?:pdf|docx?|xlsx?|jpe?g|png|zip)$/i.test(u.pathname))continue;const anchor=clean(m[2]);let score=0;if(/20\d\d\/\d\d|\/20\d\d\//.test(u.pathname))score+=3;if(/news|press|release/i.test(u.pathname))score+=2;if(anchor.length>25)score+=1;if(/2026/.test(u.href))score+=2;found.set(u.href,Math.max(score,found.get(u.href)||0));}catch{}}
  return [...found.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]).slice(0,15);
 }
 async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:boolean,maxArticles:number):Promise<Result>{
@@ -63,7 +68,8 @@ async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:bo
    try{
     const d=await htmlAt(link,source.allowed_host),structured=ld(d.html);
     const headline=clean(meta(d.html,"og:title")||meta(d.html,"twitter:title")||structured.headline||d.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]||"").slice(0,500);
-    const description=clean(meta(d.html,"og:description")||meta(d.html,"description")||structured.description||"").slice(0,1200);
+    const providedDescription=clean(meta(d.html,"og:description")||meta(d.html,"description")||structured.description||"");
+    const description=(providedDescription.length>=30?providedDescription:articleExcerpt(d.html)).slice(0,1200);
     const dateText=dateFrom(d.html,structured),date=Date.parse(dateText);
     const now=Date.now();
     const reason=headline.length<15?"short_headline":description.length<30?"short_description":!Number.isFinite(date)?"missing_or_invalid_date":date>now+3600000?"future_date":date<now-8*86400000?"older_than_8_days":null;
