@@ -317,7 +317,7 @@ export default function ExamPage() {
                   </p>
 
                   {category.title === "Full Mock Tests" && supportsFullTests ? (
-                    <button type="button" className="btn" onClick={() => setShowFullTests(!showFullTests)} aria-expanded={showFullTests} aria-controls="full-tests">
+                    <button type="button" className="btn" onClick={() => window.open(`/exams/${encodeURIComponent(code)}/full-tests`, "_blank", "noopener,noreferrer")}>
                       {showFullTests ? "Hide Full Tests" : `View Full Tests (${fullTests.length})`}
                     </button>
                   ) : <span
