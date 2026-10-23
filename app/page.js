@@ -3,16 +3,16 @@ import Link from "next/link";
 import Image from "next/image";
 
 export const metadata = {
-  title: "JD Exambook | SSC Exam Preparation & Online Practice",
+  title: "JD Exambook | Government Exam Preparation & Online Practice",
   description:
-    "JD Exambook is an SSC exam preparation platform for SSC CGL, CHSL, CPO, GD and Stenographer. Explore exam-wise resources and upcoming practice tests.",
+    "JD Exambook provides government exam preparation resources for SSC CGL, CHSL, CPO, GD and Stenographer. Explore exam-wise learning and upcoming online practice tests.",
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "JD Exambook | SSC Exam Preparation",
+    title: "JD Exambook | Government Exam Preparation",
     description:
-      "Explore SSC exam preparation resources with JD Exambook.",
+      "Explore government exam preparation resources, including SSC exams, with JD Exambook.",
     url: "https://www.jdexambook.in/",
     siteName: "JD Exambook",
     type: "website",
@@ -82,15 +82,15 @@ export default function HomePage() {
 
         <div className="jd-hero-content">
           <p className="jd-eyebrow">
-            SSC EXAM PREPARATION PLATFORM
+            GOVERNMENT EXAM PREPARATION PLATFORM
           </p>
 
           <h1>
-            Prepare for SSC Exams with JD Exambook
+            Prepare for Government Exams with JD Exambook
           </h1>
 
           <p className="jd-hero-description">
-            Explore SSC exam preparation resources.
+            Explore SSC and government exam preparation resources.
             Subject-wise practice, chapter-wise questions,
             previous year papers and mock tests are being
             developed for JD Exambook.
