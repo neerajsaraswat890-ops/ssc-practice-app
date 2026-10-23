@@ -6,6 +6,9 @@ type Result = { source:string; found:number; examined:number; eligible:number; s
 const json=(value:unknown,status=200)=>new Response(JSON.stringify(value),{status,headers:{"content-type":"application/json","cache-control":"no-store"}});
 const routes:Record<string,RegExp>={
  AIR_NEWS:/news|national|international|2026/i, APEDA:/news|press|gi|2026/i, BCCI:/news|article|2026/i,
+ AIFF:/\/article\/|\/news\/|2026/i, AFC:/news|2026|press|media/i, AKFI:/notification|championship|results|kabaddi|2026/i,
+ FISU:/\/20\d{2}\/\d{2}\/\d{2}\/|news|university|2026/i, PRO_KABADDI:/\/news\/|2026/i,
+ KHELO_INDIA:/news|games|university|2026/i, MIN_SPORTS:/news|university|sport|2026/i,
  DRDO:/press|news|2026/i, ECI:/press|news|2026/i, ESA:/news|2026/i, FIFA:/news|2026/i,
  GI_REGISTRY:/gi|journal|registration|2026/i, ICC:/news|2026/i, IMF:/news|press|2026/i,
  INDIA_PORTAL:/news|press|2026/i, IOC:/news|2026/i, IP_INDIA:/gi|journal|news|2026/i,
@@ -18,6 +21,8 @@ const seeds:Record<string,string[]>={
  NASA:["/news/"], WORLD_BANK:["/en/news"], IMF:["/en/News"], ISRO:["/LatestNews.html"],
  UNEP:["/news-and-stories"], NOBEL:["/news/"], ECI:["/press-releases"], RAMSAR:["/news"],
  UNESCO_WHC:["/en/news/"], UNFCCC:["/news"], MOSPI:["/press-release"], BCCI:["/articles"],
+ FISU:["/news/"], AIFF:["/"], PRO_KABADDI:["/news"], AFC:["/en/"],
+ AKFI:["/"], KHELO_INDIA:["/"], MIN_SPORTS:["/latest-news"],
 };
 function dec(s:string){return s.replace(/&amp;/gi,"&").replace(/&quot;/gi,'"').replace(/&#39;|&#x27;/gi,"'").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").replace(/&nbsp;/gi," ").replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(Number(n)));}
 function clean(s:string){return dec(s.replace(/<script\b[\s\S]*?<\/script>/gi," ").replace(/<style\b[\s\S]*?<\/style>/gi," ").replace(/<[^>]*>/g," ")).replace(/\s+/g," ").trim();}
@@ -77,7 +82,7 @@ Deno.serve(async(req:Request)=>{
  const {data:auth}=await db.from("ca_job_auth").select("token").eq("id",1).single();
  if(!auth?.token||req.headers.get("authorization")!=="Bearer "+auth.token)return json({error:"unauthorized"},401);
  const body=await req.json().catch(()=>({})) as {dryRun?:boolean;batch?:number;sourceKeys?:string[];maxArticles?:number};
- const dryRun=body.dryRun!==false,batch=Math.min(4,Math.max(0,Math.floor(Number(body.batch)||0))),maxArticles=Math.min(5,Math.max(1,Math.floor(Number(body.maxArticles)||3)));
+ const dryRun=body.dryRun!==false,batch=Math.min(10,Math.max(0,Math.floor(Number(body.batch)||0))),maxArticles=Math.min(5,Math.max(1,Math.floor(Number(body.maxArticles)||3)));
  const {data,error}=await db.from("ca_sources").select("source_key,feed_url,allowed_host,category").eq("integration_type","web_adapter").order("source_key");
  if(error)return json({error:"source_query_failed"},500);
  const requested=new Set(Array.isArray(body.sourceKeys)?body.sourceKeys.filter(x=>typeof x==="string"):[]);
