@@ -1,0 +1,2 @@
+-- Testing only. Study up to six pending first-party articles every 15 minutes.
+select cron.schedule('jd-ca-auto-verify-testing','7,22,37,52 * * * *',$$select net.http_post(url:='https://gfoyzlbehikcxfluznvq.supabase.co/functions/v1/jd-ca-full-article-study',headers:=jsonb_build_object('Content-Type','application/json','Authorization','Bearer '||(select token from public.ca_job_auth where id=1)),body:='{"job":"exam_oriented_full_article_study_testing","limit":6}'::jsonb,timeout_milliseconds:=120000);$$) as study_job;
