@@ -4,7 +4,9 @@ const json=(v:unknown,status=200)=>new Response(JSON.stringify(v),{status,header
 function clean(v:string){return v.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,"$1").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;|&#x27;/g,"'").replace(/\s+/g," ").trim();}
 function tag(s:string,t:string){let m=s.match(new RegExp("<"+t+"(?:\\s[^>]*)?>([\\s\\S]*?)<\\/"+t+">","i"));return m?clean(m[1]):"";}
 function itemsOf(s:string){return [...s.matchAll(/<(?:item|entry)(?:\s[^>]*)?>([\s\S]*?)<\/(?:item|entry)>/gi)].map(m=>m[1]).slice(0,70);}
-function isAllowed(url:string,host:string){try{const u=new URL(url);return u.protocol==="https:"&&(u.hostname.toLowerCase()===host||u.hostname.toLowerCase().endsWith("."+host))}catch{return false}}
+function isAllowed(url:string,host:string){try{const u=new URL(url),bare=(v:string)=>v.toLowerCase().replace(/^www\./,"");return u.protocol==="https:"&&!u.username&&!u.password&&!u.port&&bare(u.hostname)===bare(host)}catch{return false}}
+function istDay(date:Date){const parts=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(date).map(x=>[x.type,x.value]));return parts.year+"-"+parts.month+"-"+parts.day;}
+function pibId(url:string){try{const u=new URL(url);const p=u.searchParams.get("PRID")||u.searchParams.get("prid");return p&&/^\d{6,8}$/.test(p)?p:null;}catch{return null;}}
 Deno.serve(async(request:Request)=>{
  if(request.method!=="POST")return json({error:"method_not_allowed"},405);
  const url=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -30,13 +32,26 @@ Deno.serve(async(request:Request)=>{
  let fetched=0,inserted=0;
  const rejected:Record<string,number>={};
  const skip=(reason:string)=>{rejected[reason]=(rejected[reason]||0)+1;};
+ // PIB RSS lists titles and links but omits item-level dates. Reuse dates
+ // extracted independently from the official PIB page, keyed by release ID.
+ const pibMatches=new Map<string,{published_at:string;article_url:string;description:string}>();
+ if(source.source_key==="PIB"||source.source_key==="PIB_HI"){
+   const {data:dated,error:dateError}=await db.from("ca_web_adapter_candidates")
+     .select("article_url,published_at,description").eq("source_key",source.source_key)
+     .gte("published_at",new Date(Date.now()-8*86400000).toISOString()).limit(100);
+   if(dateError)throw Error("PIB date lookup failed");
+   for(const row of dated||[]){const pid=pibId(row.article_url);if(pid)pibMatches.set(pid,row);}
+ }
  for(const item of nodes.slice(0,source.max_items)){
  const headline=tag(item,"title");let href=tag(item,"link");
  if(!href){const lm=item.match(/<link\s+[^>]*href=["']([^"']+)["']/i);if(lm)href=lm[1];}
  let published=tag(item,"pubDate")||tag(item,"published")||tag(item,"updated");
+ const corroborated=pibMatches.get(pibId(href)||"");
+ // Never invent a publication date; absent a corroborated PIB page, hold item.
+ if(!published&&corroborated){published=corroborated.published_at;href=corroborated.article_url;}
  if(!headline){skip("missing_headline");continue;}
  if(!href){skip("missing_link");continue;}
- if(!published){skip("missing_date");continue;}
+ if(!published){skip("missing_date_no_official_corroboration");continue;}
  if(!isAllowed(href,source.allowed_host)){skip("untrusted_or_non_https_url");continue;}
  const when=new Date(published),now=Date.now();
  if(!Number.isFinite(when.getTime())){skip("invalid_date");continue;}
@@ -47,7 +62,7 @@ Deno.serve(async(request:Request)=>{
  // Never publish a Hindi item independently and never overwrite an approved story.
  if(source.source_key==="PIB_HI"){
    const pid=new URL(href).searchParams.get("PRID")||new URL(href).searchParams.get("prid");
-   const hindiSummary=(tag(item,"description")||tag(item,"summary")).slice(0,1200);
+   const hindiSummary=(tag(item,"description")||tag(item,"summary")||corroborated?.description||"").slice(0,1200);
    if(pid&&/^\d{6,8}$/.test(pid)&&/[\u0900-\u097f]/.test(headline)&&hindiSummary.length>30){
      const {data:pair, error:pairErr}=await db.from("ca_items").select("id")
        .ilike("canonical_url","%PRID="+pid+"%").eq("status","pending").limit(1);
@@ -60,7 +75,7 @@ Deno.serve(async(request:Request)=>{
    }
    continue;
  }
- const {data,error}=await db.from("ca_items").upsert({canonical_url:new URL(href).href,source_id:source.id,source_name:source.source_name,headline_en:headline.slice(0,500),summary_en:(tag(item,"description")||tag(item,"summary")).slice(0,1500),published_at:when.toISOString(),event_date:new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).format(when),topics:[source.category].filter(Boolean),status:"pending",evidence_checked:false,approved_at:null},{onConflict:"canonical_url",ignoreDuplicates:true}).select("id");
+ const {data,error}=await db.from("ca_items").upsert({canonical_url:new URL(href).href,source_id:source.id,source_name:source.source_name,headline_en:headline.slice(0,500),summary_en:(tag(item,"description")||tag(item,"summary")||corroborated?.description||"").slice(0,1500),published_at:when.toISOString(),event_date:istDay(when),topics:[source.category].filter(Boolean),status:"pending",evidence_checked:false,approved_at:null},{onConflict:"canonical_url",ignoreDuplicates:true}).select("id");
  if(error)throw new Error("DB "+error.message);
  inserted+=(data||[]).length;
  }
