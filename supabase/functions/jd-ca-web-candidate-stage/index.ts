@@ -8,6 +8,7 @@ const routes:Record<string,RegExp>={
  AIR_NEWS:/news|national|international|2026/i, APEDA:/news|press|gi|2026/i, BCCI:/news|article|2026/i,
  AIFF:/\/article\/|\/news\/|2026/i, AFC:/news|2026|press|media/i, AKFI:/notification|championship|results|kabaddi|2026/i,
  FISU:/\/20\d{2}\/\d{2}\/\d{2}\/|news|university|2026/i, PRO_KABADDI:/\/news\/|2026/i,
+ FIFA_MEDIA:/media-releases|news|2026/i, ISL:/\/news\/|2026/i,
  KHELO_INDIA:/news|games|university|2026/i, MIN_SPORTS:/news|university|sport|2026/i,
  DRDO:/press|news|2026/i, ECI:/press|news|2026/i, ESA:/news|2026/i, FIFA:/news|2026/i,
  GI_REGISTRY:/gi|journal|registration|2026/i, ICC:/news|2026/i, IMF:/news|press|2026/i,
@@ -23,6 +24,7 @@ const seeds:Record<string,string[]>={
  UNESCO_WHC:["/en/news/"], UNFCCC:["/news"], MOSPI:["/press-release"], BCCI:["/articles"],
  FISU:["/news/"], AIFF:["/"], PRO_KABADDI:["/news"], AFC:["/en/"],
  AKFI:["/"], KHELO_INDIA:["/"], MIN_SPORTS:["/latest-news"],
+ FIFA_MEDIA:["/organisation/media/all-media-releases"], ISL:["/news"],
 };
 function dec(s:string){return s.replace(/&amp;/gi,"&").replace(/&quot;/gi,'"').replace(/&#39;|&#x27;/gi,"'").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").replace(/&nbsp;/gi," ").replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(Number(n)));}
 function clean(s:string){return dec(s.replace(/<script\b[\s\S]*?<\/script>/gi," ").replace(/<style\b[\s\S]*?<\/style>/gi," ").replace(/<[^>]*>/g," ")).replace(/\s+/g," ").trim();}
