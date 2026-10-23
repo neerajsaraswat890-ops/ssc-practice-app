@@ -41,11 +41,17 @@ function articleExcerpt(h:string){
  const parts=[...region.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)].map(m=>clean(m[1])).filter(s=>s.length>=45);
  return parts.slice(0,3).join(" ").slice(0,1200);
 }
-function dateFrom(h:string,data:ReturnType<typeof ld>){if(data.datePublished)return data.datePublished;
+function dateFrom(h:string,data:ReturnType<typeof ld>,sourceKey:string){if(data.datePublished)return data.datePublished;
  for(const n of ["article:published_time","datePublished","pubdate","date","dc.date.issued"]){const s=meta(h,n);if(s)return s;}
  for(const t of h.matchAll(/<time\b[^>]*>/gi)){const a=attrs(t[0]);if(a.datetime)return a.datetime;}
  const m=h.match(/(?:Posted\s+On|Published\s+On)\s*:?\s*(\d{1,2}\s+[A-Za-z]{3,9}\s+20\d{2})(?:\s+(\d{1,2}:\d{2}\s*(?:AM|PM)?))?/i);
- return m?m[1]+(m[2]?" "+m[2]:""):"";
+ if(m)return m[1]+(m[2]?" "+m[2]:"");
+ if(sourceKey==="FIFA_MEDIA"){
+  const plain=clean(h).slice(0,35000);
+  const release=plain.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+(\d{1,2}\s+[A-Za-z]{3,9}\s+20\d{2}),?\s+(\d{1,2}:\d{2})/i);
+  if(release)return release[1]+" "+release[2];
+ }
+ return "";
 }
 function valid(url:URL,host:string){const bare=(s:string)=>s.toLowerCase().replace(/^www\./,"");return url.protocol==="https:"&&!url.username&&!url.password&&!url.port&&bare(url.hostname)===bare(host);}
 async function htmlAt(raw:string,host:string){let u=new URL(raw);for(let i=0;i<4;i++){if(!valid(u,host))throw Error("unsafe_host_or_redirect");const c=new AbortController(),timer=setTimeout(()=>c.abort(),8500);
@@ -72,7 +78,7 @@ async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:bo
     const headline=clean(meta(d.html,"og:title")||meta(d.html,"twitter:title")||structured.headline||d.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]||"").slice(0,500);
     const providedDescription=clean(meta(d.html,"og:description")||meta(d.html,"description")||structured.description||"");
     const description=(providedDescription.length>=30?providedDescription:articleExcerpt(d.html)).slice(0,1200);
-    const dateText=dateFrom(d.html,structured),date=Date.parse(dateText);
+    const dateText=dateFrom(d.html,structured,source.source_key),date=Date.parse(dateText);
     const now=Date.now();
     const reason=headline.length<15?"short_headline":description.length<30?"short_description":!Number.isFinite(date)?"missing_or_invalid_date":date>now+3600000?"future_date":date<now-8*86400000?"older_than_8_days":null;
     if(reason){reject(reason);continue;}
