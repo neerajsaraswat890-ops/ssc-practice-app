@@ -30,6 +30,7 @@ const seeds:Record<string,string[]>={
  SEBI:["/sebiweb/home/HomeAction.do?doListing=yes&sid=6&ssid=23"],
  DRDO:["/drdo/documents/press-release","/drdo/what-is-news"],
  AIFF:["/news","/"],
+  IP_INDIA:["/dynamic/news-updates"],
 };
 function dec(s:string){return s.replace(/&amp;/gi,"&").replace(/&quot;/gi,'"').replace(/&#39;|&#x27;/gi,"'").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").replace(/&nbsp;/gi," ").replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(Number(n)));}
 function clean(s:string){return dec(s.replace(/<script\b[\s\S]*?<\/script>/gi," ").replace(/<style\b[\s\S]*?<\/style>/gi," ").replace(/<[^>]*>/g," ")).replace(/\s+/g," ").trim();}
@@ -107,8 +108,16 @@ async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:bo
  try{
   const root=new URL(source.feed_url);if(!valid(root,source.allowed_host))throw Error("invalid_source_host");
   let links:string[]=[];
+  // IP India's own news list provides the publication date beside each linked notice.
+  const datedListings=new Map<string,string>();
   const airBuckets:string[][]=[];
   for(const suffix of [...(seeds[source.source_key]||[]),""]){try{const target=suffix?new URL(suffix,root).href:root.href;const doc=await htmlAt(target,source.allowed_host);
+    if(source.source_key==="IP_INDIA")for(const row of doc.html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)){
+      const link=row[1].match(/<a\b[^>]*href=["']([^"']*\/dynamic\/news-details\/\d+\/?)["']/i);
+      const day=row[1].match(/\b(\d{2})-(\d{2})-(20\d{2})\b/);
+      if(link&&day)try{const u=new URL(link[1],doc.url);if(valid(u,source.allowed_host))
+        datedListings.set(u.href,`${day[3]}-${day[2]}-${day[1]}`);}catch{}
+    }
     if(debug){const raws=[...doc.html.matchAll(/\bhref\s*=\s*["']([^"']+)["']/gi)].map(m=>m[1]);
       (out.listings ||= []).push({url:doc.url,bytes:doc.html.length,anchorCount:raws.length,
         possibleNewsUrls:raws.filter(x=>/news|press|2026|article/i.test(x)).slice(0,8),textStart:clean(doc.html).slice(0,220)});}
@@ -130,22 +139,28 @@ async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:bo
    try{
     const d=await htmlAt(link,source.allowed_host),structured=ld(d.html);
     let headline=clean(meta(d.html,"og:title")||meta(d.html,"twitter:title")||structured.headline||d.html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1]||d.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]||"").slice(0,500);
-    // Akashvani can render an empty H1 before the actual news headline.
-    // Use the article page title as fallback; never manufacture a headline.
+    // Akashvani's template can contain an empty H1 before the article title.
+    // Only fall back to the article's own HTML <title>; never infer a headline.
     if(source.source_key==="AIR_NEWS"&&headline.length<15){
       const pageTitle=clean(d.html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||"")
         .replace(/\s*[|–-]\s*Akashvani News\s*$/i,"").trim();
       if(pageTitle.length>=15)headline=pageTitle.slice(0,500);
     }
+    if(source.source_key==="IP_INDIA"&&(headline.length<15||headline==="IP India")){
+      const noticeTitle=clean(d.html.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i)?.[1]||"");
+      if(noticeTitle.length>=15)headline=noticeTitle.slice(0,500);
+    }
     if(source.source_key==="ISRO")headline=headline.replace(/\s+Home\s*\/.*$/i,"").trim();
     let providedDescription=clean(meta(d.html,"og:description")||meta(d.html,"description")||structured.description||"");
+    if(source.source_key==="IP_INDIA")providedDescription=""; // IP India's meta summary is site-wide boilerplate.
     // SEBI's global boilerplate is not an article summary. Hold title-only for primary-document review.
     if(source.source_key==="SEBI"&&/securities and exchange board of india is made for protect the interests/i.test(providedDescription))providedDescription="";
     const excerpt=articleExcerpt(d.html);
-    const headlineOnly=providedDescription.length<30&&excerpt.length<30&&["SEBI","APEDA","AKFI"].includes(source.source_key)&&headline.length>=40;
+    const headlineOnly=providedDescription.length<30&&excerpt.length<30&&["SEBI","APEDA","AKFI","IP_INDIA"].includes(source.source_key)&&headline.length>=40;
     const description=(providedDescription.length>=30?providedDescription:excerpt.length>=30?excerpt:headlineOnly?headline:"").slice(0,1200);
     // Akashvani's on-page AM/PM byline is India Standard Time, not UTC.
-    const dateText=dateFrom(d.html,structured,source.source_key);
+    const dateText=dateFrom(d.html,structured,source.source_key)||
+      (source.source_key==="IP_INDIA"?datedListings.get(d.url)||"":"");
     const dateWithZone=source.source_key==="AIR_NEWS"&&/\b(?:AM|PM)\s*$/i.test(dateText)
       ? dateText+" GMT+0530":dateText;
     const date=Date.parse(dateWithZone);
