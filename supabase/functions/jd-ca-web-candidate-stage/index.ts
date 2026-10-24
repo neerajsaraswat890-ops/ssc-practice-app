@@ -144,7 +144,11 @@ async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:bo
     const excerpt=articleExcerpt(d.html);
     const headlineOnly=providedDescription.length<30&&excerpt.length<30&&["SEBI","APEDA","AKFI"].includes(source.source_key)&&headline.length>=40;
     const description=(providedDescription.length>=30?providedDescription:excerpt.length>=30?excerpt:headlineOnly?headline:"").slice(0,1200);
-    const dateText=dateFrom(d.html,structured,source.source_key),date=Date.parse(dateText);
+    // Akashvani's on-page AM/PM byline is India Standard Time, not UTC.
+    const dateText=dateFrom(d.html,structured,source.source_key);
+    const dateWithZone=source.source_key==="AIR_NEWS"&&/\b(?:AM|PM)\s*$/i.test(dateText)
+      ? dateText+" GMT+0530":dateText;
+    const date=Date.parse(dateWithZone);
     if(debug){const h=d.html.search(/<h1\b/i),needle=d.html.toLowerCase().indexOf(headline.toLowerCase().slice(0,20));const at=h>=0?h:needle>=0?needle:0;
       (out.samples ||= []).push({url:d.url,title:headline,dateText,descriptionLength:description.length,
         visibleHeader:clean(d.html.slice(at,at+1800)).slice(0,430),datesNearHeader:clean(d.html.slice(at,at+1800)).match(/(?:\d{1,2}\s+\w+\s+20\d{2}|\w+\s+\d{1,2},?\s+20\d{2})/gi)?.slice(0,5)||[]});}
