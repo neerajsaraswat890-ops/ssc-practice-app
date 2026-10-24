@@ -29,15 +29,24 @@ const candidates=(s:string,language:"en"|"hi")=> {
   .map(x=>x.trim()).filter(x=>x.length>=55&&x.length<=380&&key.test(x)&&digits(x).length>0)
   .slice(0,120);
 };
+// Exam-priority coverage is informed by public exam-prep roundups such as Utkarsh and StudyIQ.
+// Those channels are prioritisation signals only; official first-party articles remain the fact/date evidence.
 const rubric=[
- ["Banking & Economy",["rbi","reserve bank","repo","bank","interest rate","monetary policy","inflation","sebi","insurance","financial","auction","securities","trade","fta","investment"],["Banking","SSC","Railway"],20],
- ["Government Schemes",["scheme","yojana","mission","campaign","cabinet","ministry","budget","welfare","initiative","programme"],["SSC","Railway","State"],16],
- ["Science & Technology",["technology","space","isro","ai","artificial intelligence","research","satellite","robotic","innovation","drone"],["SSC","Railway","State"],15],
- ["Defence",["navy","army","defence","defense","missile","ins ","drdo","military","exercise","commissioned"],["SSC","Defence","Railway"],16],
- ["Sports",["sports","athlete","games","medal","championship","tournament","gold","bronze","silver"],["SSC","Railway","State"],15],
- ["Appointments & Awards",["appointed","appointment","award","honour","prize","winner","elected","chairperson"],["SSC","Banking","Railway"],15],
- ["International",["united nations","summit","bilateral","countries","country","agreement","international","new zealand"],["SSC","Banking","State"],12],
- ["Reports & Rankings",["report","ranking","index","survey","ranked","released","assessment"],["SSC","Banking","Railway"],14]
+ ["Polity & Governance",["parliament","supreme court","high court","constitution","bill","act","judgment","judgement","election commission","governance","fundamental right","government order","policy"],["SSC","Railway","State"],17],
+ ["Banking & Economy",["rbi","reserve bank","repo","bank","interest rate","monetary policy","inflation","sebi","insurance","financial","auction","securities","trade","fta","investment","budget","gdp","msme"],["Banking","SSC","Railway"],20],
+ ["Government Schemes",["scheme","yojana","mission","campaign","cabinet","ministry","budget","welfare","initiative","programme","program","beneficiary"],["SSC","Railway","State"],17],
+ ["Science & Technology",["technology","space","isro","ai","artificial intelligence","research","satellite","robotic","innovation","drone","quantum","biotechnology","digital"],["SSC","Railway","State"],15],
+ ["Defence & Security",["navy","army","defence","defense","missile","drdo","military","exercise","commissioned","security","border"],["SSC","Defence","Railway"],16],
+ ["Environment & Ecology",["environment","ecology","climate","biodiversity","wildlife","forest","ramsar","wetland","emissions","renewable energy","national park","tiger reserve","conservation"],["SSC","Railway","State"],16],
+ ["Health & Public Health",["health","who","disease","vaccine","public health","epidemic","medical","nutrition","healthcare","hospital"],["SSC","Railway","State"],14],
+ ["Agriculture",["agriculture","farmer","crop","minimum support price","msp","fertilizer","irrigation","foodgrain","livestock","fisheries"],["SSC","Railway","State"],14],
+ ["Sports",["sports","athlete","games","medal","championship","tournament","gold","bronze","silver","cup","world record"],["SSC","Railway","State"],15],
+ ["Appointments & Awards",["appointed","appointment","award","honour","honor","prize","winner","elected","chairperson","nobel"],["SSC","Banking","Railway"],15],
+ ["International Relations",["united nations","summit","bilateral","countries","country","agreement","international","treaty","foreign affairs","g20","brics","wto"],["SSC","Banking","State"],13],
+ ["Reports & Rankings",["report","ranking","index","survey","ranked","released","assessment","scorecard"],["SSC","Banking","Railway"],14],
+ ["Art, Culture & Heritage",["heritage","archaeological","unesco","monument","culture","festival","classical language","intangible","museum","geographical indication"],["SSC","Railway","State"],13],
+ ["Geography & Places in News",["river","lake","island","strait","sea","mountain","glacier","corridor","statehood","geographical"],["SSC","Railway","State"],11],
+ ["Important Days & Events",["international day","world day","observed on","anniversary","foundation day"],["SSC","Railway","State"],10]
 ] as const;
 function scoreExam(t:string){
  const v=norm(t);
