@@ -81,7 +81,7 @@ function dateFrom(h:string,data:ReturnType<typeof ld>,sourceKey:string){if(data.
 }
 function valid(url:URL,host:string){const bare=(s:string)=>s.toLowerCase().replace(/^www\./,"");return url.protocol==="https:"&&!url.username&&!url.password&&!url.port&&bare(url.hostname)===bare(host);}
 async function htmlAt(raw:string,host:string){let u=new URL(raw);for(let i=0;i<4;i++){if(!valid(u,host))throw Error("unsafe_host_or_redirect");const c=new AbortController(),timer=setTimeout(()=>c.abort(),8500);
- try{const r=await fetch(u.href,{signal:c.signal,redirect:"manual",headers:{accept:"text/html,application/xhtml+xml","user-agent":"JD-Exambook-CA-Testing/2.0"}});if(r.status>=300&&r.status<400){const dest=r.headers.get("location");if(!dest)throw Error("redirect_missing_location");u=new URL(dest,u);continue;}if(!r.ok)throw Error("http_"+r.status);if(!(r.headers.get("content-type")||"").toLowerCase().includes("html"))throw Error("non_html");return {html:(await r.text()).slice(0,1000000),url:u.href};}finally{clearTimeout(timer);}}
+ try{const r=await fetch(u.href,{signal:c.signal,redirect:"manual",headers:{accept:"text/html,application/xhtml+xml","user-agent":"JD-Exambook-CA-Testing/2.0"}});if(r.status>=300&&r.status<400){const dest=r.headers.get("location");if(!dest)throw Error("redirect_missing_location");u=new URL(dest,u);continue;}if(!r.ok)throw Error("http_"+r.status);if(!(r.headers.get("content-type")||"").toLowerCase().includes("html"))throw Error("non_html");const html=(await r.text()).slice(0,1000000);if(/you need to enable javascript to run this app/i.test(html)&&html.length<5000)throw Error("javascript_rendering_required");if(html.length<400)throw Error("empty_upstream_response");return {html,url:u.href};}finally{clearTimeout(timer);}}
  throw Error("too_many_redirects");
 }
 function discover(h:string,root:URL,host:string,key:string){const found=new Map<string,number>(),pat=routes[key]||/news|press/i;
@@ -100,7 +100,7 @@ async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:bo
     if(debug){const raws=[...doc.html.matchAll(/\bhref\s*=\s*["']([^"']+)["']/gi)].map(m=>m[1]);
       (out.listings ||= []).push({url:doc.url,bytes:doc.html.length,anchorCount:raws.length,
         possibleNewsUrls:raws.filter(x=>/news|press|2026|article/i.test(x)).slice(0,8),textStart:clean(doc.html).slice(0,220)});}
-    links=[...new Set([...links,...discover(doc.html,new URL(doc.url),source.allowed_host,source.source_key)])];if(links.length>=8)break;}catch(e){reject("listing_fetch_error");}}
+    links=[...new Set([...links,...discover(doc.html,new URL(doc.url),source.allowed_host,source.source_key)])];if(links.length>=8)break;}catch(e){const reason=e instanceof Error?e.message:"";reject(["javascript_rendering_required","empty_upstream_response","http_403","http_429"].includes(reason)?reason:"listing_fetch_error");}}
   out.found=links.length;
   if(!links.length){reject("no_matching_links");return out;}
   for(const link of links.slice(0,maxArticles)){
