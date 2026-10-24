@@ -17,11 +17,13 @@ export async function GET() {
     db.from("ca_items").select("id", { count: "exact", head: true })
       .in("status", ["approved", "published"]).eq("evidence_checked", true)
       .not("visible_at", "is", null).lte("visible_at", now)
-      .not("headline_hi", "is", null).not("summary_hi", "is", null),
+      .not("headline_hi", "is", null).not("summary_hi", "is", null)
+      .abortSignal(AbortSignal.timeout(10000)),
     db.from("ca_questions").select("id", { count: "exact", head: true })
       .in("status", ["approved", "published"]).eq("qa_passed", true)
       .not("visible_at", "is", null).lte("visible_at", now)
-      .not("question_hi", "is", null).not("option_a_hi", "is", null),
+      .not("question_hi", "is", null).not("option_a_hi", "is", null)
+      .abortSignal(AbortSignal.timeout(10000)),
   ]);
   if (news.error || quiz.error) {
     return Response.json({
