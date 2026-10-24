@@ -21,7 +21,7 @@ const routes:Record<string,RegExp>={
 const seeds:Record<string,string[]>={
  NASA:["/news/"], WORLD_BANK:["/en/news"], IMF:["/en/news","/en/News"], ISRO:["/LatestNews.html"],
  UNEP:["/news-and-stories"], NOBEL:["/news/"], ECI:["/press-releases"], RAMSAR:["/news"],
- UNESCO_WHC:["/en/news/"], UNFCCC:["/news"], MOSPI:["/press-release"], BCCI:["/articles"],
+ UNESCO_WHC:["/en/news/"], UNFCCC:["/news"], AIR_NEWS:["/category/national/","/category/sports/","/category/business/","/category/international/"], MOSPI:["/press-release"], BCCI:["/articles"],
  FISU:["/news/"], AIFF:["/"], PRO_KABADDI:["/news"], AFC:["/en/"],
  AKFI:["/"], KHELO_INDIA:["/"], MIN_SPORTS:["/all-latest-news","/latest-news"],
  FIFA_MEDIA:["/organisation/media/all-media-releases"], ISL:["/news"],
@@ -61,6 +61,11 @@ function dateFrom(h:string,data:ReturnType<typeof ld>,sourceKey:string){if(data.
  }
  const m=h.match(/(?:Posted\s+On|Published\s+On)\s*:?\s*(\d{1,2}\s+[A-Za-z]{3,9}\s+20\d{2})(?:\s+(\d{1,2}:\d{2}\s*(?:AM|PM)?))?/i);
  if(m)return m[1]+(m[2]?" "+m[2]:"");
+ if(sourceKey==="AIR_NEWS"){
+  // Akashvani places its article date beside the official "News On AIR" byline, above the story title.
+  const byline=clean(h).slice(0,9000).match(/News\s+On\s+AIR\s*\|\s*((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s+20\d{2}\s+\d{1,2}:\d{2}\s*(?:AM|PM))/i);
+  if(byline)return byline[1];
+ }
  if(sourceKey==="AIFF"){
   // AIFF displays an unlabelled dateline near the start of the article, without machine-readable date metadata.
   const articleText=clean(h);
@@ -85,7 +90,11 @@ async function htmlAt(raw:string,host:string){let u=new URL(raw);for(let i=0;i<4
  throw Error("too_many_redirects");
 }
 function discover(h:string,root:URL,host:string,key:string){const found=new Map<string,number>(),pat=routes[key]||/news|press/i;
- for(const m of h.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)){const a=attrs(m[1]);if(!a.href||a.href.startsWith("#"))continue;try{const u=new URL(a.href,root);if(!valid(u,host)||u.href===root.href||!pat.test(u.pathname)||/\.(?:pdf|docx?|xlsx?|jpe?g|png|zip)$/i.test(u.pathname))continue;const anchor=clean(m[2]);let score=0;if(/20\d\d\/\d\d|\/20\d\d\//.test(u.pathname))score+=3;if(/news|press|release/i.test(u.pathname))score+=2;if(anchor.length>25)score+=1;if(/2026/.test(u.href))score+=2;found.set(u.href,Math.max(score,found.get(u.href)||0));}catch{}}
+ for(const m of h.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)){const a=attrs(m[1]);if(!a.href||a.href.startsWith("#"))continue;try{const u=new URL(a.href,root);if(!valid(u,host)||u.href===root.href||/\.(?:pdf|docx?|xlsx?|jpe?g|png|zip)$/i.test(u.pathname))continue;const anchor=clean(m[2]);
+   if(key==="AIR_NEWS"){
+    // Official Akashvani stories have root-level descriptive slugs, not /news/ paths.
+    if(!/^\/[a-z0-9][a-z0-9-]{8,}\/?$/i.test(u.pathname)||anchor.length<27||/^(?:news on air|read more|view all)$/i.test(anchor))continue;
+   }else if(!pat.test(u.pathname))continue;let score=0;if(/20\d\d\/\d\d|\/20\d\d\//.test(u.pathname))score+=3;if(/news|press|release/i.test(u.pathname))score+=2;if(anchor.length>25)score+=1;if(/2026/.test(u.href))score+=2;found.set(u.href,Math.max(score,found.get(u.href)||0));}catch{}}
  return [...found.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]).slice(0,15);
 }
 async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:boolean,maxArticles:number,debug=false):Promise<Result>{
@@ -96,11 +105,20 @@ async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:bo
  try{
   const root=new URL(source.feed_url);if(!valid(root,source.allowed_host))throw Error("invalid_source_host");
   let links:string[]=[];
+  const airBuckets:string[][]=[];
   for(const suffix of [...(seeds[source.source_key]||[]),""]){try{const target=suffix?new URL(suffix,root).href:root.href;const doc=await htmlAt(target,source.allowed_host);
     if(debug){const raws=[...doc.html.matchAll(/\bhref\s*=\s*["']([^"']+)["']/gi)].map(m=>m[1]);
       (out.listings ||= []).push({url:doc.url,bytes:doc.html.length,anchorCount:raws.length,
         possibleNewsUrls:raws.filter(x=>/news|press|2026|article/i.test(x)).slice(0,8),textStart:clean(doc.html).slice(0,220)});}
-    links=[...new Set([...links,...discover(doc.html,new URL(doc.url),source.allowed_host,source.source_key)])];if(links.length>=8)break;}catch(e){const reason=e instanceof Error?e.message:"";reject(["javascript_rendering_required","empty_upstream_response","http_403","http_429"].includes(reason)?reason:"listing_fetch_error");}}
+    const discovered=discover(doc.html,new URL(doc.url),source.allowed_host,source.source_key);
+    if(source.source_key==="AIR_NEWS"){airBuckets.push(discovered.slice(0,5));}
+    else links=[...new Set([...links,...discovered])];
+    if(links.length>=8&&source.source_key!=="AIR_NEWS")break;}catch(e){const reason=e instanceof Error?e.message:"";reject(["javascript_rendering_required","empty_upstream_response","http_403","http_429"].includes(reason)?reason:"listing_fetch_error");}}
+  if(source.source_key==="AIR_NEWS"){
+   // Round-robin across National, Sports, Business and International to avoid a single-category news feed.
+   const longest=Math.max(0,...airBuckets.map(b=>b.length));
+   links=[...new Set(Array.from({length:longest},(_,i)=>airBuckets.flatMap(b=>b[i]?[b[i]]:[])).flat())];
+  }
   out.found=links.length;
   if(!links.length){reject("no_matching_links");return out;}
   for(const link of links.slice(0,maxArticles)){
