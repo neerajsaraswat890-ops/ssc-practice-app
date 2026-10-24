@@ -24,7 +24,7 @@ const seeds:Record<string,string[]>={
  NASA:["/news/"], WORLD_BANK:["/en/news"], IMF:["/en/news","/en/News"], ISRO:["/LatestNews.html"],
  UNEP:["/news-and-stories"], NOBEL:["/news/"], ECI:["/press-releases"], RAMSAR:["/news"],
  UNESCO_WHC:["/en/news/"], UNFCCC:["/news"], AIR_NEWS:["/category/national/","/category/sports/","/category/business/","/category/international/"], MOSPI:["/press-release"], BCCI:["/articles"],
- FISU:["/news/"], AIFF:["/"], PRO_KABADDI:["/news"], AFC:["/en/"],
+ FISU:["/news/"], AIFF:["/"], PRO_KABADDI:["/news"], AFC:["/en/news_3.html"],
  AKFI:["/"], KHELO_INDIA:["/"], MIN_SPORTS:["/all-latest-news","/latest-news"],
  FIFA_MEDIA:["/organisation/media/all-media-releases"], ISL:["/news"],
  SEBI:["/sebiweb/home/HomeAction.do?doListing=yes&sid=6&ssid=23"],
