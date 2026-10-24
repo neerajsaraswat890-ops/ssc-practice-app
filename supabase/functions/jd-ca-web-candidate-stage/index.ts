@@ -11,7 +11,7 @@ const routes:Record<string,RegExp>={
  AIFF:/\/article\/|\/news\/|2026/i, AFC:/news|2026|press|media/i, AKFI:/notification|championship|results|kabaddi|2026/i,
  FISU:/\/20\d{2}\/\d{2}\/\d{2}\/|news|university|2026/i, PRO_KABADDI:/\/news\/|2026/i,
  FIFA_MEDIA:/media-releases|news|2026/i, ISL:/\/news\/|2026/i,
- KHELO_INDIA:/news|games|university|2026/i, MIN_SPORTS:/news|university|sport|2026/i,
+ KHELO_INDIA:/media\/press-releases|media\/articles|news|games|university|2026/i, MIN_SPORTS:/news|university|sport|2026/i,
  DRDO:/press|news|2026/i, ECI:/press|news|2026/i, ESA:/news|2026/i, FIFA:/news|2026/i,
  GI_REGISTRY:/gi|journal|registration|2026/i, ICC:/news|2026/i, IMF:/news|press|2026/i,
  INDIA_PORTAL:/news|press|2026/i, IOC:/news|2026/i, IP_INDIA:/gi|journal|news|2026/i,
@@ -25,7 +25,7 @@ const seeds:Record<string,string[]>={
  UNEP:["/news-and-stories"], NOBEL:["/news/"], ECI:["/press-releases"], RAMSAR:["/news"],
  UNESCO_WHC:["/en/news/"], UNFCCC:["/news"], AIR_NEWS:["/category/national/","/category/sports/","/category/business/","/category/international/"], MOSPI:["/press-release"], BCCI:["/articles"],
  FISU:["/news/"], AIFF:["/"], PRO_KABADDI:["/news"], AFC:["/en/news_3.html"],
- AKFI:["/"], KHELO_INDIA:["/"], MIN_SPORTS:["/all-latest-news","/latest-news"],
+ AKFI:["/"], KHELO_INDIA:["/media/press-releases","/media/articles","/"], MIN_SPORTS:["/all-latest-news","/latest-news"],
  FIFA_MEDIA:["/organisation/media/all-media-releases"], ISL:["/news"],
  SEBI:["/sebiweb/home/HomeAction.do?doListing=yes&sid=6&ssid=23"],
  DRDO:["/drdo/documents/press-release","/drdo/what-is-news"],
@@ -55,7 +55,7 @@ function dateFrom(h:string,data:ReturnType<typeof ld>,sourceKey:string){if(data.
  if(embedded)return embedded[1];
  // For first-party article pages only: the displayed dateline sits immediately after the h1 title.
  // Never use a general date elsewhere in the article: it might be the event date, not publication date.
- if(["AIFF","SEBI","ISRO","APEDA","AKFI","ESA","NOBEL","UNESCO_WHC","IP_INDIA","MIN_SPORTS","AFC","DRDO","IMF"].includes(sourceKey)){
+ if(["AIFF","SEBI","ISRO","APEDA","AKFI","ESA","NOBEL","UNESCO_WHC","IP_INDIA","KHELO_INDIA","MIN_SPORTS","AFC","DRDO","IMF"].includes(sourceKey)){
   const h1=h.search(/<h1\b/i);
   if(h1>=0){const header=clean(h.slice(h1,h1+1700)).slice(0,550);
    const found=header.match(/\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+20\d{2}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+20\d{2}\b/i);
