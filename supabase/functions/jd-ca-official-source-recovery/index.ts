@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {createClient} from "npm:@supabase/supabase-js@2.57.0";
+const dbSignal=()=>AbortSignal.timeout(7000);
 const reply=(v:unknown,s=200)=>new Response(JSON.stringify(v),{status:s,headers:{"content-type":"application/json","cache-control":"no-store"}});
 function entities(s:string){return s.replace(/&amp;/gi,"&").replace(/&quot;/gi,'"').replace(/&lt;/gi,"<").replace(/&gt;/gi,">").replace(/&nbsp;/gi," ").replace(/&#39;|&#x27;/gi,"'");}
 function plain(s:string){return entities(s.replace(/<script\b[\s\S]*?<\/script>/gi," ").replace(/<style\b[\s\S]*?<\/style>/gi," ").replace(/<[^>]+>/g," ")).replace(/\s+/g," ").trim();}
@@ -17,10 +18,10 @@ Deno.serve(async(req:Request)=>{
  if(req.method!=="POST")return reply({error:"method_not_allowed"},405);
  const base=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");if(!base||!key)return reply({error:"not_configured"},503);
  const db=createClient(base,key,{auth:{persistSession:false,autoRefreshToken:false}});
- const {data:auth}=await db.from("ca_job_auth").select("token").eq("id",1).single();if(!auth?.token||req.headers.get("authorization")!=="Bearer "+auth.token)return reply({error:"unauthorized"},401);
+ const {data:auth,error:authError}=await db.from("ca_job_auth").select("token").eq("id",1).single().abortSignal(dbSignal());if(authError)return reply({error:"testing_database_unavailable",phase:"auth"},503);if(!auth?.token||req.headers.get("authorization")!=="Bearer "+auth.token)return reply({error:"unauthorized"},401);
  const body=await req.json().catch(()=>({})) as {dryRun?:boolean;maxItems?:number;sourceKeys?:string[]};const dryRun=body.dryRun!==false,limit=Math.min(6,Math.max(1,Math.floor(Number(body.maxItems)||3)));
  const keys=["PIB","PIB_HI","WHO"].filter(k=>!Array.isArray(body.sourceKeys)||body.sourceKeys.includes(k));
- const {data:sources,error}=await db.from("ca_sources").select("source_key,feed_url,allowed_host").in("source_key",keys);if(error)return reply({error:"sources_unavailable"},500);
+ const {data:sources,error}=await db.from("ca_sources").select("source_key,feed_url,allowed_host").in("source_key",keys).abortSignal(dbSignal());if(error)return reply({error:"sources_unavailable"},503);
  const started_at=new Date().toISOString(),result:Found[]=[];
  for(const s of sources||[]){const out:Found={source:s.source_key,examined:0,eligible:0,staged:0,rejected:{}};const reject=(name:string)=>out.rejected[name]=(out.rejected[name]||0)+1;
   try{let candidates:{title:string;url:string}[]=[];
@@ -35,12 +36,13 @@ Deno.serve(async(req:Request)=>{
     const name=(item.title||headline(h)).slice(0,500),description=summary(h),when=s.source_key==="WHO"?whoDate(h,article.url):pibDate(h);
     const reason=name.length<15?"short_headline":description.length<30?"short_description":validDate(when);
     if(reason){reject(reason);continue;}out.eligible++;
-    if(!dryRun){const {data:stagedRows,error:upsertError}=await db.from("ca_web_adapter_candidates").upsert({source_key:s.source_key,article_url:article.url,headline:name,published_at:new Date(when).toISOString(),description,status:"needs_review"},{onConflict:"article_url",ignoreDuplicates:true}).select("id");if(upsertError){reject("db_error");continue;}out.staged+=(stagedRows||[]).length;}
+    if(!dryRun){const {data:stagedRows,error:upsertError}=await db.from("ca_web_adapter_candidates").upsert({source_key:s.source_key,article_url:article.url,headline:name,published_at:new Date(when).toISOString(),description,status:"needs_review"},{onConflict:"article_url",ignoreDuplicates:true}).select("id").abortSignal(dbSignal());if(upsertError){reject("db_error");continue;}out.staged+=(stagedRows||[]).length;}
    }catch(e){const message=String(e instanceof Error?e.message:e);reject(/^http_\d+$/.test(message)?message:/abort|timeout/i.test(message)?"fetch_timeout":"article_fetch_error");}}
   }catch(e){out.error=String(e instanceof Error?e.message:e).slice(0,100);}
   result.push(out);
  }
  const staged=result.reduce((a,x)=>a+x.staged,0);
- await db.from("ca_adapter_diagnostic_runs").insert({started_at,completed_at:new Date().toISOString(),dry_run:dryRun,checked_sources:result.length,staged,report:result});
+ const {error:reportError}=await db.from("ca_adapter_diagnostic_runs").insert({started_at,completed_at:new Date().toISOString(),dry_run:dryRun,checked_sources:result.length,staged,report:result}).abortSignal(dbSignal());
+  if(reportError)return reply({error:"testing_database_unavailable",phase:"diagnostics",staged,autoPublished:0},503);
  return reply({testingOnly:true,dryRun,staged,autoPublished:0,report:result});
 });
