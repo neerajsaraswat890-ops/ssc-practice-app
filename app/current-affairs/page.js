@@ -24,8 +24,10 @@ const published = (db, table, columns, limit) => db.from(table)
 export default function CurrentAffairsPage() {
   const [news, setNews] = useState([]);
   const [questions, setQuestions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [newsLoading, setNewsLoading] = useState(true);
+  const [quizLoading, setQuizLoading] = useState(true);
+  const [newsError, setNewsError] = useState("");
+  const [quizError, setQuizError] = useState("");
   const [language, setLanguage] = useState("hi");
   const [mode, setMode] = useState("news");
   const [answers, setAnswers] = useState({});
@@ -35,34 +37,40 @@ export default function CurrentAffairsPage() {
     let live = true;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 12000);
-    (async () => {
+    const load = async (request, update, updateError, updateLoading) => {
       try {
-        const db = supabase();
-        const [newsResult, quizResult] = await Promise.all([
-          published(db, "ca_items",
+        const { data, error } = await request;
+        if (error) throw error;
+        if (live) update(data || []);
+      } catch (e) {
+        if (live) updateError(e?.message || "डेटा अभी उपलब्ध नहीं हो पाया।");
+      } finally {
+        if (live) updateLoading(false);
+      }
+    };
+    try {
+      const db = supabase();
+      Promise.all([
+        load(published(db, "ca_items",
             "id,headline_en,headline_hi,summary_en,summary_hi,canonical_url,source_name,published_at,event_date,exam_category,evidence_checked", 40)
             .eq("evidence_checked", true)
             .not("headline_hi", "is", null).not("summary_hi", "is", null)
-            .abortSignal(controller.signal),
-          published(db, "ca_questions",
+            .abortSignal(controller.signal), setNews, setNewsError, setNewsLoading),
+        load(published(db, "ca_questions",
             "id,question_en,question_hi,option_a_en,option_b_en,option_c_en,option_d_en,option_a_hi,option_b_hi,option_c_hi,option_d_hi,correct_answer,qa_passed", 25)
             .eq("qa_passed", true)
             .not("question_hi", "is", null).not("option_a_hi", "is", null)
-            .abortSignal(controller.signal),
-        ]);
-        if (newsResult.error) throw newsResult.error;
-        if (quizResult.error) throw quizResult.error;
-        if (live) {
-          setNews(newsResult.data || []);
-          setQuestions(quizResult.data || []);
-        }
-      } catch (e) {
-        if (live) setError(e?.message || "Current Affairs अभी लोड नहीं हो पाए।");
-      } finally {
-        clearTimeout(timer);
-        if (live) setLoading(false);
+            .abortSignal(controller.signal), setQuestions, setQuizError, setQuizLoading),
+      ]).finally(() => clearTimeout(timer));
+    } catch (e) {
+      clearTimeout(timer);
+      if (live) {
+        setNewsError(e?.message || "समाचार अभी उपलब्ध नहीं हो पाए।");
+        setQuizError(e?.message || "Quiz अभी उपलब्ध नहीं हो पाया।");
+        setNewsLoading(false);
+        setQuizLoading(false);
       }
-    })();
+    }
     return () => { live = false; controller.abort(); clearTimeout(timer); };
   }, []);
 
@@ -88,9 +96,9 @@ export default function CurrentAffairsPage() {
         </div>
       </section>
       <section className="ca-list" aria-live="polite">
-        {loading ? <p className="ca-message">Verified content लोड हो रहा है…</p> :
-          error ? <p role="alert" className="ca-message">अभी समाचार उपलब्ध नहीं हो पाए। {error}</p> :
-          mode === "news" ? (
+        {mode === "news" ? (
+            newsLoading ? <p className="ca-message">Verified News लोड हो रही हैं…</p> :
+            newsError ? <p role="alert" className="ca-message">अभी समाचार उपलब्ध नहीं हो पाए। {newsError}</p> :
             news.length ? news.map((item) => (
               <article key={item.id} className="ca-card">
                 <div className="ca-meta">{item.exam_category || "Current Affairs"} · {item.source_name || "Official source"} · {fmt(item.published_at || item.event_date)}</div>
@@ -100,6 +108,8 @@ export default function CurrentAffairsPage() {
               </article>
             )) : <p className="ca-message">इस समय कोई स्वीकृत एवं प्रकाशित समाचार उपलब्ध नहीं है। सत्यापन जारी है।</p>
           ) : (
+            quizLoading ? <p className="ca-message">Verified Quiz लोड हो रही है…</p> :
+            quizError ? <p role="alert" className="ca-message">अभी Daily Quiz उपलब्ध नहीं है। {quizError}</p> :
             questions.length ? <>
               <div className="ca-quiz-top"><span>{questions.length} verified MCQs</span>{submitted && <strong>स्कोर: {score}/{questions.length}</strong>}</div>
               {questions.map((q, i) => {
