@@ -113,6 +113,8 @@ async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:bo
     const discovered=discover(doc.html,new URL(doc.url),source.allowed_host,source.source_key);
     if(source.source_key==="AIR_NEWS"){airBuckets.push(discovered.slice(0,5));}
     else links=[...new Set([...links,...discovered])];
+    // Akashvani national + sports are the high-priority exam feeds; cap category scans to avoid 120s gateway timeouts.
+    if(source.source_key==="AIR_NEWS"&&airBuckets.length>=2)break;
     if(links.length>=8&&source.source_key!=="AIR_NEWS")break;}catch(e){const reason=e instanceof Error?e.message:"";reject(["javascript_rendering_required","empty_upstream_response","http_403","http_429"].includes(reason)?reason:"listing_fetch_error");}}
   if(source.source_key==="AIR_NEWS"){
    // Round-robin across National, Sports, Business and International to avoid a single-category news feed.
