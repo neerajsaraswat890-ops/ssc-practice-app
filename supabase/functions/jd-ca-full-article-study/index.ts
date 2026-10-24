@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {createClient} from "npm:@supabase/supabase-js@2.57.0";
+const dbSignal=()=>AbortSignal.timeout(7000);
 const respond=(v:unknown,s=200)=>new Response(JSON.stringify(v),{status:s,headers:{"content-type":"application/json","cache-control":"no-store"}});
 const norm=(v:string)=>v.normalize("NFKC").toLowerCase().replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/[^\p{L}\p{N}\s]+/gu," ").replace(/\s+/g," ").trim();
 const plain=(raw:string)=>raw
@@ -15,7 +16,7 @@ const titleScore=(title:string,body:string)=>{const t=[...new Set(words(title).f
 const digits=(v:string)=>[...new Set((v.match(/\b\d+(?:\.\d+)?\b/g)||[]).filter(x=>x.length>=2&&!["2025","2026","2027","2028"].includes(x)))];
 // Exact, curated first-party news hosts only. Normalise the www. variant; never follow redirects or accept credentials/non-HTTPS URLs.
 const officialNewsHosts=new Set(["pib.gov.in","rbi.org.in","who.int","bcci.tv","fisu.net","prokabaddi.com","icc-cricket.com","indiansuperleague.com","inside.fifa.com","nasa.gov","unep.org","worldbank.org"]);
-const host=(u:URL)=>u.protocol==="https:"&&!u.username&&!u.password&&(!u.port||u.port==="443")&&officialNewsHosts.has(u.hostname.toLowerCase().replace(/^www\./,""));
+const host=(u:URL,allowed:Set<string>)=>u.protocol==="https:"&&!u.username&&!u.password&&(!u.port||u.port==="443")&&allowed.has(u.hostname.toLowerCase().replace(/^www\./,""));
 function posted(s:string){
  const m=s.match(/Posted\s+On\s*:\s*(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})/i);
  if(!m)return null;
@@ -45,8 +46,8 @@ function scoreExam(t:string){
  if(!best)score=12;
  return {score,category:best?.category||"National",tags:best?[...best.tags]:["SSC"],reasons:hits.slice(0,3).map(h=>h.category+": "+h.hits+" topical indicators")};
 }
-async function download(uri:URL){
- if(!host(uri))throw Error("untrusted_host");
+async function download(uri:URL,allowed:Set<string>){
+ if(!host(uri,allowed))throw Error("untrusted_host");
  const ac=new AbortController(),t=setTimeout(()=>ac.abort(),10000);
  try{
   const res=await fetch(uri,{redirect:"manual",signal:ac.signal,headers:{accept:"text/html","user-agent":"JDExambookExamNewsReader/1.0"}});
@@ -81,23 +82,30 @@ Deno.serve(async(req:Request)=>{
  const url=Deno.env.get("SUPABASE_URL")||"",key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
  if(!url||!key)return respond({error:"not_configured"},503);
  const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
- const {data:auth,error:ae}=await db.from("ca_job_auth").select("token").eq("id",1).single();
+ const {data:auth,error:ae}=await db.from("ca_job_auth").select("token").eq("id",1).single().abortSignal(dbSignal());
  if(ae||!auth?.token)return respond({error:"auth_unavailable"},503);
  if(req.headers.get("authorization")!=="Bearer "+auth.token)return respond({error:"unauthorized"},401);
+  // Admit only administrator-configured first-party news domains, without wildcard subdomains.
+  const allowedHosts=new Set(officialNewsHosts);
+  const {data:configured,error:domainError}=await db.from("ca_sources").select("allowed_host").eq("enabled",true).abortSignal(dbSignal());
+  if(domainError)return respond({error:"approved_source_domains_unavailable"},503);
+  for(const source of configured||[]){const raw=String(source.allowed_host||"").toLowerCase().replace(/^www\./,"");
+    if(/^(?!-)[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(raw)&&!raw.endsWith(".local")&&!raw.endsWith(".internal"))allowedHosts.add(raw);
+  }
  const bodyParams=await req.json().catch(()=>({}));
  const requested=Number(bodyParams?.limit);
  const maxItems=Number.isFinite(requested)&&requested>=1?Math.min(18,Math.max(1,Math.trunc(requested))):18;
  const {data:items,error:re}=await db.from("ca_items")
  .select("id,canonical_url,headline_en,headline_hi,summary_en,summary_hi,event_date,published_at,status,article_analysis_status,key_facts_en,key_facts_hi")
- .in("status",["pending","approved"]).eq("article_analysis_status","not_processed").order("published_at",{ascending:false}).limit(maxItems);
- if(re)return respond({error:"read_failed"},500);
+ .in("status",["pending","approved"]).eq("article_analysis_status","not_processed").order("published_at",{ascending:false}).limit(maxItems).abortSignal(dbSignal());
+ if(re)return respond({error:"read_failed"},503);
  const results=[];let enriched=0,autoApproved=0,held=0;
  for(const item of items||[]){
   let state="source_error",issue="",body="",matches:{en:string,hi:string,anchor:string}[]=[],rating=0,category="National",examTags:string[]=["SSC"],why:string[]=[];
   let evidenceDate:null|string=null, digest:null|string=null, englishFacts:string[]=[];
   try{
-   const u=new URL(item.canonical_url);if(!host(u))throw Error("not_first_party_official");
-   const article=await download(u);body=article.text;
+   const u=new URL(item.canonical_url);if(!host(u,allowedHosts))throw Error("not_first_party_official");
+   const article=await download(u,allowedHosts);body=article.text;
    if(words(body).length<180)throw Error("incomplete_article_body");
    digest=await sha(body);
    const rank=scoreExam(item.headline_en+" "+body.slice(0,4500));
@@ -111,12 +119,12 @@ Deno.serve(async(req:Request)=>{
    if(!isPIB){state="needs_review";issue="full_article_extracted_but_no_hindi_primary_text";continue}
    const prid=u.searchParams.get("PRID")||u.searchParams.get("prid");
    if(!prid||!/^\d{6,8}$/.test(prid))throw Error("unrecognized_pib_prid");
-   const enPage=(u.searchParams.get("lang")==="2")?await download(new URL("https://www.pib.gov.in/PressReleseDetailm.aspx?PRID="+prid+"&lang=1&reg=3")):article;
-   let hiPage=await download(new URL("https://www.pib.gov.in/PressReleseDetailm.aspx?PRID="+prid+"&lang=2&reg=3"));
+   const enPage=(u.searchParams.get("lang")==="2")?await download(new URL("https://www.pib.gov.in/PressReleseDetailm.aspx?PRID="+prid+"&lang=1&reg=3"),allowedHosts):article;
+   let hiPage=await download(new URL("https://www.pib.gov.in/PressReleseDetailm.aspx?PRID="+prid+"&lang=2&reg=3"),allowedHosts);
    // PIB sometimes serves the Hindi edition at the full release-page URL instead of its mobile detail page.
    if((hiPage.text.match(/[\u0900-\u097F]/g)||[]).length<180){
      try{
-       const alternate=await download(new URL("https://www.pib.gov.in/PressReleasePage.aspx?PRID="+prid+"&lang=2&reg=48"));
+       const alternate=await download(new URL("https://www.pib.gov.in/PressReleasePage.aspx?PRID="+prid+"&lang=2&reg=48"),allowedHosts);
        if((alternate.text.match(/[\u0900-\u097F]/g)||[]).length>180)hiPage=alternate;
      }catch{ /* Hindi source remains unavailable; do not invent translations. */ }
    }
@@ -138,14 +146,14 @@ Deno.serve(async(req:Request)=>{
     relevance_reasons:why,candidate_facts_en:matches.length?matches.map(x=>x.en):englishFacts,candidate_facts_hi:matches.map(x=>x.hi),
     matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v1"
    };
-   const {error:logErr}=await db.from("ca_article_analyses").upsert(payload,{onConflict:"item_id"});
+   const {error:logErr}=await db.from("ca_article_analyses").upsert(payload,{onConflict:"item_id"}).abortSignal(dbSignal());
    if(logErr){results.push({id:item.id,status:"analysis_log_failed"});continue}
    const more={
      article_analysis_status:state,article_read_at:body?new Date().toISOString():null,
      article_evidence_sha256:digest,
      ...(rating?{exam_priority:Math.min(5,Math.max(1,Math.round(rating/20))),exam_category:category,exam_tags:examTags}:{})
    };
-   const {error:markErr}=await db.from("ca_items").update(more).eq("id",item.id);
+   const {error:markErr}=await db.from("ca_items").update(more).eq("id",item.id).abortSignal(dbSignal());
    if(markErr){results.push({id:item.id,status:"item_update_failed"});continue}
    if(state==="bilingual_grounded"){
     // Never modify previously editor-approved headlines, explanations or facts.
@@ -160,13 +168,13 @@ Deno.serve(async(req:Request)=>{
        status:"approved",evidence_checked:true,approved_at:now,visible_at:now,
        auto_verified:true,auto_verified_at:now,verification_method:"official-full-bilingual-article-rubric-v1",
        review_notes:"Full original article read, publication date checked, 2+ source-aligned bilingual numerical facts"
-     }).eq("id",item.id).eq("status","pending").select("id");
+     }).eq("id",item.id).eq("status","pending").select("id").abortSignal(dbSignal());
      if(!ve&&verified?.length){autoApproved++;enriched++}else results.push({id:item.id,status:"approval_failed",reason:ve?.message||"unknown"});
     }else enriched++;
    }else held++;
    results.push({id:item.id,status:state,matched:matches.length,score:rating,issue:issue||undefined});
   }
  }
- await db.from("ca_automation_runs").insert({job_name:"jd-ca-full-article-study",status:"success",affected:enriched,completed_at:new Date().toISOString(),details:JSON.stringify({processed:results.length,enriched,autoApproved,held}).slice(0,500)});
+ await db.from("ca_automation_runs").insert({job_name:"jd-ca-full-article-study",status:"success",affected:enriched,completed_at:new Date().toISOString(),details:JSON.stringify({processed:results.length,enriched,autoApproved,held}).slice(0,500)}).abortSignal(dbSignal());
  return respond({ok:true,processed:results.length,enriched,autoApproved,held,results});
 });
