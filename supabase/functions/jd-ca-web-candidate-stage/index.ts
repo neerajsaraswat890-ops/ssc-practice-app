@@ -130,6 +130,13 @@ async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:bo
    try{
     const d=await htmlAt(link,source.allowed_host),structured=ld(d.html);
     let headline=clean(meta(d.html,"og:title")||meta(d.html,"twitter:title")||structured.headline||d.html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1]||d.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]||"").slice(0,500);
+    // Akashvani can render an empty H1 before the actual news headline.
+    // Use the article page title as fallback; never manufacture a headline.
+    if(source.source_key==="AIR_NEWS"&&headline.length<15){
+      const pageTitle=clean(d.html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||"")
+        .replace(/\s*[|–-]\s*Akashvani News\s*$/i,"").trim();
+      if(pageTitle.length>=15)headline=pageTitle.slice(0,500);
+    }
     if(source.source_key==="ISRO")headline=headline.replace(/\s+Home\s*\/.*$/i,"").trim();
     let providedDescription=clean(meta(d.html,"og:description")||meta(d.html,"description")||structured.description||"");
     // SEBI's global boilerplate is not an article summary. Hold title-only for primary-document review.
