@@ -83,7 +83,7 @@ Deno.serve(async(req:Request)=>{
    if(passedAuditError)throw new Error("audit_log_unavailable");
    const {data:updated,error:updateError}=await db.from("ca_items").update({
        status:"approved",evidence_checked:true,approved_at:new Date().toISOString(),visible_at:new Date().toISOString(),
-       auto_verified:true,auto_verified_at:new Date().toISOString(),verification_method:"PIB-bilingual-primary-source-v1",
+       auto_verified:true,auto_verified_at:new Date().toISOString(),verification_method:"PIB-bilingual-primary-source-v2",
        review_notes:reason,reviewed_at:new Date().toISOString()
    }).eq("id",item.id).eq("status","pending").select("id").abortSignal(dbSignal());
    if(updateError||!updated?.length)throw new Error("approval-update-failed");
