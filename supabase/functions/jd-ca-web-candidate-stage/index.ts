@@ -162,8 +162,10 @@ Deno.serve(async(req:Request)=>{
  const requested=new Set(Array.isArray(body.sourceKeys)?body.sourceKeys.filter(x=>typeof x==="string"):[]);
  const chosen=requested.size?(data||[]).filter(s=>requested.has(s.source_key)).slice(0,5):(data||[]).slice(batch*5,batch*5+5);
  if(!chosen.length)return json({error:"empty_batch"},400);
- const start=new Date().toISOString(),results:Result[]=[];
- for(const s of chosen)results.push(await assess(s,db,dryRun,maxArticles,dryRun&&body.debug===true));
+ const start=new Date().toISOString();
+ // Run independent, allowlisted sources concurrently. Sequential scans can exceed the 120s cron gateway timeout.
+ // Writes remain deduplicated by canonical article URL; the diagnostic report preserves the source order.
+ const results:Result[]=await Promise.all(chosen.map(s=>assess(s,db,dryRun,maxArticles,dryRun&&body.debug===true)));
  const staged=results.reduce((a,r)=>a+r.staged,0),eligible=results.reduce((a,r)=>a+r.eligible,0);
  await db.from("ca_adapter_diagnostic_runs").insert({started_at:start,completed_at:new Date().toISOString(),dry_run:dryRun,checked_sources:results.length,staged,report:results});
  return json({testingOnly:true,dryRun,checkedSources:results.length,eligible,staged,autoPublished:0,report:results});
