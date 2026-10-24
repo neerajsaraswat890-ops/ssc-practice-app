@@ -29,7 +29,7 @@ const candidates=(s:string,language:"en"|"hi")=> {
   .map(x=>x.trim()).filter(x=>x.length>=55&&x.length<=380&&key.test(x)&&digits(x).length>0)
   .slice(0,120);
 };
-// Exam-priority coverage is informed by public exam-prep roundups such as Utkarsh and StudyIQ.
+// Exam-priority coverage is informed by public exam-prep roundups such as Utkarsh, StudyIQ, and Parcham.
 // Those channels are prioritisation signals only; official first-party articles remain the fact/date evidence.
 const rubric=[
  ["Polity & Governance",["parliament","supreme court","high court","constitution","bill","act","judgment","judgement","election commission","governance","fundamental right","government order","policy"],["SSC","Railway","State"],17],
