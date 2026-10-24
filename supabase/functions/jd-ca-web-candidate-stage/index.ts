@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.0";
 
-type Source = { source_key:string; feed_url:string; allowed_host:string; category:string; };
+type Source = { source_key:string; feed_url:string; allowed_host:string; category:string; enabled:boolean; };
 type Result = { source:string; found:number; examined:number; eligible:number; staged:number; rejected:Record<string,number>; error?:string; samples?:unknown[]; listings?:unknown[]; };
 const json=(value:unknown,status=200)=>new Response(JSON.stringify(value),{status,headers:{"content-type":"application/json","cache-control":"no-store"}});
 // Bound database requests so degraded PostgREST does not leave scheduled jobs hanging.
@@ -186,17 +186,21 @@ Deno.serve(async(req:Request)=>{
  if(!auth?.token||req.headers.get("authorization")!=="Bearer "+auth.token)return json({error:"unauthorized"},401);
  const body=await req.json().catch(()=>({})) as {dryRun?:boolean;batch?:number;sourceKeys?:string[];maxArticles?:number;debug?:boolean};
  const dryRun=body.dryRun!==false,batch=Math.min(10,Math.max(0,Math.floor(Number(body.batch)||0))),maxArticles=Math.min(5,Math.max(1,Math.floor(Number(body.maxArticles)||3)));
- const {data,error}=await db.from("ca_sources").select("source_key,feed_url,allowed_host,category").eq("integration_type","web_adapter").order("source_key").abortSignal(dbSignal());
+ const {data,error}=await db.from("ca_sources").select("source_key,feed_url,allowed_host,category,enabled").eq("integration_type","web_adapter").order("source_key").abortSignal(dbSignal());
  if(error)return json({error:"testing_database_unavailable",phase:"sources"},503);
  const requested=new Set(Array.isArray(body.sourceKeys)?body.sourceKeys.filter(x=>typeof x==="string"):[]);
- const chosen=requested.size?(data||[]).filter(s=>requested.has(s.source_key)).slice(0,5):(data||[]).slice(batch*5,batch*5+5);
- if(!chosen.length)return json({error:"empty_batch"},400);
+ // Keep the original ordered source list and batch boundaries stable, but never crawl a disabled source.
+ const batchSources=requested.size?(data||[]).filter(s=>requested.has(s.source_key)).slice(0,5):(data||[]).slice(batch*5,batch*5+5);
+ if(!batchSources.length)return json({error:"empty_batch"},400);
  const start=new Date().toISOString();
- // Run independent, allowlisted sources concurrently. Sequential scans can exceed the 120s cron gateway timeout.
- // Writes remain deduplicated by canonical article URL; the diagnostic report preserves the source order.
- const results:Result[]=await Promise.all(chosen.map(s=>assess(s,db,dryRun,maxArticles,dryRun&&body.debug===true)));
+ // Run enabled sources concurrently. Disabled entries are recorded as skipped and never fetched or staged.
+ const results:Result[]=await Promise.all(batchSources.map(s=>s.enabled
+   ?assess(s,db,dryRun,maxArticles,dryRun&&body.debug===true)
+   :Promise.resolve({source:s.source_key,found:0,examined:0,eligible:0,staged:0,rejected:{disabled_source:1}})));
+ const checkedSources=batchSources.filter(s=>s.enabled).length;
+ const skippedDisabledSources=batchSources.length-checkedSources;
  const staged=results.reduce((a,r)=>a+r.staged,0),eligible=results.reduce((a,r)=>a+r.eligible,0);
- const {error:reportError}=await db.from("ca_adapter_diagnostic_runs").insert({started_at:start,completed_at:new Date().toISOString(),dry_run:dryRun,checked_sources:results.length,staged,report:results}).abortSignal(dbSignal());
-  if(reportError)return json({error:"testing_database_unavailable",phase:"diagnostics",checkedSources:results.length,staged,autoPublished:0},503);
- return json({testingOnly:true,dryRun,checkedSources:results.length,eligible,staged,autoPublished:0,report:results});
+ const {error:reportError}=await db.from("ca_adapter_diagnostic_runs").insert({started_at:start,completed_at:new Date().toISOString(),dry_run:dryRun,checked_sources:checkedSources,staged,report:results}).abortSignal(dbSignal());
+  if(reportError)return json({error:"testing_database_unavailable",phase:"diagnostics",checkedSources,skippedDisabledSources,staged,autoPublished:0},503);
+ return json({testingOnly:true,dryRun,checkedSources,skippedDisabledSources,eligible,staged,autoPublished:0,report:results});
 });
