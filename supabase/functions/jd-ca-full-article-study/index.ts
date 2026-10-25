@@ -89,8 +89,9 @@ function scoreExam(t:string){
  const videoBoost=channels.length>=2?Math.min(6,(channels.length-1)*3):0;
  let score=Math.min(95,18+(best?best.weight:0)+Math.min(35,hits.reduce((s,x)=>s+x.hits*5,0))+videoBoost);
  if(!best)score=12;
- // A channel overlap cannot qualify an article by itself: require two topical indicators and a minimum score.
- const eligible=!!best&&score>=42&&(best.hits>=2||hits.length>=2);
+ // One clear exam-current-affairs topic signal is enough to retain a fact-verified story.
+ // Source, publication-date, bilingual-fact, and human-review safeguards remain in force.
+ const eligible=!!best&&score>=33;
  const reasons=hits.slice(0,3).map(h=>h.category+": "+h.hits+" topical indicators");
  if(videoBoost)reasons.push("Exam-prep video category overlap: "+channels.join(", "));
  if(!eligible)reasons.push("Filtered: not enough exam-current-affairs indicators");
