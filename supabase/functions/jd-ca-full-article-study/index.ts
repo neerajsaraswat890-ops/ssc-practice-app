@@ -48,12 +48,25 @@ const rubric=[
  ["Geography & Places in News",["river","lake","island","strait","sea","mountain","glacier","corridor","statehood","geographical"],["SSC","Railway","State"],11],
  ["Important Days & Events",["international day","world day","observed on","anniversary","foundation day"],["SSC","Railway","State"],10]
 ] as const;
+// These channel profiles capture the exam-topic coverage stated in public current-affairs
+// descriptions. YouTube is a relevance signal only; source facts/dates are verified separately.
+const examVideoCoverage=[
+ ["Utkarsh",["Polity & Governance","Banking & Economy","Government Schemes","Science & Technology","Defence & Security","Sports","Appointments & Awards","International Relations","Art, Culture & Heritage","Geography & Places in News","Important Days & Events"]],
+ ["StudyIQ",["Polity & Governance","Banking & Economy","Government Schemes","Science & Technology","Environment & Ecology","Health & Public Health","Agriculture","Appointments & Awards","International Relations","Reports & Rankings","Art, Culture & Heritage","Geography & Places in News"]],
+ ["Parcham",["Banking & Economy","Government Schemes","Science & Technology","Sports","Appointments & Awards","International Relations","Geography & Places in News"]]
+] as const;
 function scoreExam(t:string){
  const v=norm(t);
  const hits=rubric.map(([category,keys,tags,weight])=>({category,tags,weight,hits:keys.filter(k=>v.includes(k)).length})).filter(x=>x.hits>0).sort((a,b)=>b.hits*b.weight-a.hits*a.weight);
- const best=hits[0];let score=Math.min(95,18+(best?best.weight:0)+Math.min(35,hits.reduce((s,x)=>s+x.hits*5,0)));
+ const best=hits[0];
+ const categories=hits.map(h=>h.category);
+ const channels=examVideoCoverage.filter(([,covered])=>covered.some(category=>categories.includes(category))).map(([channel])=>channel);
+ const videoBoost=channels.length>=2?Math.min(6,(channels.length-1)*3):0;
+ let score=Math.min(95,18+(best?best.weight:0)+Math.min(35,hits.reduce((s,x)=>s+x.hits*5,0))+videoBoost);
  if(!best)score=12;
- return {score,category:best?.category||"National",tags:best?[...best.tags]:["SSC"],reasons:hits.slice(0,3).map(h=>h.category+": "+h.hits+" topical indicators")};
+ const reasons=hits.slice(0,3).map(h=>h.category+": "+h.hits+" topical indicators");
+ if(videoBoost)reasons.push("Exam-prep video category overlap: "+channels.join(", "));
+ return {score,category:best?.category||"National",tags:best?[...best.tags]:["SSC"],reasons};
 }
 async function download(uri:URL,allowed:Set<string>){
  if(!host(uri,allowed))throw Error("untrusted_host");
