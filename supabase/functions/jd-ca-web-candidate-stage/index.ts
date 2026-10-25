@@ -14,7 +14,7 @@ const routes:Record<string,RegExp>={
  KHELO_INDIA:/media\/press-releases|media\/articles|news|games|university|2026/i, MIN_SPORTS:/news|university|sport|2026/i,
  DRDO:/press|news|2026/i, ECI:/press|news|2026/i, ESA:/news|2026/i, FIFA:/news|2026/i,
  GI_REGISTRY:/gi|journal|registration|2026/i, ICC:/news|2026/i, IMF:/news|press|2026/i,
- INDIA_PORTAL:/news|press|2026/i, IOC:/news|2026/i, IP_INDIA:/gi|journal|news|2026/i,
+ INDIA_PORTAL:/news|press|2026/i, IOC:/news|press|releases|record|2026/i, IP_INDIA:/gi|journal|news|2026/i,
  ISRO:/news|press|2026/i, MIN_CULTURE:/news|press|2026/i, MOSPI:/press|news|2026/i,
  NASA:/news|article|2026/i, NITI_AAYOG:/news|press|2026/i, NOBEL:/news|prize|2026/i,
  RAMSAR:/news|wetland|2026/i, SEBI:/press|news|2026/i, UNEP:/news|press|2026/i,
@@ -22,6 +22,7 @@ const routes:Record<string,RegExp>={
 };
 const seeds:Record<string,string[]>={
  NASA:["/news/"], WORLD_BANK:["/en/news"], IMF:["/en/news","/en/News"], ISRO:["/LatestNews.html"],
+ IOC:["https://olympics.com/ioc/theme-press-releases","https://newsroom.olympics.com/"],
  UNEP:["/news-and-stories"], NOBEL:["/news/"], ECI:["/press-releases"], RAMSAR:["/news"],
  UNESCO_WHC:["/en/news/"], UNFCCC:["/news"], AIR_NEWS:["/category/national/","/category/sports/","/category/business/","/category/international/"], MOSPI:["/press-release"], BCCI:["/articles"],
  FISU:["/news/"], AIFF:["/"], PRO_KABADDI:["/news"], AFC:["/en/news_3.html"],
@@ -87,7 +88,7 @@ function dateFrom(h:string,data:ReturnType<typeof ld>,sourceKey:string){if(data.
  }
  return "";
 }
-function valid(url:URL,host:string){const bare=(s:string)=>s.toLowerCase().replace(/^www\./,"");return url.protocol==="https:"&&!url.username&&!url.password&&!url.port&&bare(url.hostname)===bare(host);}
+function valid(url:URL,host:string){const bare=(s:string)=>s.toLowerCase().replace(/^www\./,"");const allowed=host.split(",").map(s=>bare(s.trim())).filter(Boolean);return url.protocol==="https:"&&!url.username&&!url.password&&!url.port&&allowed.includes(bare(url.hostname));}
 async function htmlAt(raw:string,host:string){let u=new URL(raw);for(let i=0;i<4;i++){if(!valid(u,host))throw Error("unsafe_host_or_redirect");const c=new AbortController(),timer=setTimeout(()=>c.abort(),8500);
  try{const r=await fetch(u.href,{signal:c.signal,redirect:"manual",headers:{accept:"text/html,application/xhtml+xml","user-agent":"JD-Exambook-CA-Testing/2.0"}});if(r.status>=300&&r.status<400){const dest=r.headers.get("location");if(!dest)throw Error("redirect_missing_location");u=new URL(dest,u);continue;}if(!r.ok)throw Error("http_"+r.status);if(!(r.headers.get("content-type")||"").toLowerCase().includes("html"))throw Error("non_html");const html=(await r.text()).slice(0,1000000);if(/you need to enable javascript to run this app/i.test(html)&&html.length<5000)throw Error("javascript_rendering_required");if(html.length<400)throw Error("empty_upstream_response");return {html,url:u.href};}finally{clearTimeout(timer);}}
  throw Error("too_many_redirects");
