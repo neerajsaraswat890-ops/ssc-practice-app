@@ -166,12 +166,32 @@ Deno.serve(async(req:Request)=>{
   }
  const bodyParams=await req.json().catch(()=>({}));
  const dryRun=bodyParams?.dry_run===true;
+ const reprocessPending=bodyParams?.reprocess_pending===true;
  const requested=Number(bodyParams?.limit);
  const maxItems=Number.isFinite(requested)&&requested>=1?Math.min(18,Math.max(1,Math.trunc(requested))):18;
- const {data:items,error:re}=await db.from("ca_items")
- .select("id,canonical_url,headline_en,headline_hi,summary_en,summary_hi,event_date,published_at,status,article_analysis_status,key_facts_en,key_facts_hi")
- .in("status",["pending","approved"]).eq("article_analysis_status","not_processed").order("published_at",{ascending:false}).limit(maxItems).abortSignal(dbSignal());
- if(re)return respond({error:"read_failed"},503);
+ const itemSelect="id,canonical_url,headline_en,headline_hi,summary_en,summary_hi,event_date,published_at,status,article_analysis_status,key_facts_en,key_facts_hi";
+ let items:any[]=[];
+ if(reprocessPending){
+  // One-off bounded recheck for pending items analyzed by an older rubric. Never rerun
+  // items already logged with this PD rubric version.
+  const {data:oldItems,error:oldError}=await db.from("ca_items").select(itemSelect)
+   .eq("status","pending").in("article_analysis_status",["not_processed","needs_review","source_error"])
+   .order("published_at",{ascending:false}).limit(250).abortSignal(dbSignal());
+  if(oldError)return respond({error:"recheck_items_unavailable"},503);
+  const ids=(oldItems||[]).map((x:any)=>x.id);
+  const {data:currentRuns,error:runError}=ids.length
+   ?await db.from("ca_article_analyses").select("item_id").eq("pipeline_version","article_exam_rubric_v3_pd").in("item_id",ids).abortSignal(dbSignal())
+   :{data:[],error:null};
+  if(runError)return respond({error:"recheck_history_unavailable"},503);
+  const already=new Set((currentRuns||[]).map((x:any)=>x.item_id));
+  items=(oldItems||[]).filter((x:any)=>!already.has(x.id)).slice(0,maxItems);
+ }else{
+  const {data:regularItems,error:re}=await db.from("ca_items").select(itemSelect)
+   .in("status",["pending","approved"]).eq("article_analysis_status","not_processed")
+   .order("published_at",{ascending:false}).limit(maxItems).abortSignal(dbSignal());
+  if(re)return respond({error:"read_failed"},503);
+  items=regularItems||[];
+ }
  const results=[];let enriched=0,autoApproved=0,held=0;
  for(const item of items||[]){
   let state="source_error",issue="",body="",matches:{en:string,hi:string,anchor:string}[]=[],rating=0,examEligible=false,category="National",examTags:string[]=["SSC"],why:string[]=[];
