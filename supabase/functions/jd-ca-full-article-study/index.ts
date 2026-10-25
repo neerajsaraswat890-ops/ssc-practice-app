@@ -166,7 +166,7 @@ Deno.serve(async(req:Request)=>{
   }
  const bodyParams=await req.json().catch(()=>({}));
  const dryRun=bodyParams?.dry_run===true;
- const reprocessPending=bodyParams?.reprocess_pending===true;
+ const reprocessPending=bodyParams?.reprocess_pending!==false; // scheduled calls drain old pending items; pass false for new-only mode
  const requested=Number(bodyParams?.limit);
  const maxItems=Number.isFinite(requested)&&requested>=1?Math.min(18,Math.max(1,Math.trunc(requested))):18;
  const itemSelect="id,source_name,canonical_url,headline_en,headline_hi,summary_en,summary_hi,event_date,published_at,status,article_analysis_status,key_facts_en,key_facts_hi";
@@ -176,7 +176,7 @@ Deno.serve(async(req:Request)=>{
   // items already logged with this PD rubric version.
   const {data:oldItems,error:oldError}=await db.from("ca_items").select(itemSelect)
    .eq("status","pending").in("article_analysis_status",["not_processed","needs_review","source_error"])
-   .order("published_at",{ascending:false}).limit(250).abortSignal(dbSignal());
+   .order("published_at",{ascending:false}).limit(1000).abortSignal(dbSignal());
   if(oldError)return respond({error:"recheck_items_unavailable"},503);
   const ids=(oldItems||[]).map((x:any)=>x.id);
   const {data:currentRuns,error:runError}=ids.length
