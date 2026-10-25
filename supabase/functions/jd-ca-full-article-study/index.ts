@@ -34,7 +34,7 @@ function dateOnly(raw:string){
 }
 function articlePublicationDate(html:string,text:string){
  for(const tag of html.match(/<meta\b[^>]*>/gi)||[]){
-  if(!/(article:published_time|datepublished|publish(?:ed)?_time|pubdate|date)/i.test(tag))continue;
+  if(!/(article:published_time|datepublished|publish(?:ed)?_time|pubdate|parsely-pub-date)/i.test(tag)&&!(/\bname\s*=\s*["'](?:date|dcterms.date|dc.date)["']/i.test(tag)))continue;
   const value=tag.match(/\bcontent\s*=\s*["']([^"']+)["']/i)?.[1];
   if(value){const d=dateOnly(value);if(d)return d;}
  }
