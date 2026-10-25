@@ -21,7 +21,7 @@ const routes:Record<string,RegExp>={
  UNESCO_WHC:/^\/en\/news\/\d+\/?$/i, UNFCCC:/news|press|2026/i, WORLD_BANK:/news|press|2026/i,
 };
 const seeds:Record<string,string[]>={
- NASA:["/news/"], NITI_AAYOG:["https://www.niti.gov.in/?type=press_releases","https://www.niti.gov.in/","https://www.pib.gov.in/AllRelease.aspx?lang=1&minid=19&reg=3"], WORLD_BANK:["/en/news"], IMF:["/en/news","/en/News"], ISRO:["/LatestNews.html"],
+ NASA:["/news/"], NITI_AAYOG:["https://www.niti.gov.in/?type=press_releases","https://www.niti.gov.in/","https://www.pib.gov.in/AllRelease.aspx?lang=1&reg=19"], WORLD_BANK:["/en/news"], IMF:["/en/news","/en/News"], ISRO:["/LatestNews.html"],
  IOC:["https://olympics.com/ioc/theme-press-releases","https://newsroom.olympics.com/"],
  UNEP:["/news-and-stories"], NOBEL:["/news/"], ECI:["https://www.eci.gov.in/964-press-releases","https://www.eci.gov.in/issue-details-page/press-releases"], RAMSAR:["/news"],
  UNESCO_WHC:["/en/news/"], UNFCCC:["https://unfccc.int/news?sort_by=created&sort_order=DESC","https://unfccc.int/news"], AIR_NEWS:["/category/national/","/category/sports/","/category/business/","/category/international/"], MOSPI:["https://mospi.gov.in/latest-releases","https://mospi.gov.in/press-release","https://www.pib.gov.in/AllRelease.aspx?lang=1&reg=1"], BCCI:["/articles"],
