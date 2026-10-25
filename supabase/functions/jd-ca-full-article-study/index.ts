@@ -169,7 +169,7 @@ Deno.serve(async(req:Request)=>{
  const reprocessPending=bodyParams?.reprocess_pending===true;
  const requested=Number(bodyParams?.limit);
  const maxItems=Number.isFinite(requested)&&requested>=1?Math.min(18,Math.max(1,Math.trunc(requested))):18;
- const itemSelect="id,canonical_url,headline_en,headline_hi,summary_en,summary_hi,event_date,published_at,status,article_analysis_status,key_facts_en,key_facts_hi";
+ const itemSelect="id,source_name,canonical_url,headline_en,headline_hi,summary_en,summary_hi,event_date,published_at,status,article_analysis_status,key_facts_en,key_facts_hi";
  let items:any[]=[];
  if(reprocessPending){
   // One-off bounded recheck for pending items analyzed by an older rubric. Never rerun
@@ -230,9 +230,17 @@ Deno.serve(async(req:Request)=>{
      enText=body;hiText=body;
      evidenceDate=articlePublicationDate(article.html,body);
    }
-   if(!evidenceDate||evidenceDate!==item.event_date)throw Error("original_publication_date_disagrees");
-   if((hiText.match(/[\u0900-\u097F]/g)||[]).length<180)throw Error("hindi_source_not_available");
+   if(!evidenceDate)throw Error("source_publication_date_missing");
+   if(evidenceDate>new Date().toISOString().slice(0,10))throw Error("future_publication_date");
+   const feedDate=dateOnly(item.published_at||"");
+   if(feedDate&&feedDate!==evidenceDate)why.push("Source article publication date used; RSS timestamp differed");
    if(titleScore(item.headline_en,enText)<0.64)throw Error("headline_not_in_original");
+   if((hiText.match(/[\u0900-\u097F]/g)||[]).length<180){
+     if(!examEligible){state="low_priority";issue="below_exam_relevance_threshold";continue}
+     state="trusted_source_grounded";
+     why.push("Configured trusted-source article, original publication date and headline checked; English original retained; no Hindi translation invented");
+     continue;
+   }
    matches=pairFacts(enText,hiText);
    if(matches.length<2){state="needs_review";issue="fewer_than_two_bilingual_matched_facts";continue}
    if(!examEligible){state="low_priority";issue="below_exam_relevance_threshold";continue}
@@ -241,8 +249,8 @@ Deno.serve(async(req:Request)=>{
   finally{
    if(dryRun){
     results.push({id:item.id,status:state,score:rating,category,tags:examTags,reasons:why,
-      facts:matches.slice(0,5),issue:issue||undefined,wouldAutoApprove:state==="bilingual_grounded"});
-    if(state==="bilingual_grounded")autoApproved++;else held++;
+      facts:matches.slice(0,5),issue:issue||undefined,wouldAutoApprove:state==="bilingual_grounded"||state==="trusted_source_grounded"});
+    if(state==="bilingual_grounded"||state==="trusted_source_grounded")autoApproved++;else held++;
     continue;
    }
    const payload={
@@ -250,7 +258,7 @@ Deno.serve(async(req:Request)=>{
     analyzed_at:new Date().toISOString(),article_publication_date:evidenceDate,full_article_words:words(body).length,
     article_sha256:digest,analysis_status:state,exam_score:rating,exam_category:category,exam_tags:examTags,
     relevance_reasons:why,candidate_facts_en:matches.length?matches.map(x=>x.en):englishFacts,candidate_facts_hi:matches.map(x=>x.hi),
-    matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v3_pd"
+    matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v4_trusted_source"
    };
    const {error:logErr}=await db.from("ca_article_analyses").upsert(payload,{onConflict:"item_id"}).abortSignal(dbSignal());
    if(logErr){results.push({id:item.id,status:"analysis_log_failed"});continue}
@@ -261,19 +269,23 @@ Deno.serve(async(req:Request)=>{
    };
    const {error:markErr}=await db.from("ca_items").update(more).eq("id",item.id).abortSignal(dbSignal());
    if(markErr){results.push({id:item.id,status:"item_update_failed"});continue}
-   if(state==="bilingual_grounded"){
+   if(state==="bilingual_grounded"||state==="trusted_source_grounded"){
     // Never modify previously editor-approved headlines, explanations or facts.
     if(item.status==="pending"){
      const now=new Date().toISOString();
      const {data:verified,error:ve}=await db.from("ca_items").update({
-       key_facts_en:matches.map(x=>x.en),key_facts_hi:matches.map(x=>x.hi),
+       key_facts_en:matches.length?matches.map(x=>x.en):englishFacts,
+       key_facts_hi:matches.map(x=>x.hi),
        exam_priority:Math.min(5,Math.max(1,Math.round(rating/20))),exam_category:category,exam_tags:examTags,
-       headline_hi:item.headline_hi?.trim()||matches[0].hi,
-       summary_hi:item.summary_hi?.trim()||matches[0].hi,
-       summary_en:item.summary_en?.trim()||matches[0].en,
+       headline_hi:item.headline_hi?.trim()||matches[0]?.hi||null,
+       summary_hi:item.summary_hi?.trim()||matches[0]?.hi||null,
+       summary_en:item.summary_en?.trim()||matches[0]?.en||englishFacts[0]||item.summary_en||null,
        status:"approved",evidence_checked:true,approved_at:now,visible_at:now,
-       auto_verified:true,auto_verified_at:now,verification_method:"official-full-bilingual-article-rubric-v1",
-       review_notes:("Official article and publication date checked; 2+ bilingual source-matched facts; exam score "+rating+"/100 ("+category+"); "+why.slice(0,3).join("; ")).slice(0,800)
+       auto_verified:true,auto_verified_at:now,
+       verification_method:state==="trusted_source_grounded"?"trusted-source-article-rubric-v1":"official-full-bilingual-article-rubric-v1",
+       review_notes:(state==="trusted_source_grounded"
+         ?(String(item.source_name||"Trusted configured source")+" article, publication date and headline checked; original English retained; no Hindi translation invented; exam score "+rating+"/100 ("+category+"); "+why.slice(0,3).join("; "))
+         :("Official article and publication date checked; 2+ bilingual source-matched facts; exam score "+rating+"/100 ("+category+"); "+why.slice(0,3).join("; "))).slice(0,800)
      }).eq("id",item.id).eq("status","pending").select("id").abortSignal(dbSignal());
      if(!ve&&verified?.length){autoApproved++;enriched++}else results.push({id:item.id,status:"approval_failed",reason:ve?.message||"unknown"});
     }else enriched++;
