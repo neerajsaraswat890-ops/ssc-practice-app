@@ -82,20 +82,36 @@ const examReferenceCoverage=[
  ["Pratiyogita Darpan",["Polity & Governance","Banking & Economy","Government Schemes","Science & Technology","Defence & Security","Environment & Ecology","Health & Public Health","Agriculture","Sports","Appointments & Awards","Personalities & Obituaries","International Relations","Reports & Rankings","Art, Culture & Heritage","Geography & Places in News","Important Days & Events"]]
 ] as const;
 const hasKeyword=(text:string,key:string)=>(" "+text+" ").includes(" "+norm(key)+" ");
+// PD-inspired editorial pattern, drawn from the October 2026 issue's stated focus on
+// major national/international events and its representative policy, Parliament, agreements,
+// reports, science/energy, environment, awards, and sports coverage. This guides relevance only;
+// official first-party articles remain the sole evidence for facts, dates, and attribution.
+const pdEditorialPatterns=[
+ {label:"Policy, scheme or Parliament action",pattern:/\b(?:parliamentary session|parliament|yojana|scheme|mission|cabinet|policy|bill|act|initiative|national address)\b/,categories:["Polity & Governance","Government Schemes"]},
+ {label:"International agreement or strategic cooperation",pattern:/\b(?:memorandum|moa|agreement|treaty|bilateral|multilateral|maritime security|joint defence|defence cooperation)\b/,categories:["International Relations","Defence & Security"]},
+ {label:"Official report, ranking or measurable outcome",pattern:/\b(?:report|index|ranking|survey|capacity|gigawatt|gw|record|landmark|target)\b/,categories:["Reports & Rankings","Banking & Economy","Science & Technology"]},
+ {label:"Science, space or technology milestone",pattern:/\b(?:rocket|spacecraft|satellite|first|unveils|innovation|technology|e samudra|non fossil)\b/,categories:["Science & Technology"]},
+ {label:"Environment or regulatory change",pattern:/\b(?:eco sensitive|western ghats|biodiversity|wetland|climate|protected area|notification)\b/,categories:["Environment & Ecology"]},
+ {label:"Award or nationally significant honour",pattern:/\b(?:fields medal|award|prize|honour|medal)\b/,categories:["Appointments & Awards","Personalities & Obituaries"]},
+ {label:"Major sports event or result",pattern:/\b(?:commonwealth games|olympic|world cup|championship|medal|tournament)\b/,categories:["Sports"]}
+] as const;
 function scoreExam(t:string){
  const v=norm(t);
  const hits=rubric.map(([category,keys,tags,weight])=>({category,tags,weight,hits:keys.filter(k=>hasKeyword(v,k)).length})).filter(x=>x.hits>0).sort((a,b)=>b.hits*b.weight-a.hits*a.weight);
  const best=hits[0];
  const categories=hits.map(h=>h.category);
+ const pdSignals=pdEditorialPatterns.filter(p=>p.pattern.test(v)&&p.categories.some(c=>categories.includes(c))).map(p=>p.label);
+ const pdBoost=Math.min(8,pdSignals.length*2);
  const references=examReferenceCoverage.filter(([,covered])=>covered.some(category=>categories.includes(category))).map(([name])=>name);
  const referenceBoost=references.length>=2?Math.min(6,(references.length-1)*2):0;
- let score=Math.min(95,18+(best?best.weight:0)+Math.min(35,hits.reduce((s,x)=>s+x.hits*5,0))+referenceBoost);
+ let score=Math.min(95,18+(best?best.weight:0)+Math.min(35,hits.reduce((s,x)=>s+x.hits*5,0))+referenceBoost+pdBoost);
  if(!best)score=12;
- // One clear exam-current-affairs topic signal is enough to retain a fact-verified story.
- // Source, publication-date, bilingual-fact, and human-review safeguards remain in force.
+ // Keep a single useful exam-current-affairs story when a clear topic signal exists.
+ // PD patterns rank likely exam value; they do not replace first-party date, source, or fact checks.
  const eligible=!!best&&score>=33;
  const reasons=hits.slice(0,3).map(h=>h.category+": "+h.hits+" topical indicators");
- if(referenceBoost)reasons.push("Exam-prep source coverage overlap: "+references.join(", "));
+ if(pdSignals.length)reasons.push("PD editorial pattern: "+pdSignals.slice(0,3).join("; "));
+ if(referenceBoost)reasons.push("Exam-prep topic coverage overlap: "+references.join(", "));
  if(!eligible)reasons.push("Filtered: not enough exam-current-affairs indicators");
  return {score,eligible,category:best?.category||"National",tags:best?[...new Set(hits.flatMap(h=>[...h.tags]))]:["SSC"],reasons};
 }
@@ -214,7 +230,7 @@ Deno.serve(async(req:Request)=>{
     analyzed_at:new Date().toISOString(),article_publication_date:evidenceDate,full_article_words:words(body).length,
     article_sha256:digest,analysis_status:state,exam_score:rating,exam_category:category,exam_tags:examTags,
     relevance_reasons:why,candidate_facts_en:matches.length?matches.map(x=>x.en):englishFacts,candidate_facts_hi:matches.map(x=>x.hi),
-    matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v2"
+    matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v3_pd"
    };
    const {error:logErr}=await db.from("ca_article_analyses").upsert(payload,{onConflict:"item_id"}).abortSignal(dbSignal());
    if(logErr){results.push({id:item.id,status:"analysis_log_failed"});continue}
