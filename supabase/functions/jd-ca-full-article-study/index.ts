@@ -230,10 +230,15 @@ Deno.serve(async(req:Request)=>{
      enText=body;hiText=body;
      evidenceDate=articlePublicationDate(article.html,body);
    }
+   const feedDate=dateOnly(item.published_at||"");
+   if(!evidenceDate&&feedDate){
+     evidenceDate=feedDate;
+     why.push("Publisher RSS publication date used; article page did not expose a date");
+   }else if(evidenceDate&&feedDate&&feedDate!==evidenceDate){
+     why.push("Source article publication date used; RSS timestamp differed");
+   }
    if(!evidenceDate)throw Error("source_publication_date_missing");
    if(evidenceDate>new Date().toISOString().slice(0,10))throw Error("future_publication_date");
-   const feedDate=dateOnly(item.published_at||"");
-   if(feedDate&&feedDate!==evidenceDate)why.push("Source article publication date used; RSS timestamp differed");
    if(titleScore(item.headline_en,enText)<0.64)throw Error("headline_not_in_original");
    if((hiText.match(/[\u0900-\u097F]/g)||[]).length<180){
      if(!examEligible){state="low_priority";issue="below_exam_relevance_threshold";continue}
