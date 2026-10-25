@@ -53,31 +53,33 @@ const candidates=(s:string,language:"en"|"hi")=> {
   .map(x=>x.trim()).filter(x=>x.length>=55&&x.length<=380&&key.test(x)&&digits(x).length>0)
   .slice(0,120);
 };
-// Exam-priority coverage is informed by public exam-prep roundups such as Utkarsh, StudyIQ, and Parcham.
-// Those channels are prioritisation signals only; official first-party articles remain the fact/date evidence.
 const rubric=[
- ["Polity & Governance",["parliament","supreme court","high court","constitution","bill","act","judgment","judgement","election commission","governance","fundamental right","government order","policy"],["SSC","Railway","State"],17],
- ["Banking & Economy",["rbi","reserve bank","repo","bank","interest rate","monetary policy","inflation","sebi","insurance","financial","auction","securities","trade","fta","investment","budget","gdp","msme"],["Banking","SSC","Railway"],20],
- ["Government Schemes",["scheme","yojana","mission","campaign","cabinet","ministry","budget","welfare","initiative","programme","program","beneficiary"],["SSC","Railway","State"],17],
- ["Science & Technology",["technology","space","isro","ai","artificial intelligence","research","satellite","robotic","innovation","drone","quantum","biotechnology","digital"],["SSC","Railway","State"],15],
- ["Defence & Security",["navy","army","defence","defense","missile","drdo","military","exercise","commissioned","security","border"],["SSC","Defence","Railway"],16],
- ["Environment & Ecology",["environment","ecology","climate","biodiversity","wildlife","forest","ramsar","wetland","emissions","renewable energy","national park","tiger reserve","conservation"],["SSC","Railway","State"],16],
- ["Health & Public Health",["health","who","disease","vaccine","public health","epidemic","medical","nutrition","healthcare","hospital"],["SSC","Railway","State"],14],
- ["Agriculture",["agriculture","farmer","crop","minimum support price","msp","fertilizer","irrigation","foodgrain","livestock","fisheries"],["SSC","Railway","State"],14],
- ["Sports",["sports","athlete","games","medal","championship","tournament","gold","bronze","silver","cup","world record"],["SSC","Railway","State"],15],
- ["Appointments & Awards",["appointed","appointment","award","honour","honor","prize","winner","elected","chairperson","nobel"],["SSC","Banking","Railway"],15],
- ["International Relations",["united nations","summit","bilateral","countries","country","agreement","international","treaty","foreign affairs","g20","brics","wto"],["SSC","Banking","State"],13],
- ["Reports & Rankings",["report","ranking","index","survey","ranked","released","assessment","scorecard"],["SSC","Banking","Railway"],14],
- ["Art, Culture & Heritage",["heritage","archaeological","unesco","monument","culture","festival","classical language","intangible","museum","geographical indication"],["SSC","Railway","State"],13],
- ["Geography & Places in News",["river","lake","island","strait","sea","mountain","glacier","corridor","statehood","geographical"],["SSC","Railway","State"],11],
- ["Important Days & Events",["international day","world day","observed on","anniversary","foundation day"],["SSC","Railway","State"],10]
+ ["Polity & Governance",["parliament","supreme court","high court","constitution","bill","act","judgment","judgement","election commission","election results","assembly election","governance","fundamental right","government order","policy","parliamentary session","amendment"],["SSC","Railway","State"],17],
+ ["Banking & Economy",["rbi","reserve bank","repo","banking","bank","interest rate","monetary policy","inflation","sebi","insurance","financial","securities","trade agreement","free trade agreement","fta","investment","budget","gdp","msme","upi","export","import","unemployment","economic survey"],["Banking","SSC","Railway"],20],
+ ["Government Schemes",["scheme","yojana","mission","campaign","cabinet","ministry","welfare","initiative","programme","program","beneficiary","subsidy","government project","national policy"],["SSC","Railway","State"],17],
+ ["Science & Technology",["technology","space","isro","ai","artificial intelligence","research","satellite","rocket engine","robotic","innovation","drone","quantum","biotechnology","digital","patent","deep sea","semiconductor"],["SSC","Railway","State"],15],
+ ["Defence & Security",["navy","army","defence","defense","missile","drdo","military","exercise","commissioned","security","border","defence agreement","defense agreement"],["SSC","Defence","Railway"],16],
+ ["Environment & Ecology",["environment","ecology","climate","biodiversity","wildlife","forest","ramsar","wetland","emissions","renewable energy","non-fossil","national park","tiger reserve","conservation","environmental performance index","water positive"],["SSC","Railway","State"],16],
+ ["Health & Public Health",["health","who","disease","vaccine","public health","epidemic","medical","nutrition","healthcare","hospital","ncrb"],["SSC","Railway","State"],14],
+ ["Agriculture",["agriculture","farmer","crop","minimum support price","msp","fertilizer","irrigation","foodgrain","livestock","fisheries","rabi crop"],["SSC","Railway","State"],14],
+ ["Sports",["sports","athlete","games","medal","championship","tournament","gold medal","bronze medal","silver medal","cup","world record","commonwealth games","asian games","para games","world cup"],["SSC","Railway","State"],15],
+ ["Appointments & Awards",["appointed","appointment","award","honour","honor","prize","winner","elected","chairperson","nobel","nominated","took charge","selected as","laureate","fields medal"],["SSC","Banking","Railway"],15],
+ ["International Relations",["united nations","summit","bilateral","agreement","international","treaty","foreign affairs","g20","brics","wto","cop17","free trade agreement","joint defence agreement","joint defense agreement","memorandum of understanding"],["SSC","Banking","State"],13],
+ ["Reports & Rankings",["report","national report","ranking","index","survey","ranked","assessment","scorecard","key findings","performance index","ncrb report","atlas method"],["SSC","Banking","Railway"],14],
+ ["Art, Culture & Heritage",["heritage","archaeological","unesco","monument","culture","festival","classical language","intangible","museum","geographical indication","gi tag","book release","book launched"],["SSC","Railway","State"],13],
+ ["Geography & Places in News",["river","lake","island","strait","sea","mountain","glacier","corridor","statehood","geographical","wetland complex","place in news"],["SSC","Railway","State"],11],
+ ["Personalities & Obituaries",["passed away","passes away","demise","obituary","died","posthumous"],["SSC","Railway","State"],12],
+ ["Important Days & Events",["international day","world day","observed on","anniversary","foundation day","independence day"],["SSC","Railway","State"],10]
 ] as const;
-// These channel profiles capture the exam-topic coverage stated in public current-affairs
-// descriptions. YouTube is a relevance signal only; source facts/dates are verified separately.
-const examVideoCoverage=[
+// Exam-prep videos, Chronology Current GK and Pratiyogita Darpan inform topic coverage and question angles only.
+// They are not evidence for article facts, publication dates, or attribution; those must come from official first-party pages.
+const examReferenceCoverage=[
  ["Utkarsh",["Polity & Governance","Banking & Economy","Government Schemes","Science & Technology","Defence & Security","Sports","Appointments & Awards","International Relations","Art, Culture & Heritage","Geography & Places in News","Important Days & Events"]],
  ["StudyIQ",["Polity & Governance","Banking & Economy","Government Schemes","Science & Technology","Environment & Ecology","Health & Public Health","Agriculture","Appointments & Awards","International Relations","Reports & Rankings","Art, Culture & Heritage","Geography & Places in News"]],
- ["Parcham",["Banking & Economy","Government Schemes","Science & Technology","Sports","Appointments & Awards","International Relations","Geography & Places in News"]]
+ ["Parcham",["Banking & Economy","Government Schemes","Science & Technology","Sports","Appointments & Awards","International Relations","Geography & Places in News"]],
+ ["Testbook/Krati sample",["Banking & Economy","Government Schemes","Science & Technology","Defence & Security","Sports","Appointments & Awards","International Relations","Reports & Rankings","Art, Culture & Heritage","Geography & Places in News","Important Days & Events","Polity & Governance"]],
+ ["Chronology Current GK",["Polity & Governance","Banking & Economy","Government Schemes","Science & Technology","Defence & Security","Environment & Ecology","Health & Public Health","Agriculture","Sports","Appointments & Awards","Personalities & Obituaries","International Relations","Reports & Rankings","Art, Culture & Heritage","Geography & Places in News","Important Days & Events"]],
+ ["Pratiyogita Darpan",["Polity & Governance","Banking & Economy","Government Schemes","Science & Technology","Defence & Security","Environment & Ecology","Health & Public Health","Agriculture","Sports","Appointments & Awards","Personalities & Obituaries","International Relations","Reports & Rankings","Art, Culture & Heritage","Geography & Places in News","Important Days & Events"]]
 ] as const;
 const hasKeyword=(text:string,key:string)=>(" "+text+" ").includes(" "+norm(key)+" ");
 function scoreExam(t:string){
@@ -85,17 +87,17 @@ function scoreExam(t:string){
  const hits=rubric.map(([category,keys,tags,weight])=>({category,tags,weight,hits:keys.filter(k=>hasKeyword(v,k)).length})).filter(x=>x.hits>0).sort((a,b)=>b.hits*b.weight-a.hits*a.weight);
  const best=hits[0];
  const categories=hits.map(h=>h.category);
- const channels=examVideoCoverage.filter(([,covered])=>covered.some(category=>categories.includes(category))).map(([channel])=>channel);
- const videoBoost=channels.length>=2?Math.min(6,(channels.length-1)*3):0;
- let score=Math.min(95,18+(best?best.weight:0)+Math.min(35,hits.reduce((s,x)=>s+x.hits*5,0))+videoBoost);
+ const references=examReferenceCoverage.filter(([,covered])=>covered.some(category=>categories.includes(category))).map(([name])=>name);
+ const referenceBoost=references.length>=2?Math.min(6,(references.length-1)*2):0;
+ let score=Math.min(95,18+(best?best.weight:0)+Math.min(35,hits.reduce((s,x)=>s+x.hits*5,0))+referenceBoost);
  if(!best)score=12;
  // One clear exam-current-affairs topic signal is enough to retain a fact-verified story.
  // Source, publication-date, bilingual-fact, and human-review safeguards remain in force.
  const eligible=!!best&&score>=33;
  const reasons=hits.slice(0,3).map(h=>h.category+": "+h.hits+" topical indicators");
- if(videoBoost)reasons.push("Exam-prep video category overlap: "+channels.join(", "));
+ if(referenceBoost)reasons.push("Exam-prep source coverage overlap: "+references.join(", "));
  if(!eligible)reasons.push("Filtered: not enough exam-current-affairs indicators");
- return {score,eligible,category:best?.category||"National",tags:best?[...best.tags]:["SSC"],reasons};
+ return {score,eligible,category:best?.category||"National",tags:best?[...new Set(hits.flatMap(h=>[...h.tags]))]:["SSC"],reasons};
 }
 async function download(uri:URL,allowed:Set<string>){
  if(!host(uri,allowed))throw Error("untrusted_host");
@@ -144,6 +146,7 @@ Deno.serve(async(req:Request)=>{
     if(/^(?!-)[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(raw)&&!raw.endsWith(".local")&&!raw.endsWith(".internal"))allowedHosts.add(raw);
   }
  const bodyParams=await req.json().catch(()=>({}));
+ const dryRun=bodyParams?.dry_run===true;
  const requested=Number(bodyParams?.limit);
  const maxItems=Number.isFinite(requested)&&requested>=1?Math.min(18,Math.max(1,Math.trunc(requested))):18;
  const {data:items,error:re}=await db.from("ca_items")
@@ -197,12 +200,18 @@ Deno.serve(async(req:Request)=>{
    state="bilingual_grounded";
   }catch(e){issue=e instanceof Error?e.message:"article_processing_error";state=body?"needs_review":"source_error";}
   finally{
+   if(dryRun){
+    results.push({id:item.id,status:state,score:rating,category,tags:examTags,reasons:why,
+      facts:matches.slice(0,5),issue:issue||undefined,wouldAutoApprove:state==="bilingual_grounded"});
+    if(state==="bilingual_grounded")autoApproved++;else held++;
+    continue;
+   }
    const payload={
     item_id:item.id,source_url:item.canonical_url,source_host:new URL(item.canonical_url).hostname,
     analyzed_at:new Date().toISOString(),article_publication_date:evidenceDate,full_article_words:words(body).length,
     article_sha256:digest,analysis_status:state,exam_score:rating,exam_category:category,exam_tags:examTags,
     relevance_reasons:why,candidate_facts_en:matches.length?matches.map(x=>x.en):englishFacts,candidate_facts_hi:matches.map(x=>x.hi),
-    matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v1"
+    matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v2"
    };
    const {error:logErr}=await db.from("ca_article_analyses").upsert(payload,{onConflict:"item_id"}).abortSignal(dbSignal());
    if(logErr){results.push({id:item.id,status:"analysis_log_failed"});continue}
@@ -225,7 +234,7 @@ Deno.serve(async(req:Request)=>{
        summary_en:item.summary_en?.trim()||matches[0].en,
        status:"approved",evidence_checked:true,approved_at:now,visible_at:now,
        auto_verified:true,auto_verified_at:now,verification_method:"official-full-bilingual-article-rubric-v1",
-       review_notes:"Full original article read, publication date checked, 2+ source-aligned bilingual numerical facts"
+       review_notes:("Official article and publication date checked; 2+ bilingual source-matched facts; exam score "+rating+"/100 ("+category+"); "+why.slice(0,3).join("; ")).slice(0,800)
      }).eq("id",item.id).eq("status","pending").select("id").abortSignal(dbSignal());
      if(!ve&&verified?.length){autoApproved++;enriched++}else results.push({id:item.id,status:"approval_failed",reason:ve?.message||"unknown"});
     }else enriched++;
@@ -233,6 +242,6 @@ Deno.serve(async(req:Request)=>{
    results.push({id:item.id,status:state,matched:matches.length,score:rating,issue:issue||undefined});
   }
  }
- await db.from("ca_automation_runs").insert({job_name:"jd-ca-full-article-study",status:"success",affected:enriched,completed_at:new Date().toISOString(),details:JSON.stringify({processed:results.length,enriched,autoApproved,held}).slice(0,500)}).abortSignal(dbSignal());
- return respond({ok:true,processed:results.length,enriched,autoApproved,held,results});
+ if(!dryRun)await db.from("ca_automation_runs").insert({job_name:"jd-ca-full-article-study",status:"success",affected:enriched,completed_at:new Date().toISOString(),details:JSON.stringify({processed:results.length,enriched,autoApproved,held}).slice(0,500)}).abortSignal(dbSignal());
+ return respond({ok:true,dryRun,processed:results.length,enriched,autoApproved:dryRun?0:autoApproved,wouldAutoApprove:dryRun?autoApproved:undefined,held,results});
 });
