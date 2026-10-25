@@ -142,8 +142,11 @@ Deno.serve(async(req:Request)=>{
   const allowedHosts=new Set(officialNewsHosts);
   const {data:configured,error:domainError}=await db.from("ca_sources").select("allowed_host").eq("enabled",true).abortSignal(dbSignal());
   if(domainError)return respond({error:"approved_source_domains_unavailable"},503);
-  for(const source of configured||[]){const raw=String(source.allowed_host||"").toLowerCase().replace(/^www\./,"");
-    if(/^(?!-)[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(raw)&&!raw.endsWith(".local")&&!raw.endsWith(".internal"))allowedHosts.add(raw);
+  for(const source of configured||[]){
+    for(const entry of String(source.allowed_host||"").split(",")){
+      const raw=entry.trim().toLowerCase().replace(/^www\./,"").replace(/\.$/,"");
+      if(/^(?=.{1,253}$)(?!-)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(raw)&&!raw.endsWith(".local")&&!raw.endsWith(".internal"))allowedHosts.add(raw);
+    }
   }
  const bodyParams=await req.json().catch(()=>({}));
  const dryRun=bodyParams?.dry_run===true;
