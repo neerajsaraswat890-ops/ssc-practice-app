@@ -12,7 +12,7 @@ const routes:Record<string,RegExp>={
  FISU:/\/20\d{2}\/\d{2}\/\d{2}\/|news|university|2026/i, PRO_KABADDI:/\/news\/|2026/i,
  FIFA_MEDIA:/media-releases|news|2026/i, ISL:/\/news\/|2026/i,
  KHELO_INDIA:/media\/press-releases|media\/articles|news|games|university|2026/i, MIN_SPORTS:/news|university|sport|2026/i,
- DRDO:/press|news|2026/i, ECI:/press|news|2026/i, ESA:/news|2026/i, FIFA:/news|2026/i,
+ DRDO:/press|news|2026/i, ECI:/press|news|2026/i, ESA:/news|2026/i, FIFA:/media-releases|media\/releases|news|2026/i,
  GI_REGISTRY:/gi|journal|registration|2026/i, ICC:/news|2026/i, IMF:/news|press|2026/i,
  INDIA_PORTAL:/news|press|2026/i, IOC:/news|press|releases|record|2026/i, IP_INDIA:/gi|journal|news|2026/i,
  ISRO:/news|press|2026/i, MIN_CULTURE:/news|press|2026/i, MOSPI:/press|news|latest-releases|2026/i,
@@ -21,17 +21,17 @@ const routes:Record<string,RegExp>={
  UNESCO_WHC:/^\/en\/news\/\d+\/?$/i, UNFCCC:/news|press|2026/i, WORLD_BANK:/news|press|2026/i,
 };
 const seeds:Record<string,string[]>={
- NASA:["/news/"], NITI_AAYOG:["https://www.niti.gov.in/?type=press_releases","https://www.niti.gov.in/"], WORLD_BANK:["/en/news"], IMF:["/en/news","/en/News"], ISRO:["/LatestNews.html"],
+ NASA:["/news/"], NITI_AAYOG:["https://www.niti.gov.in/?type=press_releases","https://www.niti.gov.in/","https://www.pib.gov.in/AllRelease.aspx?lang=1&minid=19&reg=3"], WORLD_BANK:["/en/news"], IMF:["/en/news","/en/News"], ISRO:["/LatestNews.html"],
  IOC:["https://olympics.com/ioc/theme-press-releases","https://newsroom.olympics.com/"],
  UNEP:["/news-and-stories"], NOBEL:["/news/"], ECI:["https://www.eci.gov.in/964-press-releases","https://www.eci.gov.in/issue-details-page/press-releases"], RAMSAR:["/news"],
- UNESCO_WHC:["/en/news/"], UNFCCC:["https://unfccc.int/news?sort_by=created&sort_order=DESC","https://unfccc.int/news"], AIR_NEWS:["/category/national/","/category/sports/","/category/business/","/category/international/"], MOSPI:["https://mospi.gov.in/latest-releases","https://mospi.gov.in/press-release"], BCCI:["/articles"],
- FIFA:["https://www.fifa.com/en/news","https://www.fifa.com/news"],
+ UNESCO_WHC:["/en/news/"], UNFCCC:["https://unfccc.int/news?sort_by=created&sort_order=DESC","https://unfccc.int/news"], AIR_NEWS:["/category/national/","/category/sports/","/category/business/","/category/international/"], MOSPI:["https://mospi.gov.in/latest-releases","https://mospi.gov.in/press-release","https://www.pib.gov.in/AllRelease.aspx?lang=1&reg=1"], BCCI:["/articles"],
+ FIFA:["https://www.fifa.com/en/news","https://www.fifa.com/news","https://inside.fifa.com/organisation/media/all-media-releases"],
  FISU:["/news/"], AIFF:["/"], PRO_KABADDI:["/news"], AFC:["/en/news_3.html"],
  AKFI:["/"], KHELO_INDIA:["https://www.kheloindia.gov.in/latestnews.html","https://www.kheloindia.gov.in/media/press-releases","https://www.kheloindia.gov.in/media/articles"], MIN_CULTURE:["https://www.indiaculture.gov.in/archives-press-release","https://www.indiaculture.gov.in/press-release"],
  MIN_SPORTS:["https://yas.gov.in/latest-news","https://yas.gov.in/en/latest-news","https://www.yas.gov.in/latest-news","/all-latest-news"],
  FIFA_MEDIA:["/organisation/media/all-media-releases"], ISL:["/news"],
  SEBI:["/sebiweb/home/HomeAction.do?doListing=yes&sid=6&ssid=23"],
- DRDO:["https://drdo.gov.in/drdo/what-is-news","https://drdo.gov.in/drdo/en/documents/press-release/archive"],
+ DRDO:["https://drdo.gov.in/drdo/what-is-news","https://drdo.gov.in/drdo/en/documents/press-release/archive","https://www.pib.gov.in/AllRelease.aspx?lang=1&reg=23"],
  AIFF:["/news","/"],
   IP_INDIA:["/dynamic/news-updates"],
 };
@@ -83,7 +83,7 @@ function dateFrom(h:string,data:ReturnType<typeof ld>,sourceKey:string){if(data.
   const raw=pageText.match(/\b([0-3]?\d)\/([01]?\d)\/(20\d{2})\b/);
   if(raw){const day=Number(raw[1]),month=Number(raw[2]);if(day>=1&&day<=31&&month>=1&&month<=12)return raw[3]+"-"+String(month).padStart(2,"0")+"-"+String(day).padStart(2,"0");}
  }
- if(sourceKey==="FIFA_MEDIA"){
+ if(sourceKey==="FIFA_MEDIA"||sourceKey==="FIFA"){
   const plain=clean(h).slice(0,35000);
   const release=plain.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+(\d{1,2}\s+[A-Za-z]{3,9}\s+20\d{2}),?\s+(\d{1,2}:\d{2})/i);
   if(release)return release[1]+" "+release[2];
@@ -95,12 +95,18 @@ async function htmlAt(raw:string,host:string){let u=new URL(raw);for(let i=0;i<4
  try{const r=await fetch(u.href,{signal:c.signal,redirect:"manual",headers:{accept:"text/html,application/xhtml+xml","user-agent":"JD-Exambook-CA-Testing/2.0"}});if(r.status>=300&&r.status<400){const dest=r.headers.get("location");if(!dest)throw Error("redirect_missing_location");u=new URL(dest,u);continue;}if(!r.ok)throw Error("http_"+r.status);if(!(r.headers.get("content-type")||"").toLowerCase().includes("html"))throw Error("non_html");const html=(await r.text()).slice(0,1000000);if(/you need to enable javascript to run this app/i.test(html)&&html.length<5000)throw Error("javascript_rendering_required");if(html.length<400)throw Error("empty_upstream_response");return {html,url:u.href};}finally{clearTimeout(timer);}}
  throw Error("too_many_redirects");
 }
+function bareHost(value:string){return value.toLowerCase().replace(/^www\./,"");}
 function discover(h:string,root:URL,host:string,key:string){const found=new Map<string,number>(),pat=routes[key]||/news|press/i;
  for(const m of h.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)){const a=attrs(m[1]);if(!a.href||a.href.startsWith("#"))continue;try{const u=new URL(a.href,root);if(!valid(u,host)||u.href===root.href||/\.(?:pdf|docx?|xlsx?|jpe?g|png|zip)$/i.test(u.pathname))continue;const anchor=clean(m[2]);
    if(key==="AIR_NEWS"){
     // Official Akashvani stories have root-level descriptive slugs, not /news/ paths.
     if(!/^\/[a-z0-9][a-z0-9-]{8,}\/?$/i.test(u.pathname)||anchor.length<27||/^(?:news on air|read more|view all)$/i.test(anchor))continue;
-   }else if(!pat.test(u.pathname))continue;let score=0;if(/20\d\d\/\d\d|\/20\d\d\//.test(u.pathname))score+=3;if(/news|press|release/i.test(u.pathname))score+=2;if(anchor.length>25)score+=1;if(/2026/.test(u.href))score+=2;found.set(u.href,Math.max(score,found.get(u.href)||0));}catch{}}
+   }else if(!pat.test(u.pathname))continue;
+   // PIB is an official syndication source used as a fallback for these agencies. Keep each agency stream limited to headlines attributable to that agency or its own official releases.
+   if(key==="DRDO"&&bareHost(u.hostname)==="pib.gov.in"&&!/\bDRDO\b|Defence Research and Development Organisation/i.test(anchor))continue;
+   if(key==="MOSPI"&&bareHost(u.hostname)==="pib.gov.in"&&!/MoSPI|Ministry of Statistics|National Statistics Office|NSO|PLFS|Consumer Price Index|Index of Industrial Production|Gross State Domestic Product|GSDP|official statistics|Sarvekshana|statistical systems|statistical products/i.test(anchor))continue;
+   if(key==="NITI_AAYOG"&&bareHost(u.hostname)==="pib.gov.in"&&!/NITI Aayog/i.test(anchor))continue;
+   let score=0;if(/20\d\d\/\d\d|\/20\d\d\//.test(u.pathname))score+=3;if(/news|press|release/i.test(u.pathname))score+=2;if(anchor.length>25)score+=1;if(/2026/.test(u.href))score+=2;found.set(u.href,Math.max(score,found.get(u.href)||0));}catch{}}
  return [...found.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]).slice(0,15);
 }
 async function assess(source:Source,db:ReturnType<typeof createClient>,dryRun:boolean,maxArticles:number,debug=false):Promise<Result>{
