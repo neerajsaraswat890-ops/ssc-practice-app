@@ -79,18 +79,22 @@ const examVideoCoverage=[
  ["StudyIQ",["Polity & Governance","Banking & Economy","Government Schemes","Science & Technology","Environment & Ecology","Health & Public Health","Agriculture","Appointments & Awards","International Relations","Reports & Rankings","Art, Culture & Heritage","Geography & Places in News"]],
  ["Parcham",["Banking & Economy","Government Schemes","Science & Technology","Sports","Appointments & Awards","International Relations","Geography & Places in News"]]
 ] as const;
+const hasKeyword=(text:string,key:string)=>(" "+text+" ").includes(" "+norm(key)+" ");
 function scoreExam(t:string){
  const v=norm(t);
- const hits=rubric.map(([category,keys,tags,weight])=>({category,tags,weight,hits:keys.filter(k=>v.includes(k)).length})).filter(x=>x.hits>0).sort((a,b)=>b.hits*b.weight-a.hits*a.weight);
+ const hits=rubric.map(([category,keys,tags,weight])=>({category,tags,weight,hits:keys.filter(k=>hasKeyword(v,k)).length})).filter(x=>x.hits>0).sort((a,b)=>b.hits*b.weight-a.hits*a.weight);
  const best=hits[0];
  const categories=hits.map(h=>h.category);
  const channels=examVideoCoverage.filter(([,covered])=>covered.some(category=>categories.includes(category))).map(([channel])=>channel);
  const videoBoost=channels.length>=2?Math.min(6,(channels.length-1)*3):0;
  let score=Math.min(95,18+(best?best.weight:0)+Math.min(35,hits.reduce((s,x)=>s+x.hits*5,0))+videoBoost);
  if(!best)score=12;
+ // A channel overlap cannot qualify an article by itself: require two topical indicators and a minimum score.
+ const eligible=!!best&&score>=42&&(best.hits>=2||hits.length>=2);
  const reasons=hits.slice(0,3).map(h=>h.category+": "+h.hits+" topical indicators");
  if(videoBoost)reasons.push("Exam-prep video category overlap: "+channels.join(", "));
- return {score,category:best?.category||"National",tags:best?[...best.tags]:["SSC"],reasons};
+ if(!eligible)reasons.push("Filtered: not enough exam-current-affairs indicators");
+ return {score,eligible,category:best?.category||"National",tags:best?[...best.tags]:["SSC"],reasons};
 }
 async function download(uri:URL,allowed:Set<string>){
  if(!host(uri,allowed))throw Error("untrusted_host");
@@ -147,7 +151,7 @@ Deno.serve(async(req:Request)=>{
  if(re)return respond({error:"read_failed"},503);
  const results=[];let enriched=0,autoApproved=0,held=0;
  for(const item of items||[]){
-  let state="source_error",issue="",body="",matches:{en:string,hi:string,anchor:string}[]=[],rating=0,category="National",examTags:string[]=["SSC"],why:string[]=[];
+  let state="source_error",issue="",body="",matches:{en:string,hi:string,anchor:string}[]=[],rating=0,examEligible=false,category="National",examTags:string[]=["SSC"],why:string[]=[];
   let evidenceDate:null|string=null, digest:null|string=null, englishFacts:string[]=[];
   try{
    const u=new URL(item.canonical_url);if(!host(u,allowedHosts))throw Error("not_first_party_official");
@@ -155,10 +159,10 @@ Deno.serve(async(req:Request)=>{
    if(words(body).length<180)throw Error("incomplete_article_body");
    digest=await sha(body);
    const rank=scoreExam(item.headline_en+" "+body.slice(0,4500));
-   rating=rank.score;category=rank.category;examTags=rank.tags;why=rank.reasons;
+   rating=rank.score;examEligible=rank.eligible;category=rank.category;examTags=rank.tags;why=rank.reasons;
    // Repetitive daily market tables/auction result notices are lower-value for SSC and most banking exams than policy decisions, appointments and landmark schemes.
    if(/^(?:money market operations as on|state government securities - full auction result|result of (?:the )?(?:7-day )?variable rate repo|result of yield\/price based auction)/i.test(item.headline_en)){
-     rating=Math.min(29,rating);why=[...why,"Routine market-table bulletin: low exam value"];
+     rating=Math.min(29,rating);examEligible=false;why=[...why,"Routine market-table bulletin: low exam value"];
    }
    englishFacts=candidates(body,"en").filter(sentence=>!/skip to main content|press releases \| official website|not pressed change language/i.test(sentence)).slice(0,10);
    const isPIB=u.hostname.endsWith("pib.gov.in");
@@ -188,7 +192,7 @@ Deno.serve(async(req:Request)=>{
    if(titleScore(item.headline_en,enText)<0.64)throw Error("headline_not_in_original");
    matches=pairFacts(enText,hiText);
    if(matches.length<2){state="needs_review";issue="fewer_than_two_bilingual_matched_facts";continue}
-   if(rating<42){state="low_priority";issue="below_exam_relevance_threshold";continue}
+   if(!examEligible){state="low_priority";issue="below_exam_relevance_threshold";continue}
    state="bilingual_grounded";
   }catch(e){issue=e instanceof Error?e.message:"article_processing_error";state=body?"needs_review":"source_error";}
   finally{
