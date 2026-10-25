@@ -23,6 +23,30 @@ function posted(s:string){
  const mon=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"].indexOf(m[2].slice(0,3).toLowerCase());
  return mon<0?null:[m[3],String(mon+1).padStart(2,"0"),m[1].padStart(2,"0")].join("-");
 }
+function dateOnly(raw:string){
+ const iso=raw.match(/\b(20\d{2}-\d{2}-\d{2})\b/);if(iso)return iso[1];
+ const numeric=raw.match(/\b(\d{1,2})[./-](\d{1,2})[./-](20\d{2})\b/);
+ if(numeric)return [numeric[3],numeric[2].padStart(2,"0"),numeric[1].padStart(2,"0")].join("-");
+ const named=raw.match(/\b(\d{1,2})\s+([A-Za-z]{3,9})\s+(20\d{2})\b/i);
+ if(!named)return null;
+ const month=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"].indexOf(named[2].slice(0,3).toLowerCase());
+ return month<0?null:[named[3],String(month+1).padStart(2,"0"),named[1].padStart(2,"0")].join("-");
+}
+function articlePublicationDate(html:string,text:string){
+ for(const tag of html.match(/<meta\b[^>]*>/gi)||[]){
+  if(!/(article:published_time|datepublished|publish(?:ed)?_time|pubdate|date)/i.test(tag))continue;
+  const value=tag.match(/\bcontent\s*=\s*["']([^"']+)["']/i)?.[1];
+  if(value){const d=dateOnly(value);if(d)return d;}
+ }
+ const values=[
+  html.match(/<time\b[^>]*\bdatetime\s*=\s*["']([^"']+)["']/i)?.[1]||"",
+  html.match(/["']datePublished["']\s*:\s*["']([^"']+)["']/i)?.[1]||"",
+  posted(text)||"",
+  text.match(/\b(?:published|posted)\s*(?:on|:)\s*(\d{1,2}\s+[A-Za-z]{3,9}\s+20\d{2})/i)?.[1]||""
+ ];
+ for(const value of values){const d=dateOnly(value);if(d)return d;}
+ return null;
+}
 const candidates=(s:string,language:"en"|"hi")=> {
  const key=language==="en"?/\b(awards?|launch|launched|appointed|announced|signed|agreement|crore|million|billion|first|approved|scheme|report|rank|inaugurat|commission|medal|percent|fund|education|exercise|scientist|research|bank|reserve|finance|2026)\b/i:/(पुरस्कार|योजना|करोड़|लाख|प्रथम|पहला|आरंभ|शुरू|समझौता|नियुक्त|घोषणा|मंजूरी|खेल|पदक|विकास|प्रौद्योगिकी|आयोग|वित्त|बैंक|प्रतिशत|शिक्षा|अभियान|भारत)/;
  return s.split(language==="en"?/(?<=[.!?])\s+(?=[A-Z0-9])/g:/(?<=[।!?])\s+/g)
@@ -138,20 +162,27 @@ Deno.serve(async(req:Request)=>{
    }
    englishFacts=candidates(body,"en").filter(sentence=>!/skip to main content|press releases \| official website|not pressed change language/i.test(sentence)).slice(0,10);
    const isPIB=u.hostname.endsWith("pib.gov.in");
-   if(!isPIB){state="needs_review";issue="full_article_extracted_but_no_hindi_primary_text";continue}
-   const prid=u.searchParams.get("PRID")||u.searchParams.get("prid");
-   if(!prid||!/^\d{6,8}$/.test(prid))throw Error("unrecognized_pib_prid");
-   const enPage=(u.searchParams.get("lang")==="2")?await download(new URL("https://www.pib.gov.in/PressReleseDetailm.aspx?PRID="+prid+"&lang=1&reg=3"),allowedHosts):article;
-   let hiPage=await download(new URL("https://www.pib.gov.in/PressReleseDetailm.aspx?PRID="+prid+"&lang=2&reg=3"),allowedHosts);
-   // PIB sometimes serves the Hindi edition at the full release-page URL instead of its mobile detail page.
-   if((hiPage.text.match(/[\u0900-\u097F]/g)||[]).length<180){
-     try{
-       const alternate=await download(new URL("https://www.pib.gov.in/PressReleasePage.aspx?PRID="+prid+"&lang=2&reg=48"),allowedHosts);
-       if((alternate.text.match(/[\u0900-\u097F]/g)||[]).length>180)hiPage=alternate;
-     }catch{ /* Hindi source remains unavailable; do not invent translations. */ }
+   let enText="",hiText="";
+   if(isPIB){
+     const prid=u.searchParams.get("PRID")||u.searchParams.get("prid");
+     if(!prid||!/^\d{6,8}$/.test(prid))throw Error("unrecognized_pib_prid");
+     const enPage=(u.searchParams.get("lang")==="2")?await download(new URL("https://www.pib.gov.in/PressReleseDetailm.aspx?PRID="+prid+"&lang=1&reg=3"),allowedHosts):article;
+     let hiPage=await download(new URL("https://www.pib.gov.in/PressReleseDetailm.aspx?PRID="+prid+"&lang=2&reg=3"),allowedHosts);
+     // PIB sometimes serves the Hindi edition at the full release-page URL instead of its mobile detail page.
+     if((hiPage.text.match(/[\u0900-\u097F]/g)||[]).length<180){
+       try{
+         const alternate=await download(new URL("https://www.pib.gov.in/PressReleasePage.aspx?PRID="+prid+"&lang=2&reg=48"),allowedHosts);
+         if((alternate.text.match(/[\u0900-\u097F]/g)||[]).length>180)hiPage=alternate;
+       }catch{ /* Hindi source remains unavailable; do not invent translations. */ }
+     }
+     enText=enPage.text;hiText=hiPage.text;
+     evidenceDate=posted(enText)||posted(hiText);
+   }else{
+     if(u.hostname.toLowerCase().replace(/^www\./,"")==="whc.unesco.org")throw Error("source_restricted_pending_syndication_permission");
+     // Other sources qualify only when the official article itself supplies both languages and an explicit publication date.
+     enText=body;hiText=body;
+     evidenceDate=articlePublicationDate(article.html,body);
    }
-   const enText=enPage.text,hiText=hiPage.text;
-   evidenceDate=posted(enText)||posted(hiText);
    if(!evidenceDate||evidenceDate!==item.event_date)throw Error("original_publication_date_disagrees");
    if((hiText.match(/[\u0900-\u097F]/g)||[]).length<180)throw Error("hindi_source_not_available");
    if(titleScore(item.headline_en,enText)<0.64)throw Error("headline_not_in_original");
