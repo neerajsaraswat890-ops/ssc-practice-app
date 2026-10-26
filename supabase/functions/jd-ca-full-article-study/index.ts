@@ -165,7 +165,7 @@ Deno.serve(async(req:Request)=>{
  const dryRun=bodyParams?.dry_run===true;
  const reprocessPending=bodyParams?.reprocess_pending!==false; // scheduled calls drain old pending items; pass false for new-only mode
  const requested=Number(bodyParams?.limit);
- const maxItems=Number.isFinite(requested)&&requested>=1?Math.min(18,Math.max(1,Math.trunc(requested))):18;
+ const maxItems=Number.isFinite(requested)&&requested>=1?Math.min(30,Math.max(1,Math.trunc(requested))):30;
  const itemSelect="id,source_name,canonical_url,headline_en,headline_hi,summary_en,summary_hi,event_date,published_at,status,article_analysis_status,key_facts_en,key_facts_hi";
  let items:any[]=[];
  if(reprocessPending){
@@ -192,7 +192,11 @@ Deno.serve(async(req:Request)=>{
   items=regularItems||[];
  }
  const results=[];let enriched=0,autoApproved=0,held=0;
+ const analysisStartedAt=Date.now();
+ const maxRunMs=105_000;
+ let timeBudgetReached=false;
  for(const item of items||[]){
+  if(Date.now()-analysisStartedAt>=maxRunMs){timeBudgetReached=true;break}
   let state="source_error",issue="",body="",matches:{en:string,hi:string,anchor:string}[]=[],rating=0,examEligible=false,category="National",examTags:string[]=["SSC"],why:string[]=[];
   let evidenceDate:null|string=null, digest:null|string=null, englishFacts:string[]=[];
   let debugPublishedFeedDate:null|string=null,debugStoredEventDate:null|string=null;
@@ -303,5 +307,5 @@ Deno.serve(async(req:Request)=>{
   }
  }
  if(!dryRun)await db.from("ca_automation_runs").insert({job_name:"jd-ca-full-article-study",status:"success",affected:enriched,completed_at:new Date().toISOString(),details:JSON.stringify({processed:results.length,enriched,autoApproved,held}).slice(0,500)}).abortSignal(dbSignal());
- return respond({ok:true,dryRun,processed:results.length,enriched,autoApproved:dryRun?0:autoApproved,wouldAutoApprove:dryRun?autoApproved:undefined,held,results});
+ return respond({ok:true,dryRun,selected:items.length,processed:results.length,timeBudgetReached,enriched,autoApproved:dryRun?0:autoApproved,wouldAutoApprove:dryRun?autoApproved:undefined,held,results});
 });

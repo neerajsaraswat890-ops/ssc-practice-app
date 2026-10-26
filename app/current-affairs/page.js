@@ -102,7 +102,7 @@ export default function CurrentAffairsPage() {
             news.length ? news.map((item) => (
               <article key={item.id} className="ca-card">
                 <div className="ca-meta">{item.exam_category || "Current Affairs"} · {item.source_name || "Official source"} · {fmt(item.published_at || item.event_date)}</div>
-                <h2>{(language === "hi" ? item.headline_hi : item.headline_en) || item.headline_en}</h2>
+                <h2><Link href={"/current-affairs/"+item.id}>{(language === "hi" ? item.headline_hi : item.headline_en) || item.headline_en}</Link></h2>
                 <p>{(language === "hi" ? item.summary_hi : item.summary_en) || item.summary_en}</p>
                 {sourceLink(item.canonical_url) && <a href={sourceLink(item.canonical_url)} target="_blank" rel="noopener noreferrer">आधिकारिक स्रोत देखें ↗</a>}
               </article>
@@ -151,7 +151,7 @@ export default function CurrentAffairsPage() {
         .ca-list{max-width:950px;margin:28px auto 80px;padding:0 18px}
         .ca-card{background:white;border:1px solid #e0e7ef;border-radius:16px;padding:24px 26px;margin-bottom:17px;box-shadow:0 5px 18px rgba(26,60,90,.04)}
         .ca-meta{color:#06724f;font-size:13px;font-weight:700;margin-bottom:10px}
-        .ca-card h2{font-size:clamp(18px,2.3vw,22px);line-height:1.5;margin:0 0 12px}
+        .ca-card h2{font-size:clamp(18px,2.3vw,22px);line-height:1.5;margin:0 0 12px}.ca-card h2 a{color:inherit;text-decoration:none}.ca-card h2 a:hover{color:#0866b2}
         .ca-card p{line-height:1.8;color:#334155;margin:0 0 14px}
         .ca-card a{color:#0866b2;font-weight:700;text-decoration:none}
         .ca-options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
