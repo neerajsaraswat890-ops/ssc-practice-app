@@ -86,6 +86,7 @@ const pdEditorialPatterns=[
  {label:"Government scheme or mission",pattern:/\b(?:yojana|scheme|mission)\b.{0,120}\b(?:launch(?:es|ed)?|approv(?:es|ed)|extends?|revis(?:es|ed)|benefit|notifi(?:es|ed)|fund(?:s|ed)?)\b|\b(?:launch(?:es|ed)?|approv(?:es|ed)|notifi(?:es|ed))\b.{0,120}\b(?:yojana|scheme|mission)\b/,categories:["Government Schemes"]},
  {label:"International agreement or strategic cooperation",pattern:/\b(?:india|japan|saudi arabia|turkiye|pakistan|philippines|european union|eu|united nations|sco|g20|brics)\b.{0,180}\b(?:sign(?:s|ed)?|agreement|memorandum|moa|mou|treaty|pact|cooperation|alliance|summit)\b|\b(?:joint defence agreement|joint defense agreement|maritime security cooperation|moa signed)\b/,categories:["International Relations","Defence & Security"]},
  {label:"National or international election result",pattern:/\b(?:general election|presidential election|parliament(?:ary)? poll|poll results?|election results?|wins? (?:the )?election|won (?:the )?election|elected (?:president|prime minister)|clinches? poll victory|forms government|ousts .{0,80}poll)\b/,categories:["Polity & Governance","International Relations"]},
+ {label:"Banking, finance or securities regulation",pattern:/\b(?:rbi|reserve bank of india|reserve bank|sebi|pfrda|irdai)\b.{0,180}\b(?:issues?|released|notifies|announces|amends?|introduces|revises|implements?|directions?|guidelines?|regulations?|policy rate|repo rate|capital requirements?|leverage ratio|basel iii)\b|\b(?:policy rate|repo rate|capital requirements?|leverage ratio|basel iii)\b.{0,140}\b(?:rbi|reserve bank|sebi|banks?)\b/,categories:["Banking & Economy"]},
  {label:"Official report, ranking or measurable outcome",pattern:/\b(?:niti aayog|rbi|reserve bank|world bank|imf|un|who|government)\b.{0,120}\b(?:report|index|ranking|survey|assessment|statistics)\b|\b(?:report|index|ranking|survey|assessment)\b.{0,120}\b(?:released|published|launched|finds|ranks|shows|issues)\b/,categories:["Reports & Rankings","Banking & Economy"]},
  {label:"Science, space, technology or energy milestone",pattern:/\b(?:rocket|satellite|spacecraft|space mission|rocket engine|ffsc|e samudra|semiconductor|quantum|artificial intelligence|gigawatt|gw capacity|non fossil|renewable capacity)\b.{0,150}\b(?:first|launch(?:es|ed)?|unveil(?:s|ed)?|achiev(?:es|ed)|cross(?:es|ed)|reach(?:es|ed)|test(?:s|ed)?|engine|capacity|mission|milestone|platform)\b|\b(?:first|launch(?:es|ed)?|unveil(?:s|ed)?|achiev(?:es|ed)|cross(?:es|ed)|reach(?:es|ed))\b.{0,150}\b(?:rocket|satellite|spacecraft|rocket engine|ffsc|gigawatt|non fossil|renewable capacity)\b/,categories:["Science & Technology","Banking & Economy"]},
  {label:"Environmental regulation or major conservation update",pattern:/\b(?:draft notification|notification issued|eco sensitive area|western ghats|ramsar site|wetland|national park|wildlife sanctuary|biodiversity|protected area|environmental index)\b/,categories:["Environment & Ecology"]},
@@ -177,7 +178,7 @@ Deno.serve(async(req:Request)=>{
   if(oldError)return respond({error:"recheck_items_unavailable"},503);
   const ids=(oldItems||[]).map((x:any)=>x.id);
   const {data:currentRuns,error:runError}=ids.length
-   ?await db.from("ca_article_analyses").select("item_id").eq("pipeline_version","article_exam_rubric_v6_pd_gate").in("item_id",ids).abortSignal(dbSignal())
+   ?await db.from("ca_article_analyses").select("item_id").eq("pipeline_version","article_exam_rubric_v7_pd_gate").in("item_id",ids).abortSignal(dbSignal())
    :{data:[],error:null};
   if(runError)return respond({error:"recheck_history_unavailable"},503);
   const already=new Set((currentRuns||[]).map((x:any)=>x.item_id));
@@ -266,7 +267,7 @@ Deno.serve(async(req:Request)=>{
     analyzed_at:new Date().toISOString(),article_publication_date:evidenceDate,full_article_words:words(body).length,
     article_sha256:digest,analysis_status:state,exam_score:rating,exam_category:category,exam_tags:examTags,
     relevance_reasons:why,candidate_facts_en:matches.length?matches.map(x=>x.en):englishFacts,candidate_facts_hi:matches.map(x=>x.hi),
-    matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v6_pd_gate"
+    matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v7_pd_gate"
    };
    const {error:logErr}=await db.from("ca_article_analyses").upsert(payload,{onConflict:"item_id"}).abortSignal(dbSignal());
    if(logErr){results.push({id:item.id,status:"analysis_log_failed"});continue}
