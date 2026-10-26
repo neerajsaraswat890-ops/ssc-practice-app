@@ -324,6 +324,11 @@ export default function LoginPage() {
                   onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
                   required
                 />
+                {message && (
+                  <p role="status" style={{ margin: "10px 0 18px", color: "#334155", lineHeight: 1.5 }}>
+                    {message}
+                  </p>
+                )}
               </>
             ) : (
               <>
