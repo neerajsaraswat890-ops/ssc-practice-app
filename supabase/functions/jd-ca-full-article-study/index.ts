@@ -180,7 +180,7 @@ Deno.serve(async(req:Request)=>{
   if(oldError)return respond({error:"recheck_items_unavailable"},503);
   const ids=(oldItems||[]).map((x:any)=>x.id);
   const {data:currentRuns,error:runError}=ids.length
-   ?await db.from("ca_article_analyses").select("item_id").eq("pipeline_version","article_exam_rubric_v4_trusted_source").in("item_id",ids).abortSignal(dbSignal())
+   ?await db.from("ca_article_analyses").select("item_id").eq("pipeline_version","article_exam_rubric_v5_trusted_source").in("item_id",ids).abortSignal(dbSignal())
    :{data:[],error:null};
   if(runError)return respond({error:"recheck_history_unavailable"},503);
   const already=new Set((currentRuns||[]).map((x:any)=>x.item_id));
@@ -230,10 +230,12 @@ Deno.serve(async(req:Request)=>{
      enText=body;hiText=body;
      evidenceDate=articlePublicationDate(article.html,body);
    }
-   const feedDate=dateOnly(item.published_at||"");
+   const publishedFeedDate=dateOnly(String(item.published_at??""));
+   const storedEventDate=dateOnly(String(item.event_date??""));
+   const feedDate=publishedFeedDate||storedEventDate;
    if(!evidenceDate&&feedDate){
      evidenceDate=feedDate;
-     why.push("Publisher RSS publication date used; article page did not expose a date");
+     why.push(publishedFeedDate?"Publisher RSS publication date used; article page did not expose a date":"Stored event date used as source-feed date; article page did not expose a date");
    }else if(evidenceDate&&feedDate&&feedDate!==evidenceDate){
      why.push("Source article publication date used; RSS timestamp differed");
    }
@@ -254,7 +256,7 @@ Deno.serve(async(req:Request)=>{
   finally{
    if(dryRun){
     results.push({id:item.id,status:state,score:rating,category,tags:examTags,reasons:why,
-      facts:matches.slice(0,5),issue:issue||undefined,wouldAutoApprove:state==="bilingual_grounded"||state==="trusted_source_grounded"});
+      facts:matches.slice(0,5),issue:issue||undefined,debugDates:{published_at:item.published_at??null,event_date:item.event_date??null,publishedFeedDate,storedEventDate},wouldAutoApprove:state==="bilingual_grounded"||state==="trusted_source_grounded"});
     if(state==="bilingual_grounded"||state==="trusted_source_grounded")autoApproved++;else held++;
     continue;
    }
@@ -263,7 +265,7 @@ Deno.serve(async(req:Request)=>{
     analyzed_at:new Date().toISOString(),article_publication_date:evidenceDate,full_article_words:words(body).length,
     article_sha256:digest,analysis_status:state,exam_score:rating,exam_category:category,exam_tags:examTags,
     relevance_reasons:why,candidate_facts_en:matches.length?matches.map(x=>x.en):englishFacts,candidate_facts_hi:matches.map(x=>x.hi),
-    matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v4_trusted_source"
+    matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v5_trusted_source"
    };
    const {error:logErr}=await db.from("ca_article_analyses").upsert(payload,{onConflict:"item_id"}).abortSignal(dbSignal());
    if(logErr){results.push({id:item.id,status:"analysis_log_failed"});continue}
