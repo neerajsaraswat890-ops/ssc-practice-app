@@ -196,6 +196,7 @@ Deno.serve(async(req:Request)=>{
  for(const item of items||[]){
   let state="source_error",issue="",body="",matches:{en:string,hi:string,anchor:string}[]=[],rating=0,examEligible=false,category="National",examTags:string[]=["SSC"],why:string[]=[];
   let evidenceDate:null|string=null, digest:null|string=null, englishFacts:string[]=[];
+  let debugPublishedFeedDate:null|string=null,debugStoredEventDate:null|string=null;
   try{
    const u=new URL(item.canonical_url);if(!host(u,allowedHosts))throw Error("not_first_party_official");
    const article=await download(u,allowedHosts);body=article.text;
@@ -233,6 +234,8 @@ Deno.serve(async(req:Request)=>{
    const publishedFeedDate=dateOnly(String(item.published_at??""));
    const storedEventDate=dateOnly(String(item.event_date??""));
    const feedDate=publishedFeedDate||storedEventDate;
+   debugPublishedFeedDate=publishedFeedDate;
+   debugStoredEventDate=storedEventDate;
    if(!evidenceDate&&feedDate){
      evidenceDate=feedDate;
      why.push(publishedFeedDate?"Publisher RSS publication date used; article page did not expose a date":"Stored event date used as source-feed date; article page did not expose a date");
@@ -256,7 +259,7 @@ Deno.serve(async(req:Request)=>{
   finally{
    if(dryRun){
     results.push({id:item.id,status:state,score:rating,category,tags:examTags,reasons:why,
-      facts:matches.slice(0,5),issue:issue||undefined,debugDates:{published_at:item.published_at??null,event_date:item.event_date??null,publishedFeedDate,storedEventDate},wouldAutoApprove:state==="bilingual_grounded"||state==="trusted_source_grounded"});
+      facts:matches.slice(0,5),issue:issue||undefined,debugDates:{published_at:item.published_at??null,event_date:item.event_date??null,publishedFeedDate:debugPublishedFeedDate,storedEventDate:debugStoredEventDate},wouldAutoApprove:state==="bilingual_grounded"||state==="trusted_source_grounded"});
     if(state==="bilingual_grounded"||state==="trusted_source_grounded")autoApproved++;else held++;
     continue;
    }
