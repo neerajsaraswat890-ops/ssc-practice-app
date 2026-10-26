@@ -24,7 +24,7 @@ function posted(s:string){
  return mon<0?null:[m[3],String(mon+1).padStart(2,"0"),m[1].padStart(2,"0")].join("-");
 }
 function dateOnly(raw:string){
- const iso=raw.match(/\b(20\d{2}-\d{2}-\d{2})\b/);if(iso)return iso[1];
+ const iso=raw.match(/\b(20\d{2}-\d{2}-\d{2})/);if(iso)return iso[1];
  const numeric=raw.match(/\b(\d{1,2})[./-](\d{1,2})[./-](20\d{2})\b/);
  if(numeric)return [numeric[3],numeric[2].padStart(2,"0"),numeric[1].padStart(2,"0")].join("-");
  const named=raw.match(/\b(\d{1,2})\s+([A-Za-z]{3,9})\s+(20\d{2})\b/i);
