@@ -24,6 +24,8 @@ export default function LoginPage() {
   const [mobile, setMobile] = useState("");
   const [state, setState] = useState("");
   const [targetExam, setTargetExam] = useState("");
+  const [awaitingEmailOtp, setAwaitingEmailOtp] = useState(false);
+  const [emailOtp, setEmailOtp] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -33,6 +35,8 @@ export default function LoginPage() {
     setMessage("");
     setPassword("");
     setConfirmPassword("");
+    setAwaitingEmailOtp(false);
+    setEmailOtp("");
   }
 
   async function signUp(e) {
@@ -93,12 +97,54 @@ export default function LoginPage() {
       return;
     }
 
-    setMessage(
-      "Account created! Please check your email and verify your account before logging in."
-    );
-    setMode("login");
+    setAwaitingEmailOtp(true);
+    setEmailOtp("");
+    setMessage("We sent a verification code to your email. Enter the code to confirm your account.");
     setPassword("");
     setConfirmPassword("");
+    setLoading(false);
+  }
+
+  async function verifySignUpOtp(e) {
+    e.preventDefault();
+    const token = emailOtp.trim();
+    if (!/^[0-9]{6,8}$/.test(token)) {
+      setMessage("Enter the 6–8 digit code from your email.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+    const { data, error } = await supabase().auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token,
+      type: "email",
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setLoading(false);
+      return;
+    }
+    setAwaitingEmailOtp(false);
+    setEmailOtp("");
+    if (data?.session) {
+      router.replace(destinationAfterLogin());
+      return;
+    }
+    setMode("login");
+    setMessage("Email verified. You can now log in with your email and password.");
+    setLoading(false);
+  }
+
+  async function resendSignUpOtp() {
+    setLoading(true);
+    setMessage("");
+    const { error } = await supabase().auth.resend({
+      type: "signup",
+      email: email.trim().toLowerCase(),
+    });
+    setMessage(error ? error.message : "A new verification code has been sent to your email.");
     setLoading(false);
   }
 
@@ -216,9 +262,7 @@ export default function LoginPage() {
             />
 
             <h1 style={{ margin: "10px 0 6px" }}>
-              {mode === "login"
-                ? "Login to JD Exambook"
-                : "Create Your Account"}
+              {awaitingEmailOtp ? "Verify Your Email" : mode === "login" ? "Login to JD Exambook" : "Create Your Account"}
             </h1>
 
             <p className="muted">
@@ -237,6 +281,7 @@ export default function LoginPage() {
             <button
               type="button"
               className="btn"
+              disabled={awaitingEmailOtp || loading}
               onClick={() => changeMode("login")}
               style={{
                 opacity: mode === "login" ? 1 : 0.6,
@@ -248,6 +293,7 @@ export default function LoginPage() {
             <button
               type="button"
               className="btn"
+              disabled={awaitingEmailOtp || loading}
               onClick={() => changeMode("signup")}
               style={{
                 opacity: mode === "signup" ? 1 : 0.6,
@@ -258,8 +304,29 @@ export default function LoginPage() {
           </div>
 
           <form
-            onSubmit={mode === "login" ? signIn : signUp}
+            onSubmit={awaitingEmailOtp ? verifySignUpOtp : mode === "login" ? signIn : signUp}
           >
+            {awaitingEmailOtp ? (
+              <>
+                <p className="muted" style={{ lineHeight: 1.5 }}>
+                  Enter the verification code sent to <strong>{email}</strong>.
+                </p>
+                <label style={labelStyle}>Email verification code *</label>
+                <input
+                  className="input"
+                  style={inputStyle}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={8}
+                  placeholder="Enter 6–8 digit code"
+                  value={emailOtp}
+                  onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  required
+                />
+              </>
+            ) : (
+              <>
             {mode === "signup" && (
               <>
                 <label style={labelStyle}>
@@ -465,11 +532,25 @@ export default function LoginPage() {
             >
               {loading
                 ? "Please wait..."
+                : awaitingEmailOtp
+                ? "Verify Email"
                 : mode === "login"
                 ? "Login"
                 : "Create Account"}
             </button>
+              </>
+            )}
           </form>
+          {awaitingEmailOtp && (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={resendSignUpOtp}
+              style={{ display: "block", margin: "14px auto", background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontWeight: 600 }}
+            >
+              Resend verification code
+            </button>
+          )}
 
           {mode === "login" && (
             <button
