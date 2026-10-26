@@ -95,6 +95,11 @@ export default function CurrentAffairsPage() {
     return () => { live = false; controller.abort(); clearTimeout(timer); };
   }, []);
 
+  const displayNews = news.filter((item) =>
+    /[\\u0900-\\u097F]/.test(String(item.headline_hi || "")) &&
+    [...hindiFactsFrom(item.key_facts_hi), ...hindiFactsFrom(item.static_gk_hi)].length > 0
+  );
+
   const score = useMemo(() => questions.reduce((n, q) => {
     const correct = String(q.correct_answer || "").trim().toUpperCase();
     return n + (answers[q.id] === correct ? 1 : 0);
@@ -120,7 +125,7 @@ export default function CurrentAffairsPage() {
         {mode === "news" ? (
             newsLoading ? <p className="ca-message">समाचार लोड हो रहे हैं…</p> :
             newsError ? <p role="alert" className="ca-message">अभी समाचार उपलब्ध नहीं हो पाए। {newsError}</p> :
-            news.length ? news.map((item) => {
+            displayNews.length ? displayNews.map((item) => {
               const facts = [...hindiFactsFrom(item.key_facts_hi), ...hindiFactsFrom(item.static_gk_hi)].slice(0, 3);
               const category = categoryHi(item.exam_category);
               return <article key={item.id} className="ca-card">
@@ -131,7 +136,7 @@ export default function CurrentAffairsPage() {
                   : <p className="ca-no-facts">इस समाचार के हिन्दी परीक्षा-उपयोगी तथ्य उपलब्ध नहीं हैं।</p>}
                 <Link className="ca-read-more" href={"/current-affairs/" + item.id}>महत्वपूर्ण तथ्य पढ़ें</Link>
               </article>;
-            }) : <p className="ca-message">इस समय कोई स्वीकृत एवं प्रकाशित समाचार उपलब्ध नहीं है। सत्यापन जारी है।</p>
+            }) : <p className="ca-message">अभी हिन्दी में सत्यापित परीक्षा-उपयोगी तथ्य उपलब्ध नहीं हैं।</p>
           ) : (
             quizLoading ? <p className="ca-message">प्रश्नोत्तरी लोड हो रही है…</p> :
             quizError ? <p role="alert" className="ca-message">अभी प्रश्नोत्तरी उपलब्ध नहीं है। {quizError}</p> :
