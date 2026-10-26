@@ -54,66 +54,61 @@ const candidates=(s:string,language:"en"|"hi")=> {
   .slice(0,120);
 };
 const rubric=[
- ["Polity & Governance",["parliament","supreme court","high court","constitution","bill","act","judgment","judgement","election commission","election results","assembly election","governance","fundamental right","government order","policy","parliamentary session","amendment"],["SSC","Railway","State"],17],
+ ["Polity & Governance",["parliament","supreme court","high court","constitution","bill","act","judgment","judgement","election commission","election results","assembly election","governance","fundamental right","government order","policy","parliamentary session","amendment","election","poll"],["SSC","Railway","State"],17],
  ["Banking & Economy",["rbi","reserve bank","repo","banking","bank","interest rate","monetary policy","inflation","sebi","insurance","financial","securities","trade agreement","free trade agreement","fta","investment","budget","gdp","msme","upi","export","import","unemployment","economic survey"],["Banking","SSC","Railway"],20],
  ["Government Schemes",["scheme","yojana","mission","campaign","cabinet","ministry","welfare","initiative","programme","program","beneficiary","subsidy","government project","national policy"],["SSC","Railway","State"],17],
- ["Science & Technology",["technology","space","isro","ai","artificial intelligence","research","satellite","rocket engine","robotic","innovation","drone","quantum","biotechnology","digital","patent","deep sea","semiconductor"],["SSC","Railway","State"],15],
+ ["Science & Technology",["technology","space","isro","ai","artificial intelligence","research","satellite","rocket engine","robotic","innovation","drone","quantum","biotechnology","digital","patent","deep sea","semiconductor","gigawatt","non fossil","capacity"],["SSC","Railway","State"],15],
  ["Defence & Security",["navy","army","defence","defense","missile","drdo","military","exercise","commissioned","security","border","defence agreement","defense agreement"],["SSC","Defence","Railway"],16],
- ["Environment & Ecology",["environment","ecology","climate","biodiversity","wildlife","forest","ramsar","wetland","emissions","renewable energy","non-fossil","national park","tiger reserve","conservation","environmental performance index","water positive"],["SSC","Railway","State"],16],
- ["Health & Public Health",["health","who","disease","vaccine","public health","epidemic","medical","nutrition","healthcare","hospital","ncrb"],["SSC","Railway","State"],14],
+ ["Environment & Ecology",["environment","ecology","climate","biodiversity","wildlife","forest","ramsar","wetland","emissions","renewable energy","non-fossil","national park","tiger reserve","conservation","environmental performance index","water positive","eco sensitive area","esa"],["SSC","Railway","State"],16],
+ ["Health & Public Health",["health","who","disease","vaccine","public health","epidemic","medical","nutrition","healthcare","hospital","ncrb","outbreak","infection"],["SSC","Railway","State"],14],
  ["Agriculture",["agriculture","farmer","crop","minimum support price","msp","fertilizer","irrigation","foodgrain","livestock","fisheries","rabi crop"],["SSC","Railway","State"],14],
  ["Sports",["sports","athlete","games","medal","championship","tournament","gold medal","bronze medal","silver medal","cup","world record","commonwealth games","asian games","para games","world cup"],["SSC","Railway","State"],15],
  ["Appointments & Awards",["appointed","appointment","award","honour","honor","prize","winner","elected","chairperson","nobel","nominated","took charge","selected as","laureate","fields medal"],["SSC","Banking","Railway"],15],
- ["International Relations",["united nations","summit","bilateral","agreement","international","treaty","foreign affairs","g20","brics","wto","cop17","free trade agreement","joint defence agreement","joint defense agreement","memorandum of understanding"],["SSC","Banking","State"],13],
+ ["International Relations",["united nations","summit","bilateral","agreement","international","treaty","foreign affairs","g20","brics","wto","cop17","free trade agreement","joint defence agreement","joint defense agreement","memorandum of understanding","election","poll","president"],["SSC","Banking","State"],13],
  ["Reports & Rankings",["report","national report","ranking","index","survey","ranked","assessment","scorecard","key findings","performance index","ncrb report","atlas method"],["SSC","Banking","Railway"],14],
  ["Art, Culture & Heritage",["heritage","archaeological","unesco","monument","culture","festival","classical language","intangible","museum","geographical indication","gi tag","book release","book launched"],["SSC","Railway","State"],13],
  ["Geography & Places in News",["river","lake","island","strait","sea","mountain","glacier","corridor","statehood","geographical","wetland complex","place in news"],["SSC","Railway","State"],11],
  ["Personalities & Obituaries",["passed away","passes away","demise","obituary","died","posthumous"],["SSC","Railway","State"],12],
  ["Important Days & Events",["international day","world day","observed on","anniversary","foundation day","independence day"],["SSC","Railway","State"],10]
 ] as const;
-// Exam-prep videos, Chronology Current GK and Pratiyogita Darpan inform topic coverage and question angles only.
-// They are not evidence for article facts, publication dates, or attribution; those must come from official first-party pages.
-const examReferenceCoverage=[
- ["Utkarsh",["Polity & Governance","Banking & Economy","Government Schemes","Science & Technology","Defence & Security","Sports","Appointments & Awards","International Relations","Art, Culture & Heritage","Geography & Places in News","Important Days & Events"]],
- ["StudyIQ",["Polity & Governance","Banking & Economy","Government Schemes","Science & Technology","Environment & Ecology","Health & Public Health","Agriculture","Appointments & Awards","International Relations","Reports & Rankings","Art, Culture & Heritage","Geography & Places in News"]],
- ["Parcham",["Banking & Economy","Government Schemes","Science & Technology","Sports","Appointments & Awards","International Relations","Geography & Places in News"]],
- ["Testbook/Krati sample",["Banking & Economy","Government Schemes","Science & Technology","Defence & Security","Sports","Appointments & Awards","International Relations","Reports & Rankings","Art, Culture & Heritage","Geography & Places in News","Important Days & Events","Polity & Governance"]],
- ["Chronology Current GK",["Polity & Governance","Banking & Economy","Government Schemes","Science & Technology","Defence & Security","Environment & Ecology","Health & Public Health","Agriculture","Sports","Appointments & Awards","Personalities & Obituaries","International Relations","Reports & Rankings","Art, Culture & Heritage","Geography & Places in News","Important Days & Events"]],
- ["Pratiyogita Darpan",["Polity & Governance","Banking & Economy","Government Schemes","Science & Technology","Defence & Security","Environment & Ecology","Health & Public Health","Agriculture","Sports","Appointments & Awards","Personalities & Obituaries","International Relations","Reports & Rankings","Art, Culture & Heritage","Geography & Places in News","Important Days & Events"]]
-] as const;
 const hasKeyword=(text:string,key:string)=>(" "+text+" ").includes(" "+norm(key)+" ");
-// PD-inspired editorial pattern, drawn from the October 2026 issue's stated focus on
-// major national/international events and its representative policy, Parliament, agreements,
-// reports, science/energy, environment, awards, and sports coverage. This guides relevance only;
-// official first-party articles remain the sole evidence for facts, dates, and attribution.
+const lowValueHeadlinePatterns:RegExp[]=[
+ /\\b(?:live updates?|live blog|wrap|roundup|round up)\\b/,
+ /\\b(?:schools? closed|classes? suspended|heavy rainfall|heavy rain|rains? continue|weather forecast|traffic advisory)\\b/,
+ /\\b(?:one killed|one dead|killed as|dies as|accident|crash|vehicle plunges|robbery|theft|police investigate)\\b/,
+ /\\b(?:district panchayat|local civic body|city corporation|ward level|municipal ward)\\b/,
+ /\\b(?:challenges facing|profile|obituary|cultural evening|the democratic leftist)\\b/,
+ /\\b(?:weekly statistical supplement|statistical supplement extract|bulletin extract|daily market report|auction result)\\b/,
+ /\\b(?:group [a-h]|east asia wrap|asean wrap|club football)\\b/
+];
 const pdEditorialPatterns=[
- {label:"Policy, scheme or Parliament action",pattern:/\b(?:parliamentary session|parliament|yojana|scheme|mission|cabinet|policy|bill|act|initiative|national address)\b/,categories:["Polity & Governance","Government Schemes"]},
- {label:"International agreement or strategic cooperation",pattern:/\b(?:memorandum|moa|agreement|treaty|bilateral|multilateral|maritime security|joint defence|defence cooperation)\b/,categories:["International Relations","Defence & Security"]},
- {label:"Official report, ranking or measurable outcome",pattern:/\b(?:report|index|ranking|survey|capacity|gigawatt|gw|record|landmark|target)\b/,categories:["Reports & Rankings","Banking & Economy","Science & Technology"]},
- {label:"Science, space or technology milestone",pattern:/\b(?:rocket|spacecraft|satellite|first|unveils|innovation|technology|e samudra|non fossil)\b/,categories:["Science & Technology"]},
- {label:"Environment or regulatory change",pattern:/\b(?:eco sensitive|western ghats|biodiversity|wetland|climate|protected area|notification)\b/,categories:["Environment & Ecology"]},
- {label:"Award or nationally significant honour",pattern:/\b(?:fields medal|award|prize|honour|medal)\b/,categories:["Appointments & Awards","Personalities & Obituaries"]},
- {label:"Major sports event or result",pattern:/\b(?:commonwealth games|olympic|world cup|championship|medal|tournament)\b/,categories:["Sports"]}
+ {label:"Policy, scheme, Parliament or major government action",pattern:/\\b(?:monsoon session|parliamentary session|parliament|lok sabha|rajya sabha|union cabinet|niti aayog|prime minister|government of india)\\b.{0,170}\\b(?:launch(?:es|ed)?|introduc(?:es|ed)|announc(?:es|ed)|approv(?:es|ed)|clear(?:s|ed)|pass(?:es|ed)?|inaugurat(?:es|ed)|notifi(?:es|ed)|issu(?:es|ed)|address(?:es|ed)?|establish(?:es|ed)?|sets up|unveil(?:s|ed)?)\\b|\\b(?:monsoon session|parliamentary session|bill passed|act passed|cabinet approves|scheme launched|yojana launched|national address)\\b",categories:["Polity & Governance","Government Schemes"]},
+ {label:"Government scheme or mission",pattern:/\\b(?:yojana|scheme|mission)\\b.{0,120}\\b(?:launch(?:es|ed)?|approv(?:es|ed)|extends?|revis(?:es|ed)|benefit|notifi(?:es|ed)|fund(?:s|ed)?)\\b|\\b(?:launch(?:es|ed)?|approv(?:es|ed)|notifi(?:es|ed))\\b.{0,120}\\b(?:yojana|scheme|mission)\\b/,categories:["Government Schemes"]},
+ {label:"International agreement or strategic cooperation",pattern:/\\b(?:india|japan|saudi arabia|turkiye|pakistan|philippines|european union|eu|united nations|sco|g20|brics)\\b.{0,180}\\b(?:sign(?:s|ed)?|agreement|memorandum|moa|mou|treaty|pact|cooperation|alliance|summit)\\b|\\b(?:joint defence agreement|joint defense agreement|maritime security cooperation|moa signed)\\b/,categories:["International Relations","Defence & Security"]},
+ {label:"National or international election result",pattern:/\\b(?:general election|presidential election|parliament(?:ary)? poll|poll results?|election results?|wins? (?:the )?election|won (?:the )?election|elected (?:president|prime minister)|clinches? poll victory|forms government|ousts .{0,80}poll)\\b/,categories:["Polity & Governance","International Relations"]},
+ {label:"Official report, ranking or measurable outcome",pattern:/\\b(?:niti aayog|rbi|reserve bank|world bank|imf|un|who|government)\\b.{0,120}\\b(?:report|index|ranking|survey|assessment|statistics)\\b|\\b(?:report|index|ranking|survey|assessment)\\b.{0,120}\\b(?:released|published|launched|finds|ranks|shows|issues)\\b/,categories:["Reports & Rankings","Banking & Economy"]},
+ {label:"Science, space, technology or energy milestone",pattern:/\\b(?:rocket|satellite|spacecraft|space mission|rocket engine|ffsc|e samudra|semiconductor|quantum|artificial intelligence|gigawatt|gw capacity|non fossil|renewable capacity)\\b.{0,150}\\b(?:first|launch(?:es|ed)?|unveil(?:s|ed)?|achiev(?:es|ed)|cross(?:es|ed)|reach(?:es|ed)|test(?:s|ed)?|engine|capacity|mission|milestone|platform)\\b|\\b(?:first|launch(?:es|ed)?|unveil(?:s|ed)?|achiev(?:es|ed)|cross(?:es|ed)|reach(?:es|ed))\\b.{0,150}\\b(?:rocket|satellite|spacecraft|rocket engine|ffsc|gigawatt|non fossil|renewable capacity)\\b/,categories:["Science & Technology","Banking & Economy"]},
+ {label:"Environmental regulation or major conservation update",pattern:/\\b(?:draft notification|notification issued|eco sensitive area|western ghats|ramsar site|wetland|national park|wildlife sanctuary|biodiversity|protected area|environmental index)\\b/,categories:["Environment & Ecology"]},
+ {label:"Major award or nationally significant honour",pattern:/\\b(?:fields medal|nobel prize|booker prize|padma award|bharat ratna|national film award|wins? (?:the )?award|awarded|named laureate|laureate)\\b/,categories:["Appointments & Awards"]},
+ {label:"Major sports event, title or medal",pattern:/\\b(?:commonwealth games|olympic games|asian games|world cup|world championship)\\b.{0,130}\\b(?:champion|title|medal|record|final|qualif|2026)\\b|\\b(?:commonwealth games 2026|olympic games 2028)\\b/,categories:["Sports"]},
+ {label:"Public health alert, outbreak or emerging disease",pattern:/\\b(?:who declares|who recommends|outbreak|epidemic|public health advisory|new variant|vaccine|disease in india|infection in india|melioidosis in india)\\b/,categories:["Health & Public Health"]}
 ] as const;
-function scoreExam(t:string){
- const v=norm(t);
- const hits=rubric.map(([category,keys,tags,weight])=>({category,tags,weight,hits:keys.filter(k=>hasKeyword(v,k)).length})).filter(x=>x.hits>0).sort((a,b)=>b.hits*b.weight-a.hits*a.weight);
- const best=hits[0];
- const categories=hits.map(h=>h.category);
- const pdSignals=pdEditorialPatterns.filter(p=>p.pattern.test(v)&&p.categories.some(c=>categories.includes(c))).map(p=>p.label);
- const pdBoost=Math.min(8,pdSignals.length*2);
- const references=examReferenceCoverage.filter(([,covered])=>covered.some(category=>categories.includes(category))).map(([name])=>name);
- const referenceBoost=references.length>=2?Math.min(6,(references.length-1)*2):0;
- let score=Math.min(95,18+(best?best.weight:0)+Math.min(35,hits.reduce((s,x)=>s+x.hits*5,0))+referenceBoost+pdBoost);
- if(!best)score=12;
- // Keep a single useful exam-current-affairs story when a clear topic signal exists.
- // PD patterns rank likely exam value; they do not replace first-party date, source, or fact checks.
- const eligible=!!best&&score>=33;
- const reasons=hits.slice(0,3).map(h=>h.category+": "+h.hits+" topical indicators");
- if(pdSignals.length)reasons.push("PD editorial pattern: "+pdSignals.slice(0,3).join("; "));
- if(referenceBoost)reasons.push("Exam-prep topic coverage overlap: "+references.join(", "));
- if(!eligible)reasons.push("Filtered: not enough exam-current-affairs indicators");
- return {score,eligible,category:best?.category||"National",tags:best?[...new Set(hits.flatMap(h=>[...h.tags]))]:["SSC"],reasons};
+function scoreExam(title:string,lead:string){
+ const t=norm(title);
+ const v=norm(title+" "+lead.slice(0,1800));
+ const lowValue=lowValueHeadlinePatterns.some(p=>p.test(t));
+ const hits=rubric.map(([category,keys,tags,weight])=>({category,tags,weight,hits:keys.filter(k=>hasKeyword(v,k)).length})).filter(x=>x.hits>0);
+ const pdSignals=pdEditorialPatterns.filter(p=>p.pattern.test(v));
+ const pdCategories=new Set<string>(pdSignals.flatMap(p=>[...p.categories]));
+ const relevantHits=hits.filter(x=>pdCategories.has(x.category)).sort((a,b)=>b.hits*b.weight-a.hits*a.weight);
+ const best=relevantHits[0];
+ const score=best?Math.min(95,30+Math.round(best.weight*0.7)+Math.min(24,best.hits*4)+Math.min(16,pdSignals.length*8)):12;
+ const eligible=!lowValue&&!!best&&pdSignals.length>0&&score>=48;
+ const reasons=relevantHits.slice(0,3).map(h=>h.category+": "+h.hits+" topic matches");
+ if(pdSignals.length)reasons.push("Pratiyogita Darpan event pattern: "+pdSignals.slice(0,3).map(p=>p.label).join("; "));
+ if(lowValue)reasons.push("Filtered: routine/local/live/feature content");
+ if(!pdSignals.length)reasons.push("Filtered: no PD-style exam event signal");
+ return {score,eligible,category:best?.category||"National",tags:best?[...new Set(relevantHits.flatMap(h=>[...h.tags]))]:["SSC"],reasons};
 }
 async function download(uri:URL,allowed:Set<string>){
  if(!host(uri,allowed))throw Error("untrusted_host");
@@ -165,6 +160,7 @@ Deno.serve(async(req:Request)=>{
     }
   }
  const bodyParams=await req.json().catch(()=>({}));
+ const sourceNameFilter=typeof bodyParams?.source_name==="string"?bodyParams.source_name.trim().slice(0,120):"";
  const dryRun=bodyParams?.dry_run===true;
  const reprocessPending=bodyParams?.reprocess_pending!==false; // scheduled calls drain old pending items; pass false for new-only mode
  const requested=Number(bodyParams?.limit);
@@ -174,21 +170,23 @@ Deno.serve(async(req:Request)=>{
  if(reprocessPending){
   // One-off bounded recheck for pending items analyzed by an older rubric. Never rerun
   // items already logged with this PD rubric version.
-  const {data:oldItems,error:oldError}=await db.from("ca_items").select(itemSelect)
-   .eq("status","pending").in("article_analysis_status",["not_processed","needs_review","source_error"])
-   .order("published_at",{ascending:false}).limit(1000).abortSignal(dbSignal());
+  let oldQuery:any=db.from("ca_items").select(itemSelect)
+   .eq("status","pending").in("article_analysis_status",["not_processed","needs_review","source_error"]);
+  if(sourceNameFilter)oldQuery=oldQuery.eq("source_name",sourceNameFilter);
+  const {data:oldItems,error:oldError}=await oldQuery.order("published_at",{ascending:false}).limit(1000).abortSignal(dbSignal());
   if(oldError)return respond({error:"recheck_items_unavailable"},503);
   const ids=(oldItems||[]).map((x:any)=>x.id);
   const {data:currentRuns,error:runError}=ids.length
-   ?await db.from("ca_article_analyses").select("item_id").eq("pipeline_version","article_exam_rubric_v5_trusted_source").in("item_id",ids).abortSignal(dbSignal())
+   ?await db.from("ca_article_analyses").select("item_id").eq("pipeline_version","article_exam_rubric_v6_pd_gate").in("item_id",ids).abortSignal(dbSignal())
    :{data:[],error:null};
   if(runError)return respond({error:"recheck_history_unavailable"},503);
   const already=new Set((currentRuns||[]).map((x:any)=>x.item_id));
   items=(oldItems||[]).filter((x:any)=>!already.has(x.id)).slice(0,maxItems);
  }else{
-  const {data:regularItems,error:re}=await db.from("ca_items").select(itemSelect)
-   .in("status",["pending","approved"]).eq("article_analysis_status","not_processed")
-   .order("published_at",{ascending:false}).limit(maxItems).abortSignal(dbSignal());
+  let regularQuery:any=db.from("ca_items").select(itemSelect)
+   .in("status",["pending","approved"]).eq("article_analysis_status","not_processed");
+  if(sourceNameFilter)regularQuery=regularQuery.eq("source_name",sourceNameFilter);
+  const {data:regularItems,error:re}=await regularQuery.order("published_at",{ascending:false}).limit(maxItems).abortSignal(dbSignal());
   if(re)return respond({error:"read_failed"},503);
   items=regularItems||[];
  }
@@ -202,7 +200,7 @@ Deno.serve(async(req:Request)=>{
    const article=await download(u,allowedHosts);body=article.text;
    if(words(body).length<180)throw Error("incomplete_article_body");
    digest=await sha(body);
-   const rank=scoreExam(item.headline_en+" "+body.slice(0,4500));
+   const rank=scoreExam(item.headline_en,body.slice(0,1800));
    rating=rank.score;examEligible=rank.eligible;category=rank.category;examTags=rank.tags;why=rank.reasons;
    // Repetitive daily market tables/auction result notices are lower-value for SSC and most banking exams than policy decisions, appointments and landmark schemes.
    if(/^(?:money market operations as on|state government securities - full auction result|result of (?:the )?(?:7-day )?variable rate repo|result of yield\/price based auction)/i.test(item.headline_en)){
@@ -268,7 +266,7 @@ Deno.serve(async(req:Request)=>{
     analyzed_at:new Date().toISOString(),article_publication_date:evidenceDate,full_article_words:words(body).length,
     article_sha256:digest,analysis_status:state,exam_score:rating,exam_category:category,exam_tags:examTags,
     relevance_reasons:why,candidate_facts_en:matches.length?matches.map(x=>x.en):englishFacts,candidate_facts_hi:matches.map(x=>x.hi),
-    matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v5_trusted_source"
+    matched_fact_pairs:matches,source_excerpt:body.slice(0,700),verification_issue:issue||null,pipeline_version:"article_exam_rubric_v6_pd_gate"
    };
    const {error:logErr}=await db.from("ca_article_analyses").upsert(payload,{onConflict:"item_id"}).abortSignal(dbSignal());
    if(logErr){results.push({id:item.id,status:"analysis_log_failed"});continue}

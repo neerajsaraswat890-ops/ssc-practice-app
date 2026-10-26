@@ -54,7 +54,7 @@ export default function CurrentAffairsPage() {
         load(published(db, "ca_items",
             "id,headline_en,headline_hi,summary_en,summary_hi,canonical_url,source_name,published_at,event_date,exam_category,evidence_checked", 40)
             .eq("evidence_checked", true)
-            .not("headline_hi", "is", null).not("summary_hi", "is", null)
+            
             .abortSignal(controller.signal), setNews, setNewsError, setNewsLoading),
         load(published(db, "ca_questions",
             "id,question_en,question_hi,option_a_en,option_b_en,option_c_en,option_d_en,option_a_hi,option_b_hi,option_c_hi,option_d_hi,correct_answer,qa_passed", 25)
