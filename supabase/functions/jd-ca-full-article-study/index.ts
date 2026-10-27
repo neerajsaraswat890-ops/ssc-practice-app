@@ -149,7 +149,7 @@ async function translateToHindi(text:string):Promise<{text:string,provider:strin
  const azureRegion=Deno.env.get("AZURE_TRANSLATOR_REGION")||"";
  if(azureKey||azureRegion){
   if(!azureKey||!azureRegion)throw Error("azure_translator_key_and_region_required");
-  const endpoint=(Deno.env.get("AZURE_TRANSLATOR_ENDPOINT")||"https://api.cognitive.microsofttranslator.com").replace(/\\/+$/,"");
+  const endpoint=(Deno.env.get("AZURE_TRANSLATOR_ENDPOINT")||"https://api.cognitive.microsofttranslator.com").replace(/\/+$/,"");
   const response=await fetch(endpoint+"/translate?api-version=3.0&from=en&to=hi",{
    method:"POST",
    headers:{"Ocp-Apim-Subscription-Key":azureKey,"Ocp-Apim-Subscription-Region":azureRegion,"Content-Type":"application/json","Accept":"application/json"},
