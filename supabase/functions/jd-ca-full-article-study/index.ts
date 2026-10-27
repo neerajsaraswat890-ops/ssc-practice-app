@@ -238,7 +238,7 @@ Deno.serve(async(req:Request)=>{
    }
    englishFacts=candidates(body,"en").filter(sentence=>!/skip to main content|press releases \| official website|not pressed change language/i.test(sentence)).slice(0,10);
    const isPIB=u.hostname.endsWith("pib.gov.in");
-   let enText="",hiText="";
+   let enText="",hiText="",hindiHeadline="";
    if(isPIB){
      const prid=u.searchParams.get("PRID")||u.searchParams.get("prid");
      if(!prid||!/^\d{6,8}$/.test(prid))throw Error("unrecognized_pib_prid");
