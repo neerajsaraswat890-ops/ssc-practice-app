@@ -141,6 +141,31 @@ function pairFacts(en:string,hi:string){
  }
  return pairs;
 }
+
+async function googleTranslate(text:string){
+ const value=text.trim().slice(0,4500);
+ if(!value)throw Error("empty_translation_input");
+ const apiKey=Deno.env.get("GOOGLE_TRANSLATE_API_KEY")||"";
+ if(apiKey){
+  try{
+   const official=await fetch("https://translation.googleapis.com/language/translate/v2?key="+encodeURIComponent(apiKey),{
+    method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({q:value,source:"en",target:"hi",format:"text"}),signal:AbortSignal.timeout(9000)
+   });
+   if(official.ok){
+    const json=await official.json();
+    const translated=plain(String(json?.data?.translations?.[0]?.translatedText||""));
+    if((translated.match(/[\u0900-\u097F]/g)||[]).length>=4)return translated;
+   }
+  }catch{ /* Fall back to Google's no-key translate endpoint. */ }
+ }
+ const params=new URLSearchParams({client:"gtx",sl:"en",tl:"hi",dt:"t",q:value});
+ const response=await fetch("https://translate.googleapis.com/translate_a/single?"+params.toString(),{signal:AbortSignal.timeout(9000),headers:{accept:"application/json"}});
+ if(!response.ok)throw Error("google_translate_http_"+response.status);
+ const data=await response.json();
+ const translated=plain(Array.isArray(data?.[0])?data[0].map((part:any)=>String(part?.[0]||"")).join(""):"");
+ if((translated.match(/[\u0900-\u097F]/g)||[]).length<4)throw Error("google_translation_not_hindi");
+ return translated;
+}
 const sha=async(s:string)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)))).map(b=>b.toString(16).padStart(2,"0")).join("");
 Deno.serve(async(req:Request)=>{
  if(req.method!=="POST")return respond({error:"method_not_allowed"},405);
@@ -250,20 +275,38 @@ Deno.serve(async(req:Request)=>{
    if(titleScore(item.headline_en,enText)<0.64)throw Error("headline_not_in_original");
    if((hiText.match(/[\u0900-\u097F]/g)||[]).length<180){
      if(!examEligible){state="low_priority";issue="below_exam_relevance_threshold";continue}
-     state="trusted_source_grounded";
-     why.push("Configured trusted-source article, original publication date and headline checked; English original retained; no Hindi translation invented");
-     continue;
+     try{
+       const sourceFacts=englishFacts.filter((fact:string)=>digits(fact).length>0).slice(0,5);
+       if(!item.headline_hi?.trim()||((item.headline_hi.match(/[\u0900-\u097F]/g)||[]).length<4)){
+         hindiHeadline=await googleTranslate(item.headline_en);
+       }else hindiHeadline=item.headline_hi.trim();
+       for(const en of sourceFacts){
+         const hi=await googleTranslate(en);
+         const shared=digits(en).filter(n=>digits(hi).includes(n));
+         if(!shared.length)continue;
+         const enCut=en.length>250?en.slice(0,250).replace(/\s+\S*$/,"")+"…":en;
+         const hiCut=hi.length>250?hi.slice(0,250).replace(/\s+\S*$/,"")+"…":hi;
+         matches.push({en:enCut,hi:hiCut,anchor:shared[0]});
+       }
+     }catch(e){
+       state="needs_review";issue=e instanceof Error?"google_translation_failed:"+e.message:"google_translation_failed";continue;
+     }
+     if(matches.length<2){state="needs_review";issue="fewer_than_two_number_grounded_translations";continue}
+     state="google_translated_grounded";
+     why.push("English source facts translated to Hindi with Google Translate; numeric anchors retained and checked");
+   }else{
+     matches=pairFacts(enText,hiText);
+     if(matches.length<2){state="needs_review";issue="fewer_than_two_bilingual_matched_facts";continue}
+     if(!examEligible){state="low_priority";issue="below_exam_relevance_threshold";continue}
+     hindiHeadline=item.headline_hi?.trim()||null;
+     state="bilingual_grounded";
    }
-   matches=pairFacts(enText,hiText);
-   if(matches.length<2){state="needs_review";issue="fewer_than_two_bilingual_matched_facts";continue}
-   if(!examEligible){state="low_priority";issue="below_exam_relevance_threshold";continue}
-   state="bilingual_grounded";
   }catch(e){issue=e instanceof Error?e.message:"article_processing_error";state=body?"needs_review":"source_error";}
   finally{
    if(dryRun){
     results.push({id:item.id,status:state,score:rating,category,tags:examTags,reasons:why,
-      facts:matches.slice(0,5),issue:issue||undefined,debugDates:{published_at:item.published_at??null,event_date:item.event_date??null,publishedFeedDate:debugPublishedFeedDate,storedEventDate:debugStoredEventDate},wouldAutoApprove:state==="bilingual_grounded"||state==="trusted_source_grounded"});
-    if(state==="bilingual_grounded"||state==="trusted_source_grounded")autoApproved++;else held++;
+      facts:matches.slice(0,5),issue:issue||undefined,debugDates:{published_at:item.published_at??null,event_date:item.event_date??null,publishedFeedDate:debugPublishedFeedDate,storedEventDate:debugStoredEventDate},wouldAutoApprove:state==="bilingual_grounded"||state==="trusted_source_grounded"||state==="google_translated_grounded"});
+    if(state==="bilingual_grounded"||state==="trusted_source_grounded"||state==="google_translated_grounded")autoApproved++;else held++;
     continue;
    }
    const payload={
@@ -282,7 +325,7 @@ Deno.serve(async(req:Request)=>{
    };
    const {error:markErr}=await db.from("ca_items").update(more).eq("id",item.id).abortSignal(dbSignal());
    if(markErr){results.push({id:item.id,status:"item_update_failed"});continue}
-   if(state==="bilingual_grounded"||state==="trusted_source_grounded"){
+   if(state==="bilingual_grounded"||state==="trusted_source_grounded"||state==="google_translated_grounded"){
     // Never modify previously editor-approved headlines, explanations or facts.
     if(item.status==="pending"){
      const now=new Date().toISOString();
@@ -290,14 +333,14 @@ Deno.serve(async(req:Request)=>{
        key_facts_en:matches.length?matches.map(x=>x.en):englishFacts,
        key_facts_hi:matches.map(x=>x.hi),
        exam_priority:Math.min(5,Math.max(1,Math.round(rating/20))),exam_category:category,exam_tags:examTags,
-       headline_hi:item.headline_hi?.trim()||matches[0]?.hi||null,
+       headline_hi:hindiHeadline||item.headline_hi?.trim()||matches[0]?.hi||null,
        summary_hi:item.summary_hi?.trim()||matches[0]?.hi||null,
        summary_en:item.summary_en?.trim()||matches[0]?.en||englishFacts[0]||item.summary_en||null,
        status:"approved",evidence_checked:true,approved_at:now,visible_at:now,
        auto_verified:true,auto_verified_at:now,
-       verification_method:state==="trusted_source_grounded"?"trusted-source-article-rubric-v1":"official-full-bilingual-article-rubric-v1",
+       verification_method:state==="google_translated_grounded"?"google-translate-grounded-article-rubric-v1":state==="trusted_source_grounded"?"trusted-source-article-rubric-v1":"official-full-bilingual-article-rubric-v1",
        review_notes:(state==="trusted_source_grounded"
-         ?(String(item.source_name||"Trusted configured source")+" article, publication date and headline checked; original English retained; no Hindi translation invented; exam score "+rating+"/100 ("+category+"); "+why.slice(0,3).join("; "))
+         ?(String(item.source_name||"Trusted configured source")+" article, publication date and headline checked; Google-translated Hindi exam facts checked against the English source; exam score "+rating+"/100 ("+category+"); "+why.slice(0,3).join("; "))
          :("Official article and publication date checked; 2+ bilingual source-matched facts; exam score "+rating+"/100 ("+category+"); "+why.slice(0,3).join("; "))).slice(0,800)
      }).eq("id",item.id).eq("status","pending").select("id").abortSignal(dbSignal());
      if(!ve&&verified?.length){autoApproved++;enriched++}else results.push({id:item.id,status:"approval_failed",reason:ve?.message||"unknown"});
