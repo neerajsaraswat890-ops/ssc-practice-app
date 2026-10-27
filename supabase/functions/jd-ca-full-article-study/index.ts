@@ -142,19 +142,35 @@ function pairFacts(en:string,hi:string){
  return pairs;
 }
 
-async function googleTranslate(text:string){
+async function translateToHindi(text:string):Promise<{text:string,provider:string}>{
  const value=text.trim().slice(0,4500);
  if(!value)throw Error("empty_translation_input");
- const apiKey=Deno.env.get("GOOGLE_TRANSLATE_API_KEY")||"";
- if(apiKey){
+ const azureKey=Deno.env.get("AZURE_TRANSLATOR_KEY")||"";
+ const azureRegion=Deno.env.get("AZURE_TRANSLATOR_REGION")||"";
+ if(azureKey||azureRegion){
+  if(!azureKey||!azureRegion)throw Error("azure_translator_key_and_region_required");
+  const endpoint=(Deno.env.get("AZURE_TRANSLATOR_ENDPOINT")||"https://api.cognitive.microsofttranslator.com").replace(/\\/+$/,"");
+  const response=await fetch(endpoint+"/translate?api-version=3.0&from=en&to=hi",{
+   method:"POST",
+   headers:{"Ocp-Apim-Subscription-Key":azureKey,"Ocp-Apim-Subscription-Region":azureRegion,"Content-Type":"application/json","Accept":"application/json"},
+   body:JSON.stringify([{text:value}]),signal:AbortSignal.timeout(9000)
+  });
+  if(!response.ok)throw Error("azure_translate_http_"+response.status);
+  const data=await response.json();
+  const translated=plain(String(data?.[0]?.translations?.[0]?.text||""));
+  if((translated.match(/[\\u0900-\\u097F]/g)||[]).length<4)throw Error("azure_translation_not_hindi");
+  return {text:translated,provider:"azure-translator"};
+ }
+ const googleKey=Deno.env.get("GOOGLE_TRANSLATE_API_KEY")||"";
+ if(googleKey){
   try{
-   const official=await fetch("https://translation.googleapis.com/language/translate/v2?key="+encodeURIComponent(apiKey),{
+   const official=await fetch("https://translation.googleapis.com/language/translate/v2?key="+encodeURIComponent(googleKey),{
     method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({q:value,source:"en",target:"hi",format:"text"}),signal:AbortSignal.timeout(9000)
    });
    if(official.ok){
     const json=await official.json();
     const translated=plain(String(json?.data?.translations?.[0]?.translatedText||""));
-    if((translated.match(/[\u0900-\u097F]/g)||[]).length>=4)return translated;
+    if((translated.match(/[\\u0900-\\u097F]/g)||[]).length>=4)return {text:translated,provider:"google-cloud-translate"};
    }
   }catch{ /* Fall back to Google's no-key translate endpoint. */ }
  }
@@ -163,8 +179,8 @@ async function googleTranslate(text:string){
  if(!response.ok)throw Error("google_translate_http_"+response.status);
  const data=await response.json();
  const translated=plain(Array.isArray(data?.[0])?data[0].map((part:any)=>String(part?.[0]||"")).join(""):"");
- if((translated.match(/[\u0900-\u097F]/g)||[]).length<4)throw Error("google_translation_not_hindi");
- return translated;
+ if((translated.match(/[\\u0900-\\u097F]/g)||[]).length<4)throw Error("google_translation_not_hindi");
+ return {text:translated,provider:"google-no-key-fallback"};
 }
 const sha=async(s:string)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)))).map(b=>b.toString(16).padStart(2,"0")).join("");
 Deno.serve(async(req:Request)=>{
@@ -238,7 +254,7 @@ Deno.serve(async(req:Request)=>{
    }
    englishFacts=candidates(body,"en").filter(sentence=>!/skip to main content|press releases \| official website|not pressed change language/i.test(sentence)).slice(0,10);
    const isPIB=u.hostname.endsWith("pib.gov.in");
-   let enText="",hiText="",hindiHeadline="";
+   let enText="",hiText="",hindiHeadline="",translationProvider="";
    if(isPIB){
      const prid=u.searchParams.get("PRID")||u.searchParams.get("prid");
      if(!prid||!/^\d{6,8}$/.test(prid))throw Error("unrecognized_pib_prid");
@@ -278,10 +294,10 @@ Deno.serve(async(req:Request)=>{
      try{
        const sourceFacts=englishFacts.filter((fact:string)=>digits(fact).length>0).slice(0,5);
        if(!item.headline_hi?.trim()||((item.headline_hi.match(/[\u0900-\u097F]/g)||[]).length<4)){
-         hindiHeadline=await googleTranslate(item.headline_en);
+         const translatedHeadline=await translateToHindi(item.headline_en);hindiHeadline=translatedHeadline.text;translationProvider=translatedHeadline.provider;
        }else hindiHeadline=item.headline_hi.trim();
        for(const en of sourceFacts){
-         const hi=await googleTranslate(en);
+         const translatedFact=await translateToHindi(en);const hi=translatedFact.text;translationProvider=translatedFact.provider;
          const shared=digits(en).filter(n=>digits(hi).includes(n));
          if(!shared.length)continue;
          const enCut=en.length>250?en.slice(0,250).replace(/\s+\S*$/,"")+"…":en;
@@ -292,8 +308,8 @@ Deno.serve(async(req:Request)=>{
        state="needs_review";issue=e instanceof Error?"google_translation_failed:"+e.message:"google_translation_failed";continue;
      }
      if(matches.length<2){state="needs_review";issue="fewer_than_two_number_grounded_translations";continue}
-     state="google_translated_grounded";
-     why.push("English source facts translated to Hindi with Google Translate; numeric anchors retained and checked");
+     state="machine_translated_grounded";
+     why.push("English source facts translated to Hindi with "+translationProvider+"; numeric anchors retained and checked");
    }else{
      matches=pairFacts(enText,hiText);
      if(matches.length<2){state="needs_review";issue="fewer_than_two_bilingual_matched_facts";continue}
@@ -305,8 +321,8 @@ Deno.serve(async(req:Request)=>{
   finally{
    if(dryRun){
     results.push({id:item.id,status:state,score:rating,category,tags:examTags,reasons:why,
-      facts:matches.slice(0,5),issue:issue||undefined,debugDates:{published_at:item.published_at??null,event_date:item.event_date??null,publishedFeedDate:debugPublishedFeedDate,storedEventDate:debugStoredEventDate},wouldAutoApprove:state==="bilingual_grounded"||state==="trusted_source_grounded"||state==="google_translated_grounded"});
-    if(state==="bilingual_grounded"||state==="trusted_source_grounded"||state==="google_translated_grounded")autoApproved++;else held++;
+      facts:matches.slice(0,5),issue:issue||undefined,debugDates:{published_at:item.published_at??null,event_date:item.event_date??null,publishedFeedDate:debugPublishedFeedDate,storedEventDate:debugStoredEventDate},wouldAutoApprove:state==="bilingual_grounded"||state==="trusted_source_grounded"||state==="machine_translated_grounded"});
+    if(state==="bilingual_grounded"||state==="trusted_source_grounded"||state==="machine_translated_grounded")autoApproved++;else held++;
     continue;
    }
    const payload={
@@ -325,7 +341,7 @@ Deno.serve(async(req:Request)=>{
    };
    const {error:markErr}=await db.from("ca_items").update(more).eq("id",item.id).abortSignal(dbSignal());
    if(markErr){results.push({id:item.id,status:"item_update_failed"});continue}
-   if(state==="bilingual_grounded"||state==="trusted_source_grounded"||state==="google_translated_grounded"){
+   if(state==="bilingual_grounded"||state==="trusted_source_grounded"||state==="machine_translated_grounded"){
     // Never modify previously editor-approved headlines, explanations or facts.
     if(item.status==="pending"){
      const now=new Date().toISOString();
@@ -338,9 +354,11 @@ Deno.serve(async(req:Request)=>{
        summary_en:item.summary_en?.trim()||matches[0]?.en||englishFacts[0]||item.summary_en||null,
        status:"approved",evidence_checked:true,approved_at:now,visible_at:now,
        auto_verified:true,auto_verified_at:now,
-       verification_method:state==="google_translated_grounded"?"google-translate-grounded-article-rubric-v1":state==="trusted_source_grounded"?"trusted-source-article-rubric-v1":"official-full-bilingual-article-rubric-v1",
-       review_notes:(state==="trusted_source_grounded"
-         ?(String(item.source_name||"Trusted configured source")+" article, publication date and headline checked; Google-translated Hindi exam facts checked against the English source; exam score "+rating+"/100 ("+category+"); "+why.slice(0,3).join("; "))
+       verification_method:state==="machine_translated_grounded"?translationProvider+"-grounded-article-rubric-v1":state==="trusted_source_grounded"?"trusted-source-article-rubric-v1":"official-full-bilingual-article-rubric-v1",
+       review_notes:(state==="machine_translated_grounded"
+         ?(String(item.source_name||"Configured source")+" article and publication date checked; "+translationProvider+" Hindi headline and exam facts checked against the English source; exam score "+rating+"/100 ("+category+"); "+why.slice(0,3).join("; "))
+         :state==="trusted_source_grounded"
+         ?(String(item.source_name||"Trusted configured source")+" article, publication date and headline checked; English original retained; exam score "+rating+"/100 ("+category+"); "+why.slice(0,3).join("; "))
          :("Official article and publication date checked; 2+ bilingual source-matched facts; exam score "+rating+"/100 ("+category+"); "+why.slice(0,3).join("; "))).slice(0,800)
      }).eq("id",item.id).eq("status","pending").select("id").abortSignal(dbSignal());
      if(!ve&&verified?.length){autoApproved++;enriched++}else results.push({id:item.id,status:"approval_failed",reason:ve?.message||"unknown"});
